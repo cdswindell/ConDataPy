@@ -1,9 +1,5 @@
 # ConDataPy
-Python version of Java TMS (Consumable Data)
-
-===
-
-Consumable Data (formerly TMS)
+Python version of Consumable Data
 
 Consumable Data Software (CDS) is a framework for ad-hoc analysis of complex data. Developed in 100% pure Python, its special ability is that it allows users to defined derived columns,
 derived rows, and derived cells, to perform ad-hoc data analyses. Consumable Data provides a rich language of over 250 functions (see below), as well as allows developers to
