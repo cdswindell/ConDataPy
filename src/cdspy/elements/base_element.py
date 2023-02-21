@@ -16,7 +16,8 @@ class BaseElement(ABC):
     """
     BaseElement is the base class for all CDS elements, including Rows, Columns, Cells, and Tables
     """
-    def __init__(self):
+
+    def __init__(self) -> None:
         self.m_flags = 0x0
 
     @abstractmethod
@@ -27,7 +28,9 @@ class BaseElement(ABC):
     def reset_elem_properties(self) -> None:
         pass
 
-    def __mutate_flag(self, set_values: Optional[int] = None, unset_values: Optional[int] = None) -> None:
+    def __mutate_flag(
+        self, set_values: Optional[int] = None, unset_values: Optional[int] = None
+    ) -> None:
         """Protected method used to modify element flags internal state"""
         if set_values:
             self.m_flags |= set_values
