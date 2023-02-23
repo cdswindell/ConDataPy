@@ -3,13 +3,20 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
-SF_ENFORCE_DATATYPE_FLAG = 0x01
-SF_READONLY_FLAG = 0x02
-SF_SUPPORTS_NULL_FLAG = 0x04
-SF_AUTO_RECALCULATE_FLAG = 0x08
+from enum import Flag, verify, UNIQUE
 
-SF_IS_INVALID_FLAG = 0x10000000
-SF_IS_PROCESSED_FLAG = 0x20000000
+
+@verify(UNIQUE)
+class CF(Flag):
+    NO_FLAGS = 0x0
+
+    ENFORCE_DATATYPE_FLAG = 0x01
+    READONLY_FLAG = 0x02
+    SUPPORTS_NULL_FLAG = 0x04
+    AUTO_RECALCULATE_FLAG = 0x08
+
+    IS_INVALID_FLAG = 0x10000000
+    IS_PROCESSED_FLAG = 0x20000000
 
 
 class BaseElement(ABC):
@@ -18,7 +25,7 @@ class BaseElement(ABC):
     """
 
     def __init__(self) -> None:
-        self.m_flags = 0x0
+        self.m_flags = CF.NO_FLAGS
 
     @abstractmethod
     def is_null(self) -> bool:
@@ -29,7 +36,7 @@ class BaseElement(ABC):
         pass
 
     def __mutate_flag(
-        self, set_values: Optional[int] = None, unset_values: Optional[int] = None
+        self, set_values: Optional[CF] = None, unset_values: Optional[CF] = None
     ) -> None:
         """Protected method used to modify element flags internal state"""
         if set_values:
@@ -37,14 +44,14 @@ class BaseElement(ABC):
         elif unset_values:
             self.m_flags &= ~unset_values
 
-    def is_set(self, flag: int) -> bool:
-        return (self.m_flags & flag) != 0
+    def is_set(self, flag: CF) -> bool:
+        return (self.m_flags & flag) != CF.NO_FLAGS
 
-    def unset(self, flag: int) -> None:
+    def unset(self, flag: CF) -> None:
         self.__mutate_flag(unset_values=flag)
 
     def invalidate(self) -> None:
-        self.m_flags |= SF_IS_INVALID_FLAG
+        self.m_flags |= CF.IS_INVALID_FLAG
         self.reset_elem_properties()
 
     def is_invalid(self) -> bool:
@@ -53,7 +60,7 @@ class BaseElement(ABC):
         a parent element has been deleted
         :return: True if the element has been deleted
         """
-        return self.is_set(SF_IS_INVALID_FLAG)
+        return self.is_set(CF.IS_INVALID_FLAG)
 
     def is_valid(self) -> bool:
         """
