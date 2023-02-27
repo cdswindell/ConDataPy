@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
 
 from enum import Enum, verify, UNIQUE
 
@@ -36,6 +36,7 @@ class Property(Enum):
     to control, define, and express ...
     """
 
+    # Base element properties supported by all table elements
     Label = _TableProperty(True, False, False, "lb")
     Description = _TableProperty(True, False, False, "desc")
     Tags = _TableProperty(True, False, False, "tags")
@@ -139,6 +140,26 @@ class Property(Enum):
     )
     IsPersistent = _TableProperty(
         False, False, True, "isP", ElementType.TableContext, ElementType.Table
+    )
+
+    # PendingDerivationThreadPool Properties
+    IsPendingAllowCoreThreadTimeout = _TableProperty(
+        True, False, True, None, ElementType.TableContext, ElementType.Table
+    )
+    NumPendingCorePoolThreads = _TableProperty(
+        True, False, True, None, ElementType.TableContext, ElementType.Table
+    )
+    NumPendingMaxPoolThreads = _TableProperty(
+        True, False, True, None, ElementType.TableContext, ElementType.Table
+    )
+    PendingThreadKeepAliveTimeout = _TableProperty(
+        True, False, True, None, ElementType.TableContext, ElementType.Table
+    )
+    PendingThreadKeepAliveTimeoutUnit = _TableProperty(
+        True, False, True, None, ElementType.TableContext, ElementType.Table
+    )
+    IsPendingThreadPoolEnabled = _TableProperty(
+        True, False, True, None, ElementType.TableContext, ElementType.Table
     )
 
     # Table Element Properties
@@ -290,7 +311,7 @@ class Property(Enum):
     def by_name(cls, name: str) -> Property:
         if name in cls.__members__:
             return cls[name]
-        # fall back to case insensitive s
+        # fall back to case-insensitive s
         name = name.lower()
         for k, v in cls.__members__.items():
             if k.lower() == name:
@@ -318,8 +339,20 @@ class Property(Enum):
     def __hash__(self) -> int:
         return self.name.__hash__()
 
-    def is_implemented_by(self, et: ElementType) -> bool:
-        return et in self.value._implemented_by
+    def tag(self) -> str:
+        if self.value._tag:
+            return str(self.value._tag)
+        else:
+            return self.name
+
+    def is_implemented_by(self, e: Any) -> bool:
+        if e is None:
+            return False
+        if isinstance(e, ElementType):
+            return e in self.value._implemented_by
+        if callable(getattr(e, "element_type", None)):
+            return self.is_implemented_by(e.element_type())
+        return e in self.value._implemented_by
 
     def is_read_only(self) -> bool:
         return bool(self.value._read_only)
@@ -332,12 +365,6 @@ class Property(Enum):
 
     def is_required(self) -> bool:
         return not self.value._optional
-
-    def tag(self) -> str:
-        if self.value._tag:
-            return str(self.value._tag)
-        else:
-            return self.name
 
     def is_boolean(self) -> bool:
         if self.name.lower().startswith("is"):
@@ -358,6 +385,7 @@ class Property(Enum):
             Property.NextCellOffset,
             Property.RowCapacityIncr,
             Property.ColumnCapacityIncr,
+            Property.FreeSpaceThreshold,
         }
 
     def is_str(self) -> bool:
