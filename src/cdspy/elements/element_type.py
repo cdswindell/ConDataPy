@@ -2,8 +2,12 @@
 ElementType enum defines all components available in the cdsPy
 """
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from enum import Enum, verify, UNIQUE
+
+if TYPE_CHECKING:
+    from . import Property
 
 
 @verify(UNIQUE)
@@ -28,3 +32,44 @@ class ElementType(Enum):
             return "Col"
         else:
             return self.name
+
+    def properties(self) -> list[Property]:
+        # to prevent circular imports, we must import Properties within the function
+        from . import Property
+
+        return sorted({p for p in Property if p.is_implemented_by(self)})
+
+    def required_properties(self) -> list[Property]:
+        from . import Property
+
+        return sorted(
+            {p for p in Property if p.is_implemented_by(self) and p.is_required()}
+        )
+
+    def optional_properties(self) -> list[Property]:
+        from . import Property
+
+        return sorted(
+            {p for p in Property if p.is_implemented_by(self) and not p.is_required()}
+        )
+
+    def initializable_properties(self) -> list[Property]:
+        from . import Property
+
+        return sorted(
+            {p for p in Property if p.is_implemented_by(self) and p.is_initializable()}
+        )
+
+    def read_only_properties(self) -> list[Property]:
+        from . import Property
+
+        return sorted(
+            {p for p in Property if p.is_implemented_by(self) and p.is_read_only()}
+        )
+
+    def mutable_properties(self) -> list[Property]:
+        from . import Property
+
+        return sorted(
+            {p for p in Property if p.is_implemented_by(self) and p.is_mutable()}
+        )

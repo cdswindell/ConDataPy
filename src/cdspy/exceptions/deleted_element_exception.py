@@ -9,5 +9,8 @@ class DeletedElementException(TableError):
         self, e: Optional[ElementType] = None, message: Optional[str] = None
     ) -> None:
         if message is None:
-            message = f"Operations on deleted {e.name}s are not allowed"
-        super().__init__(message)
+            if e is None:
+                message = "Operations on deleted elements are not allowed"
+            else:
+                message = f"Operations on deleted {e.name}s are not allowed"
+        super().__init__(e, message)

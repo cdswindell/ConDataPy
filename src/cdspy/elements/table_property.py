@@ -4,7 +4,7 @@ from typing import Optional, Any
 
 from enum import Enum, verify, UNIQUE
 
-from .element_type import ElementType
+from . import ElementType
 
 
 class _TableProperty:
@@ -27,6 +27,11 @@ class _TableProperty:
         self._initializable = initializable
         self._tag = tag
         self._implemented_by = set(args) if args else set(ElementType)
+
+    def __repr__(self) -> str:
+        optional = "optional" if self._optional else "required"
+        ro = ", read-only" if self._read_only else ""
+        return f"[{optional}{ro}]"
 
 
 @verify(UNIQUE)
@@ -365,6 +370,9 @@ class Property(Enum):
 
     def is_required(self) -> bool:
         return not self.value._optional
+
+    def is_initializable(self) -> bool:
+        return self.value._initializable
 
     def is_boolean(self) -> bool:
         if self.name.lower().startswith("is"):
