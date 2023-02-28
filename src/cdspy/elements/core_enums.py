@@ -3,9 +3,12 @@ ElementType enum defines all components available in the cdsPy
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional, TYPE_CHECKING, Union
 
 from enum import Enum, verify, UNIQUE
+
+if TYPE_CHECKING:
+    from .base_element import BaseElement
 
 
 @verify(UNIQUE)
@@ -367,6 +370,7 @@ class Property(Enum):
 
     @classmethod
     def by_name(cls, name: str) -> Property:
+        name = name.strip()
         if name in cls.__members__:
             return cls[name]
         # fall back to case-insensitive s
@@ -375,14 +379,17 @@ class Property(Enum):
             if k.lower() == name:
                 return v
         else:
-            raise ValueError(f"'{name}' is not a valid {cls.__name__}")
+            if name:
+                raise ValueError(f"'{name}' is not a valid {cls.__name__}")
+            else:
+                raise ValueError(f"None/Empty is not a valid {cls.__name__}")
 
     @staticmethod
-    def by_tag(tag: str) -> Optional[Property]:
-        if not tag and not tag.strip():
+    def by_tag(the_tag: Optional[str] = None) -> Optional[Property]:
+        if the_tag is None or the_tag.strip() is None:
             return None
-        tag = tag.strip().lower()
-        return _PROPERTIES_BY_TAG[tag] if tag in _PROPERTIES_BY_TAG else None
+        the_tag = the_tag.strip().lower()
+        return _PROPERTIES_BY_TAG[the_tag] if the_tag in _PROPERTIES_BY_TAG else None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Property):
@@ -394,6 +401,11 @@ class Property(Enum):
             raise NotImplementedError
         return self.name < other.name
 
+    def __gt__(self, other: Property) -> bool:
+        if not isinstance(other, Property):
+            raise NotImplementedError
+        return self.name > other.name
+
     def __hash__(self) -> int:
         return self.name.__hash__()
 
@@ -403,14 +415,17 @@ class Property(Enum):
         else:
             return self.name
 
-    def is_implemented_by(self, e: Any) -> bool:
+    def is_implemented_by(self, e: Union[ElementType, BaseElement, None]) -> bool:
+        from .base_element import BaseElement
+
         if e is None:
             return False
         if isinstance(e, ElementType):
             return e in self.value._implemented_by
-        if callable(getattr(e, "element_type", None)):
+        if isinstance(e, BaseElement):
             return self.is_implemented_by(e.element_type())
-        return e in self.value._implemented_by
+        else:
+            return False  # type: ignore
 
     def is_read_only(self) -> bool:
         return bool(self.value._read_only)
