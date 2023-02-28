@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Final, Optional
+from typing import Any, Final, Optional, Dict, overload, cast, Union
 
 from enum import Flag, verify, UNIQUE
 
-from .element_type import ElementType
-from .table_property import Property
+# from wrapt import synchronized
+
+from . import ElementType
+from . import Property
 from ..exceptions import DeletedElementException
 from ..exceptions import InvalidPropertyException
 from ..exceptions import ReadOnlyException
@@ -72,13 +74,17 @@ class BaseElement(ABC):
     def _is_null(self) -> bool:
         pass
 
-    @abstractmethod
     def _reset_elem_properties(self) -> None:
-        pass
+        self.__dict__.pop("_t_props", None)
 
-    @abstractmethod
-    def _element_properties(self, create_if_empty: bool = False) -> dict:
-        pass
+    def _element_properties(self, create_if_empty: bool = False) -> Optional[Dict]:
+        if hasattr(self, "_t_props"):
+            return self._t_props
+        elif create_if_empty:
+            self._t_props: dict = {}
+            return self._t_props
+        else:
+            return None
 
     def __init__(self) -> None:
         """
@@ -103,9 +109,36 @@ class BaseElement(ABC):
         elif unset_values:
             self._m_flags &= ~unset_values
 
-    def __vet_key(self, key: Optional[str]) -> str:
-        if key is None or not key.strip():
+    @overload
+    def __vet_key_for_mutable_op(self, key: Property) -> Property:
+        ...
+
+    @overload
+    def __vet_key_for_mutable_op(self, key: Optional[str]) -> str:
+        ...
+
+    def __vet_key_for_mutable_op(
+        self, key: Union[Property, str, None]
+    ) -> Property | str:
+        if key is None:
             raise InvalidPropertyException(self)
+        elif isinstance(key, Property):
+            if not key.is_implemented_by(self.element_type()):
+                raise UnimplementedException(self, key)
+            elif key.is_read_only():
+                raise ReadOnlyException(self, key)
+        elif isinstance(key, str):
+            key = RESERVED_PROPERTY_PREFIX + self.__vet_text_key(key)
+        else:
+            raise AttributeError(f"Unsupported property key type: {type(key)}")
+        return key
+
+    def __vet_text_key(self, key: Optional[str]) -> str:
+        key = key.strip() if key else None
+        if key is None:
+            raise InvalidPropertyException(self)
+        elif key.startswith(RESERVED_PROPERTY_PREFIX):
+            raise InvalidPropertyException(self, key)
         return key
 
     def _unset(self, flag: BaseElementState) -> None:
@@ -119,25 +152,41 @@ class BaseElement(ABC):
         self._reset_elem_properties()
 
     def _set_property(self, key: Property | str, value: Any) -> Any:
-        if isinstance(key, Property):
-            if not key.is_implemented_by(self.element_type()):
-                raise UnimplementedException(self, key)
-            elif key.is_read_only():
-                raise ReadOnlyException(self, key)
-        elif isinstance(key, str):
-            key = key.strip()
-            if not key:
-                raise AttributeError("Property keys can not be None or Empty")
-
-        else:
-            raise AttributeError(f"Unsupported property key type: {type(key)}")
+        key = self.__vet_key_for_mutable_op(key)
 
         # get the dictionary from the base object, creating it if empty
-        properties = self._element_properties(True)
+        properties: dict = cast(dict, self._element_properties(True))
 
         retval = properties[key] if key in properties else None
         properties[key] = value
         return retval
+
+    def _clear_property(self, key: Property | str) -> Any:
+        key = self.__vet_key_for_mutable_op(key)
+
+        key_present = False
+        properties = self._element_properties(False)
+        if properties and key in properties:
+            properties.pop(key)
+        return key_present
+
+    def _has_property(self, key: Property | str) -> bool:
+        if isinstance(key, Property):
+            if key.is_implemented_by(self.element_type()):
+                if key.is_required():
+                    # required properties are always present, even if not yet set!
+                    return True
+                else:
+                    pass  # check if key is defined in the dictionary
+            else:
+                return False  # table element doesn't support key
+        elif isinstance(key, str):
+            key = RESERVED_PROPERTY_PREFIX + self.__vet_text_key(key)
+
+        properties = self._element_properties(False)
+        if properties and key in properties:
+            return True
+        return False
 
     def is_invalid(self) -> bool:
         """
