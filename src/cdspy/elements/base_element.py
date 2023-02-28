@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from enum import Flag, verify, UNIQUE
 from typing import Any, Final, Optional, Dict, overload, cast, Union
 
-from enum import Flag, verify, UNIQUE
-
-# from wrapt import synchronized
+from wrapt import synchronized
 
 from . import ElementType
 from . import Property
@@ -74,18 +73,6 @@ class BaseElement(ABC):
     def _is_null(self) -> bool:
         pass
 
-    def _reset_elem_properties(self) -> None:
-        self.__dict__.pop("_t_props", None)
-
-    def _element_properties(self, create_if_empty: bool = False) -> Optional[Dict]:
-        if hasattr(self, "_t_props"):
-            return self._t_props
-        elif create_if_empty:
-            self._t_props: dict = {}
-            return self._t_props
-        else:
-            return None
-
     def __init__(self) -> None:
         """
         Constructs a base element, initializing the flags property to empty
@@ -151,6 +138,21 @@ class BaseElement(ABC):
         self._m_flags |= BaseElementState.IS_INVALID_FLAG
         self._reset_elem_properties()
 
+    @synchronized
+    def _reset_elem_properties(self) -> None:
+        self.__dict__.pop("_t_props", None)
+
+    @synchronized
+    def _element_properties(self, create_if_empty: bool = False) -> Optional[Dict]:
+        if hasattr(self, "_t_props"):
+            return self._t_props
+        elif create_if_empty:
+            self._t_props: dict = {}
+            return self._t_props
+        else:
+            return None
+
+    @synchronized
     def _set_property(self, key: Property | str, value: Any) -> Any:
         key = self.__vet_key_for_mutable_op(key)
 
@@ -161,6 +163,7 @@ class BaseElement(ABC):
         properties[key] = value
         return retval
 
+    @synchronized
     def _clear_property(self, key: Property | str) -> Any:
         key = self.__vet_key_for_mutable_op(key)
 
@@ -183,9 +186,10 @@ class BaseElement(ABC):
         elif isinstance(key, str):
             key = RESERVED_PROPERTY_PREFIX + self.__vet_text_key(key)
 
-        properties = self._element_properties(False)
-        if properties and key in properties:
-            return True
+        with synchronized(self):
+            properties = self._element_properties(False)
+            if properties and key in properties:
+                return True
         return False
 
     def is_invalid(self) -> bool:

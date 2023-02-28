@@ -34,3 +34,11 @@ def test_invalid_property_exception_with_str_key() -> None:
     assert type(c) == InvalidPropertyException
     assert c.element_type() == ElementType.Table
     assert c.message() == f"Invalid: {me.element_type().name}->'{key}'"
+
+    me = MockBaseElement(ElementType.Group)
+    key = "my group property"
+    c = InvalidPropertyException(me, key)
+    assert c
+    assert type(c) == InvalidPropertyException
+    assert c.element_type() == ElementType.Group
+    assert c.message() == f"Invalid: Group->'{key}'"

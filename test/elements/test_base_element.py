@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from cdspy.elements.base_element import BaseElement
 from cdspy.elements import ElementType
+from cdspy.elements.base_element import BaseElement
 
 
 # create test class from BaseElement
