@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING, Union
 
-from enum import Enum, verify, UNIQUE, Flag
+from enum import Enum, verify, UNIQUE
 
 if TYPE_CHECKING:
     from .base_element import BaseElement
@@ -38,56 +38,19 @@ class ElementType(Enum):
         return sorted({p for p in Property if p.is_implemented_by(self)})
 
     def required_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_required()})
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.required_property})
 
     def optional_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and not p.is_required()})
+        return sorted({p for p in Property if p.is_implemented_by(self) and not p.required_property})
 
     def initializable_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_initializable()})
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.initializable_property})
 
     def read_only_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_read_only()})
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.read_only_property})
 
     def mutable_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_mutable()})
-
-
-@verify(UNIQUE)
-class BaseElementState(Flag):
-    NO_FLAGS = 0x0
-
-    ENFORCE_DATATYPE_FLAG = 0x01
-    READONLY_FLAG = 0x02
-    SUPPORTS_NULL_FLAG = 0x04
-    AUTO_RECALCULATE_FLAG = 0x08
-
-    AUTO_RECALCULATE_DISABLED_FLAG = 0x10
-    PENDING_THREAD_POOL_FLAG = 0x20
-    IN_USE_FLAG = 0x40
-    IS_PENDING_FLAG = 0x80
-
-    ROW_LABELS_INDEXED_FLAG = 0x100
-    COLUMN_LABELS_INDEXED_FLAG = 0x200
-    CELL_LABELS_INDEXED_FLAG = 0x400
-    TABLE_LABELS_INDEXED_FLAG = 0x800
-
-    GROUP_LABELS_INDEXED_FLAG = 0x1000
-    HAS_CELL_VALIDATOR_FLAG = 0x2000
-    IS_DERIVED_CELL_FLAG = 0x4000
-    IS_TABLE_PERSISTENT_FLAG = 0x8000
-
-    EVENTS_NOTIFY_IN_SAME_THREAD_FLAG = 0x100000
-    EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x200000
-    PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x400000
-
-    IS_DEFAULT_FLAG = 0x1000000
-    IS_DIRTY_FLAG = 0x2000000
-    HAS_CELL_ERROR_MSG_FLAG = 0x4000000
-    IS_AWAITING_FLAG = 0x8000000
-
-    IS_INVALID_FLAG = 0x10000000
-    IS_PROCESSED_FLAG = 0x20000000
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.mutable_property})
 
 
 class _TableProperty:
@@ -102,15 +65,15 @@ class _TableProperty:
         optional: bool,
         read_only: bool,
         initializable: bool,
-        tag: Optional[str] = None,
-        delegated_state: Optional[BaseElementState] = None,
+        abbreviation: Optional[str] = None,
+        delegates: Optional[list[ElementType]] = None,
         *args: ElementType,
     ) -> None:
         self._optional = optional
         self._read_only = read_only
         self._initializable = initializable
-        self._tag = tag
-        self._delegated_state = delegated_state
+        self._abbreviation = abbreviation
+        self._delegates = set(delegates) if delegates else None
         self._implemented_by = set(args) if args else set(ElementType)
 
     def __repr__(self) -> str:
@@ -130,20 +93,6 @@ class Property(Enum):
     Label = _TableProperty(True, False, False, "lb")
     Description = _TableProperty(True, False, False, "desc")
     Tags = _TableProperty(True, False, False, "tags")
-    IsReadOnly = _TableProperty(False, False, True, "ro", BaseElementState.READONLY_FLAG)
-
-    IsSupportsNull = _TableProperty(
-        False,
-        False,
-        True,
-        "isNulls",
-        BaseElementState.SUPPORTS_NULL_FLAG,
-        ElementType.TableContext,
-        ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Cell,
-    )
     UUID = _TableProperty(
         True,
         True,
@@ -219,7 +168,7 @@ class Property(Enum):
         False,
         True,
         None,
-        BaseElementState.PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG,
+        None,
         ElementType.TableContext,
         ElementType.Table,
     )
@@ -292,22 +241,6 @@ class Property(Enum):
         ElementType.Cell,
     )
     Index = _TableProperty(False, True, False, None, None, ElementType.Row, ElementType.Column)
-    IsEnforceDataType = _TableProperty(
-        False,
-        False,
-        True,
-        "isEDT",
-        BaseElementState.ENFORCE_DATATYPE_FLAG,
-        ElementType.TableContext,
-        ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Cell,
-    )
-    IsInUse = _TableProperty(
-        False, True, False, None, BaseElementState.IN_USE_FLAG, ElementType.Row, ElementType.Column
-    )
-
     Rows = _TableProperty(False, True, False, None, None, ElementType.Table, ElementType.Group)
     Columns = _TableProperty(False, True, False, None, None, ElementType.Table, ElementType.Group)
     Groups = _TableProperty(
@@ -392,11 +325,11 @@ class Property(Enum):
                 raise ValueError(f"None/Empty is not a valid {cls.__name__}")
 
     @staticmethod
-    def by_tag(the_tag: Optional[str] = None) -> Optional[Property]:
-        if the_tag is None or the_tag.strip() is None:
+    def by_abbreviation(abbrev: Optional[str] = None) -> Optional[Property]:
+        if abbrev is None or abbrev.strip() is None:
             return None
-        the_tag = the_tag.strip().lower()
-        return _PROPERTIES_BY_TAG[the_tag] if the_tag in _PROPERTIES_BY_TAG else None
+        abbrev = abbrev.strip().lower()
+        return _PROPERTIES_BY_ABBREVIATION[abbrev] if abbrev in _PROPERTIES_BY_ABBREVIATION else None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Property):
@@ -416,9 +349,10 @@ class Property(Enum):
     def __hash__(self) -> int:
         return self.name.__hash__()
 
+    @property
     def tag(self) -> str:
-        if self.value._tag:
-            return str(self.value._tag)
+        if self.value._abbreviation:
+            return str(self.value._abbreviation)
         else:
             return self.name
 
@@ -434,29 +368,35 @@ class Property(Enum):
         else:
             return False  # type: ignore
 
-    def is_read_only(self) -> bool:
+    @property
+    def read_only_property(self) -> bool:
         return bool(self.value._read_only)
 
-    def is_mutable(self) -> bool:
+    @property
+    def mutable_property(self) -> bool:
         return not self.value._read_only
 
-    def is_optional(self) -> bool:
+    @property
+    def optional_property(self) -> bool:
         return bool(self.value._optional)
 
-    def is_required(self) -> bool:
+    @property
+    def required_property(self) -> bool:
         return not self.value._optional
 
-    def is_initializable(self) -> bool:
+    @property
+    def initializable_property(self) -> bool:
         return self.value._initializable
 
-    def is_boolean(self) -> bool:
+    @property
+    def boolean_property(self) -> bool:
         if self.name.lower().startswith("is"):
             return True
-
         # handle one-offs by placing them in set
         return self in set([])
 
-    def is_numeric(self) -> bool:
+    @property
+    def numeric_property(self) -> bool:
         if self.name.lower().startswith("num"):
             return True
 
@@ -471,7 +411,8 @@ class Property(Enum):
             Property.FreeSpaceThreshold,
         }
 
-    def is_str(self) -> bool:
+    @property
+    def string_property(self) -> bool:
         # handle one-offs by placing them in set
         return self in {
             Property.Label,
@@ -482,4 +423,4 @@ class Property(Enum):
 
 
 # Define static Tag map
-_PROPERTIES_BY_TAG = {p.tag().lower(): p for p in Property}
+_PROPERTIES_BY_ABBREVIATION = {p.tag.lower(): p for p in Property}

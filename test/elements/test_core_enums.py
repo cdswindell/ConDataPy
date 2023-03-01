@@ -27,19 +27,19 @@ def test_element_type_properties() -> None:
         for p in et.properties():
             assert p
             assert p.is_implemented_by(et)
-            if p.is_required():
+            if p.required_property:
                 assert p in et.required_properties()
                 assert p not in et.optional_properties()
-            if p.is_optional():
+            if p.optional_property:
                 assert p not in et.required_properties()
                 assert p in et.optional_properties()
-            if p.is_read_only():
+            if p.read_only_property:
                 assert p in et.read_only_properties()
                 assert p not in et.mutable_properties()
-            if p.is_mutable():
+            if p.mutable_property:
                 assert p not in et.read_only_properties()
                 assert p in et.mutable_properties()
-            if p.is_initializable():
+            if p.initializable_property:
                 assert p in et.initializable_properties()
 
 
@@ -60,7 +60,7 @@ def test_property_getters() -> None:
     # test dict
     assert Property["Label"] == Property.Label
     assert Property.Label in Property
-    assert Property.Label.tag() is not None
+    assert Property.Label.tag is not None
 
     # test callable
     assert Property("Label") == Property.Label
@@ -72,45 +72,45 @@ def test_property_getters() -> None:
         assert Property.by_name(" " + p.name + "  ") == p
         assert Property.by_name(p.name.lower()) == p
         assert Property.by_name(p.name.upper()) == p
-        if p.tag():
-            assert Property.by_tag(p.tag()) == p
-            assert Property.by_tag("  " + p.tag() + "  ") == p
-            assert Property.by_tag(p.tag().lower()) == p
-            assert Property.by_tag(p.tag().upper()) == p
+        if p.tag:
+            assert Property.by_abbreviation(p.tag) == p
+            assert Property.by_abbreviation("  " + p.tag + "  ") == p
+            assert Property.by_abbreviation(p.tag.lower()) == p
+            assert Property.by_abbreviation(p.tag.upper()) == p
         else:
-            assert Property.by_tag(p.tag()) is None
-            assert Property.by_tag(p.tag().lower()) is None
-            assert Property.by_tag(p.tag().upper()) is None
+            assert Property.by_abbreviation(p.tag) is None
+            assert Property.by_abbreviation(p.tag.lower()) is None
+            assert Property.by_abbreviation(p.tag.upper()) is None
 
 
 def test_property_getter_failures() -> None:
-    assert Property.by_tag() is None
-    assert Property.by_tag("") is None
-    assert Property.by_tag("  ") is None
-    assert Property.by_tag(" tag not present ") is None
+    assert Property.by_abbreviation() is None
+    assert Property.by_abbreviation("") is None
+    assert Property.by_abbreviation("  ") is None
+    assert Property.by_abbreviation(" abbreviation not present ") is None
 
     # test Property.by_name()
     with pytest.raises(ValueError, match="None/Empty is not a valid Property"):
         Property.by_name("  ")
 
-    with pytest.raises(ValueError, match="'tag not present' is not a valid Property"):
-        Property.by_name(" tag not present ")
+    with pytest.raises(ValueError, match="'abbreviation not present' is not a valid Property"):
+        Property.by_name(" abbreviation not present ")
 
     with pytest.raises(ValueError) as e_info:
-        Property.by_name(" tag not present ")
+        Property.by_name(" abbreviation not present ")
     assert e_info is not None
-    assert e_info.value.args[0] == "'tag not present' is not a valid Property"
-    assert str(e_info.value) == "'tag not present' is not a valid Property"
+    assert e_info.value.args[0] == "'abbreviation not present' is not a valid Property"
+    assert str(e_info.value) == "'abbreviation not present' is not a valid Property"
 
     # test Property() and Property._missing_()
-    with pytest.raises(ValueError, match="'tag not present' is not a valid Property"):
-        Property(" tag not present ")
+    with pytest.raises(ValueError, match="'abbreviation not present' is not a valid Property"):
+        Property(" abbreviation not present ")
 
     with pytest.raises(ValueError) as e_info:
-        Property(" tag not present ")
+        Property(" abbreviation not present ")
     assert e_info is not None
-    assert e_info.value.args[0] == "'tag not present' is not a valid Property"
-    assert str(e_info.value) == "'tag not present' is not a valid Property"
+    assert e_info.value.args[0] == "'abbreviation not present' is not a valid Property"
+    assert str(e_info.value) == "'abbreviation not present' is not a valid Property"
 
 
 def test_property_lt_oper() -> None:
@@ -160,20 +160,20 @@ def test_is_implemented_by() -> None:
 def test_property_flags() -> None:
     for p in Property:
         if p.value._read_only:
-            assert p.is_read_only()
-            assert not p.is_mutable()
+            assert p.read_only_property
+            assert not p.mutable_property
         else:
-            assert not p.is_read_only()
-            assert p.is_mutable()
+            assert not p.read_only_property
+            assert p.mutable_property
 
         if p.value._optional:
-            assert not p.is_required()
-            assert p.is_optional()
+            assert not p.required_property
+            assert p.optional_property
         else:
-            assert p.is_required()
-            assert not p.is_optional()
+            assert p.required_property
+            assert not p.optional_property
 
         if p.value._initializable:
-            assert p.is_initializable()
+            assert p.initializable_property
         else:
-            assert not p.is_initializable()
+            assert not p.initializable_property
