@@ -7,9 +7,7 @@ if TYPE_CHECKING:
 
 
 class BaseTableException(RuntimeError):
-    def __init__(
-        self, et: Optional[ElementType] = None, message: Optional[str] = None
-    ) -> None:
+    def __init__(self, et: Optional[ElementType] = None, message: Optional[str] = None) -> None:
         super().__init__(message)
         self._element_type = et
         self._message = message

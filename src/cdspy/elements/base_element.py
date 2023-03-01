@@ -1,58 +1,19 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from enum import Flag, verify, UNIQUE
 from typing import Any, Final, Optional, Dict, overload, cast, Union
 
 from wrapt import synchronized
 
 from . import ElementType
+from . import BaseElementState
 from . import Property
 from ..exceptions import DeletedElementException
 from ..exceptions import InvalidPropertyException
 from ..exceptions import ReadOnlyException
 from ..exceptions import UnimplementedException
 
-
-@verify(UNIQUE)
-class BaseElementState(Flag):
-    NO_FLAGS = 0x0
-
-    ENFORCE_DATATYPE_FLAG = 0x01
-    READONLY_FLAG = 0x02
-    SUPPORTS_NULL_FLAG = 0x04
-    AUTO_RECALCULATE_FLAG = 0x08
-
-    AUTO_RECALCULATE_DISABLED_FLAG = 0x10
-    PENDING_THREAD_POOL_FLAG = 0x20
-    IN_USE_FLAG = 0x40
-    IS_PENDING_FLAG = 0x80
-
-    ROW_LABELS_INDEXED_FLAG = 0x100
-    COLUMN_LABELS_INDEXED_FLAG = 0x200
-    CELL_LABELS_INDEXED_FLAG = 0x400
-    TABLE_LABELS_INDEXED_FLAG = 0x800
-
-    GROUP_LABELS_INDEXED_FLAG = 0x1000
-    HAS_CELL_VALIDATOR_FLAG = 0x2000
-    IS_DERIVED_CELL_FLAG = 0x4000
-    IS_TABLE_PERSISTENT_FLAG = 0x8000
-
-    EVENTS_NOTIFY_IN_SAME_THREAD_FLAG = 0x100000
-    EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x200000
-    PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x400000
-
-    IS_DEFAULT_FLAG = 0x1000000
-    IS_DIRTY_FLAG = 0x2000000
-    HAS_CELL_ERROR_MSG_FLAG = 0x4000000
-    IS_AWAITING_FLAG = 0x8000000
-
-    IS_INVALID_FLAG = 0x10000000
-    IS_PROCESSED_FLAG = 0x20000000
-
-
-# Used to decorate string property keys
-RESERVED_PROPERTY_PREFIX: Final = "~~~"
+TABLE_PROPERTIES_KEY: Final = "_m_tprops"
 
 
 class BaseElement(ABC):
@@ -104,9 +65,7 @@ class BaseElement(ABC):
     def __vet_key_for_mutable_op(self, key: Optional[str]) -> str:
         ...
 
-    def __vet_key_for_mutable_op(
-        self, key: Union[Property, str, None]
-    ) -> Property | str:
+    def __vet_key_for_mutable_op(self, key: Union[Property, str, None]) -> Property | str:
         if key is None:
             raise InvalidPropertyException(self)
         elif isinstance(key, Property):
@@ -115,17 +74,17 @@ class BaseElement(ABC):
             elif key.is_read_only():
                 raise ReadOnlyException(self, key)
         elif isinstance(key, str):
-            key = RESERVED_PROPERTY_PREFIX + self.__vet_text_key(key)
+            key = self.__vet_text_key(key)
         else:
             raise AttributeError(f"Unsupported property key type: {type(key)}")
         return key
 
     def __vet_text_key(self, key: Optional[str]) -> str:
-        key = key.strip() if key else None
+        # normalize all string keys
+        # replace multiple whitespace with a single space
+        key = " ".join(key.strip().lower().split()) if key else None
         if key is None:
             raise InvalidPropertyException(self)
-        elif key.startswith(RESERVED_PROPERTY_PREFIX):
-            raise InvalidPropertyException(self, key)
         return key
 
     def _unset(self, flag: BaseElementState) -> None:
@@ -140,17 +99,17 @@ class BaseElement(ABC):
 
     @synchronized
     def _reset_elem_properties(self) -> None:
-        self.__dict__.pop("_t_props", None)
+        t_props: Dict = vars(self).pop(TABLE_PROPERTIES_KEY, None)
+        if t_props:
+            t_props.clear()
 
     @synchronized
     def _element_properties(self, create_if_empty: bool = False) -> Optional[Dict]:
-        if hasattr(self, "_t_props"):
-            return self._t_props
-        elif create_if_empty:
-            self._t_props: dict = {}
-            return self._t_props
-        else:
-            return None
+        t_props: Dict = vars(self).get(TABLE_PROPERTIES_KEY, None)
+        if t_props is None and create_if_empty:  # type: ignore
+            t_props = dict()  # type: ignore
+            setattr(self, TABLE_PROPERTIES_KEY, t_props)
+        return t_props
 
     @synchronized
     def _set_property(self, key: Property | str, value: Any) -> Any:
@@ -164,16 +123,17 @@ class BaseElement(ABC):
         return retval
 
     @synchronized
-    def _clear_property(self, key: Property | str) -> Any:
+    def _clear_property(self, key: Property | str) -> bool:
         key = self.__vet_key_for_mutable_op(key)
 
         key_present = False
         properties = self._element_properties(False)
         if properties and key in properties:
             properties.pop(key)
+            key_present = True
         return key_present
 
-    def _has_property(self, key: Property | str) -> bool:
+    def has_property(self, key: Property | str) -> bool:
         if isinstance(key, Property):
             if key.is_implemented_by(self.element_type()):
                 if key.is_required():
@@ -184,7 +144,7 @@ class BaseElement(ABC):
             else:
                 return False  # table element doesn't support key
         elif isinstance(key, str):
-            key = RESERVED_PROPERTY_PREFIX + self.__vet_text_key(key)
+            key = self.__vet_text_key(key)
 
         with synchronized(self):
             properties = self._element_properties(False)

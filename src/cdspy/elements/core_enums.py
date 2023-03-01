@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING, Union
 
-from enum import Enum, verify, UNIQUE
+from enum import Enum, verify, UNIQUE, Flag
 
 if TYPE_CHECKING:
     from .base_element import BaseElement
@@ -38,29 +38,56 @@ class ElementType(Enum):
         return sorted({p for p in Property if p.is_implemented_by(self)})
 
     def required_properties(self) -> list[Property]:
-        return sorted(
-            {p for p in Property if p.is_implemented_by(self) and p.is_required()}
-        )
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_required()})
 
     def optional_properties(self) -> list[Property]:
-        return sorted(
-            {p for p in Property if p.is_implemented_by(self) and not p.is_required()}
-        )
+        return sorted({p for p in Property if p.is_implemented_by(self) and not p.is_required()})
 
     def initializable_properties(self) -> list[Property]:
-        return sorted(
-            {p for p in Property if p.is_implemented_by(self) and p.is_initializable()}
-        )
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_initializable()})
 
     def read_only_properties(self) -> list[Property]:
-        return sorted(
-            {p for p in Property if p.is_implemented_by(self) and p.is_read_only()}
-        )
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_read_only()})
 
     def mutable_properties(self) -> list[Property]:
-        return sorted(
-            {p for p in Property if p.is_implemented_by(self) and p.is_mutable()}
-        )
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_mutable()})
+
+
+@verify(UNIQUE)
+class BaseElementState(Flag):
+    NO_FLAGS = 0x0
+
+    ENFORCE_DATATYPE_FLAG = 0x01
+    READONLY_FLAG = 0x02
+    SUPPORTS_NULL_FLAG = 0x04
+    AUTO_RECALCULATE_FLAG = 0x08
+
+    AUTO_RECALCULATE_DISABLED_FLAG = 0x10
+    PENDING_THREAD_POOL_FLAG = 0x20
+    IN_USE_FLAG = 0x40
+    IS_PENDING_FLAG = 0x80
+
+    ROW_LABELS_INDEXED_FLAG = 0x100
+    COLUMN_LABELS_INDEXED_FLAG = 0x200
+    CELL_LABELS_INDEXED_FLAG = 0x400
+    TABLE_LABELS_INDEXED_FLAG = 0x800
+
+    GROUP_LABELS_INDEXED_FLAG = 0x1000
+    HAS_CELL_VALIDATOR_FLAG = 0x2000
+    IS_DERIVED_CELL_FLAG = 0x4000
+    IS_TABLE_PERSISTENT_FLAG = 0x8000
+
+    EVENTS_NOTIFY_IN_SAME_THREAD_FLAG = 0x100000
+    EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x200000
+    PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x400000
+
+    IS_DEFAULT_FLAG = 0x1000000
+    IS_DIRTY_FLAG = 0x2000000
+    HAS_CELL_ERROR_MSG_FLAG = 0x4000000
+    IS_AWAITING_FLAG = 0x8000000
+
+    IS_INVALID_FLAG = 0x10000000
+    IS_PROCESSED_FLAG = 0x20000000
 
 
 class _TableProperty:
@@ -75,13 +102,15 @@ class _TableProperty:
         optional: bool,
         read_only: bool,
         initializable: bool,
-        tag: Optional[str],
+        tag: Optional[str] = None,
+        delegated_state: Optional[BaseElementState] = None,
         *args: ElementType,
     ) -> None:
         self._optional = optional
         self._read_only = read_only
         self._initializable = initializable
         self._tag = tag
+        self._delegated_state = delegated_state
         self._implemented_by = set(args) if args else set(ElementType)
 
     def __repr__(self) -> str:
@@ -101,23 +130,14 @@ class Property(Enum):
     Label = _TableProperty(True, False, False, "lb")
     Description = _TableProperty(True, False, False, "desc")
     Tags = _TableProperty(True, False, False, "tags")
-    IsNull = _TableProperty(
-        False,
-        True,
-        False,
-        None,
-        ElementType.TableContext,
-        ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Cell,
-        ElementType.Group,
-    )
+    IsReadOnly = _TableProperty(False, False, True, "ro", BaseElementState.READONLY_FLAG)
+
     IsSupportsNull = _TableProperty(
         False,
         False,
         True,
         "isNulls",
+        BaseElementState.SUPPORTS_NULL_FLAG,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -129,6 +149,7 @@ class Property(Enum):
         True,
         False,
         "uuid",
+        None,
         ElementType.Table,
         ElementType.Row,
         ElementType.Column,
@@ -140,6 +161,7 @@ class Property(Enum):
         True,
         False,
         "id",
+        None,
         ElementType.Table,
         ElementType.Row,
         ElementType.Column,
@@ -152,6 +174,7 @@ class Property(Enum):
         True,
         False,
         None,
+        None,
         ElementType.Table,
         ElementType.Row,
         ElementType.Column,
@@ -163,64 +186,57 @@ class Property(Enum):
         True,
         False,
         None,
+        None,
         ElementType.Row,
         ElementType.Column,
         ElementType.Cell,
         ElementType.Group,
     )
-    Precision = _TableProperty(
-        True, False, True, "pr", ElementType.TableContext, ElementType.Table
-    )
+    Precision = _TableProperty(True, False, True, "pr", None, ElementType.TableContext, ElementType.Table)
 
     # TableContext/Table Properties
-    NumTables = _TableProperty(False, True, False, None, ElementType.TableContext)
-    TokenMapper = _TableProperty(False, True, True, None, ElementType.TableContext)
-    RowCapacityIncr = _TableProperty(
-        False, False, True, "rci", ElementType.TableContext, ElementType.Table
-    )
-    ColumnCapacityIncr = _TableProperty(
-        False, False, True, "cci", ElementType.TableContext, ElementType.Table
-    )
-    FreeSpaceThreshold = _TableProperty(
-        False, False, True, "fst", ElementType.TableContext, ElementType.Table
-    )
-    IsAutoRecalculate = _TableProperty(
-        False, False, True, "recalc", ElementType.TableContext, ElementType.Table
-    )
-    IsRowLabelsIndexed = _TableProperty(
-        False, False, True, "isRLbX", ElementType.TableContext, ElementType.Table
-    )
+    NumTables = _TableProperty(False, True, False, None, None, ElementType.TableContext)
+    TokenMapper = _TableProperty(False, True, True, None, None, ElementType.TableContext)
+    RowCapacityIncr = _TableProperty(False, False, True, "rci", None, ElementType.TableContext, ElementType.Table)
+    ColumnCapacityIncr = _TableProperty(False, False, True, "cci", None, ElementType.TableContext, ElementType.Table)
+    FreeSpaceThreshold = _TableProperty(False, False, True, "fst", None, ElementType.TableContext, ElementType.Table)
+    IsAutoRecalculate = _TableProperty(False, False, True, "recalc", None, ElementType.TableContext, ElementType.Table)
+    IsRowLabelsIndexed = _TableProperty(False, False, True, "isRLbX", None, ElementType.TableContext, ElementType.Table)
     IsColumnLabelsIndexed = _TableProperty(
-        False, False, True, "isCLbX", ElementType.TableContext, ElementType.Table
+        False, False, True, "isCLbX", None, ElementType.TableContext, ElementType.Table
     )
     IsCellLabelsIndexed = _TableProperty(
-        False, False, True, "isClLbX", ElementType.TableContext, ElementType.Table
+        False, False, True, "isClLbX", None, ElementType.TableContext, ElementType.Table
     )
     IsGroupLabelsIndexed = _TableProperty(
-        False, False, True, "isGLbX", ElementType.TableContext, ElementType.Table
+        False, False, True, "isGLbX", None, ElementType.TableContext, ElementType.Table
     )
-    IsPersistent = _TableProperty(
-        False, False, True, "isP", ElementType.TableContext, ElementType.Table
-    )
+    IsPersistent = _TableProperty(False, False, True, "isP", None, ElementType.TableContext, ElementType.Table)
 
     # PendingDerivationThreadPool Properties
     IsPendingAllowCoreThreadTimeout = _TableProperty(
-        True, False, True, None, ElementType.TableContext, ElementType.Table
+        True,
+        False,
+        True,
+        None,
+        BaseElementState.PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG,
+        ElementType.TableContext,
+        ElementType.Table,
     )
     NumPendingCorePoolThreads = _TableProperty(
-        True, False, True, None, ElementType.TableContext, ElementType.Table
+        True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
     NumPendingMaxPoolThreads = _TableProperty(
-        True, False, True, None, ElementType.TableContext, ElementType.Table
+        True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
     PendingThreadKeepAliveTimeout = _TableProperty(
-        True, False, True, None, ElementType.TableContext, ElementType.Table
+        True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
     PendingThreadKeepAliveTimeoutUnit = _TableProperty(
-        True, False, True, None, ElementType.TableContext, ElementType.Table
+        True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
     IsPendingThreadPoolEnabled = _TableProperty(
-        True, False, True, None, ElementType.TableContext, ElementType.Table
+        True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
 
     # Table Element Properties
@@ -229,47 +245,45 @@ class Property(Enum):
         True,
         False,
         "nSets",
+        None,
         ElementType.Table,
         ElementType.Row,
         ElementType.Column,
         ElementType.Group,
     )
-    NumRows = _TableProperty(
-        False, True, False, "nRows", ElementType.Table, ElementType.Group
-    )
-    NumColumns = _TableProperty(
-        False, True, False, "nCols", ElementType.Table, ElementType.Group
-    )
+    NumRows = _TableProperty(False, True, False, "nRows", None, ElementType.Table, ElementType.Group)
+    NumColumns = _TableProperty(False, True, False, "nCols", None, ElementType.Table, ElementType.Group)
     NumCells = _TableProperty(
         False,
         True,
         False,
         "nCells",
+        None,
         ElementType.Table,
         ElementType.Row,
         ElementType.Column,
         ElementType.Group,
     )
-    NumRowsCapacity = _TableProperty(False, True, False, None, ElementType.Table)
-    NumColumnsCapacity = _TableProperty(False, True, False, None, ElementType.Table)
-    NumCellsCapacity = _TableProperty(False, True, False, None, ElementType.Column)
-    NextCellOffset = _TableProperty(False, True, False, None, ElementType.Table)
+    NumRowsCapacity = _TableProperty(False, True, False, None, None, ElementType.Table)
+    NumColumnsCapacity = _TableProperty(False, True, False, None, None, ElementType.Table)
+    NumCellsCapacity = _TableProperty(False, True, False, None, None, ElementType.Column)
+    NextCellOffset = _TableProperty(False, True, False, None, None, ElementType.Table)
     Derivation = _TableProperty(
         False,
         False,
         False,
         "fx",
+        None,
         ElementType.Column,
         ElementType.Row,
         ElementType.Cell,
     )
-    TimeSeries = _TableProperty(
-        False, False, False, "tx", ElementType.Column, ElementType.Row
-    )
+    TimeSeries = _TableProperty(False, False, False, "tx", None, ElementType.Column, ElementType.Row)
     Affects = _TableProperty(
         False,
         True,
         False,
+        None,
         None,
         ElementType.Table,
         ElementType.Group,
@@ -277,14 +291,13 @@ class Property(Enum):
         ElementType.Row,
         ElementType.Cell,
     )
-    Index = _TableProperty(
-        False, True, False, None, ElementType.Row, ElementType.Column
-    )
+    Index = _TableProperty(False, True, False, None, None, ElementType.Row, ElementType.Column)
     IsEnforceDataType = _TableProperty(
         False,
         False,
         True,
         "isEDT",
+        BaseElementState.ENFORCE_DATATYPE_FLAG,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -292,46 +305,38 @@ class Property(Enum):
         ElementType.Cell,
     )
     IsInUse = _TableProperty(
-        False, True, False, None, ElementType.Row, ElementType.Column
+        False, True, False, None, BaseElementState.IN_USE_FLAG, ElementType.Row, ElementType.Column
     )
 
-    Rows = _TableProperty(
-        False, True, False, None, ElementType.Table, ElementType.Group
-    )
-    Columns = _TableProperty(
-        False, True, False, None, ElementType.Table, ElementType.Group
-    )
+    Rows = _TableProperty(False, True, False, None, None, ElementType.Table, ElementType.Group)
+    Columns = _TableProperty(False, True, False, None, None, ElementType.Table, ElementType.Group)
     Groups = _TableProperty(
         False,
         True,
         False,
+        None,
         None,
         ElementType.Table,
         ElementType.Row,
         ElementType.Column,
         ElementType.Group,
     )
-    Cells = _TableProperty(
-        False, True, False, None, ElementType.Row, ElementType.Column, ElementType.Group
-    )
+    Cells = _TableProperty(False, True, False, None, None, ElementType.Row, ElementType.Column, ElementType.Group)
 
     # Cell properties
-    Row = _TableProperty(False, True, False, None, ElementType.Cell)
-    Column = _TableProperty(False, True, False, None, ElementType.Cell)
-    CellOffset = _TableProperty(
-        False, True, False, None, ElementType.Row, ElementType.Cell
-    )
-    DataType = _TableProperty(
-        False, False, False, "dt", ElementType.Column, ElementType.Cell
-    )
+    Row = _TableProperty(False, True, False, None, None, ElementType.Cell)
+    Column = _TableProperty(False, True, False, None, None, ElementType.Cell)
+    CellOffset = _TableProperty(False, True, False, None, None, ElementType.Row, ElementType.Cell)
+    DataType = _TableProperty(False, False, False, "dt", None, ElementType.Column, ElementType.Cell)
 
-    CellValue = _TableProperty(False, False, False, "v", ElementType.Cell)
-    ErrorMessage = _TableProperty(True, False, False, "e", ElementType.Cell)
+    CellValue = _TableProperty(False, False, False, "v", None, ElementType.Cell)
+    ErrorMessage = _TableProperty(True, False, False, "e", None, ElementType.Cell)
     Units = _TableProperty(
         True,
         False,
         False,
         "u",
+        None,
         ElementType.Row,
         ElementType.Column,
         ElementType.Cell,
@@ -341,6 +346,7 @@ class Property(Enum):
         False,
         True,
         "f",
+        None,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -352,6 +358,7 @@ class Property(Enum):
         False,
         False,
         "cv",
+        None,
         ElementType.Row,
         ElementType.Column,
         ElementType.Cell,

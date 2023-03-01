@@ -9,9 +9,7 @@ if TYPE_CHECKING:
 
 
 class DeletedElementException(BaseTableException):
-    def __init__(
-        self, e: Optional[ElementType] = None, message: Optional[str] = None
-    ) -> None:
+    def __init__(self, e: Optional[ElementType] = None, message: Optional[str] = None) -> None:
         if message is None:
             if e is None:
                 message = "Operations on deleted elements are not allowed"
