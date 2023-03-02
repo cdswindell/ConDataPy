@@ -29,3 +29,4 @@ src/cdspy/exceptions/__pycache__/invalid_property_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/read_only_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/unimplemented_exception.cpython-311.pyc
 src/cdspy/utils/__init__.py
+src/cdspy/utils/__pycache__/__init__.cpython-311.pyc

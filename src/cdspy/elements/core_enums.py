@@ -39,19 +39,19 @@ class ElementType(Enum):
         return sorted({p for p in Property if p.is_implemented_by(self)})
 
     def required_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.required_property})
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_required_property})
 
     def optional_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and not p.required_property})
+        return sorted({p for p in Property if p.is_implemented_by(self) and not p.is_required_property})
 
     def initializable_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.initializable_property})
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_initializable_property})
 
     def read_only_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.read_only_property})
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_read_only_property})
 
     def mutable_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.mutable_property})
+        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_mutable_property})
 
 
 class _TableProperty:
@@ -370,34 +370,34 @@ class Property(Enum):
             return False  # type: ignore
 
     @property
-    def read_only_property(self) -> bool:
+    def is_read_only_property(self) -> bool:
         return bool(self.value._read_only)
 
     @property
-    def mutable_property(self) -> bool:
+    def is_mutable_property(self) -> bool:
         return not self.value._read_only
 
     @property
-    def optional_property(self) -> bool:
+    def is_optional_property(self) -> bool:
         return bool(self.value._optional)
 
     @property
-    def required_property(self) -> bool:
+    def is_required_property(self) -> bool:
         return not self.value._optional
 
     @property
-    def initializable_property(self) -> bool:
+    def is_initializable_property(self) -> bool:
         return self.value._initializable
 
     @property
-    def boolean_property(self) -> bool:
+    def is_boolean_property(self) -> bool:
         if self.name.lower().startswith("is"):
             return True
         # handle one-offs by placing them in set
         return self in set([])
 
     @property
-    def numeric_property(self) -> bool:
+    def is_numeric_property(self) -> bool:
         if self.name.lower().startswith("num"):
             return True
 
@@ -413,7 +413,7 @@ class Property(Enum):
         }
 
     @property
-    def string_property(self) -> bool:
+    def is_string_property(self) -> bool:
         # handle one-offs by placing them in set
         return self in {
             Property.Label,

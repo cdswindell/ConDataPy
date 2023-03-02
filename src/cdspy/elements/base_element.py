@@ -13,7 +13,7 @@ from ..exceptions import InvalidPropertyException
 from ..exceptions import ReadOnlyException
 from ..exceptions import UnimplementedException
 
-TABLE_PROPERTIES_KEY: Final = "_m_tprops"
+TABLE_PROPERTIES_KEY: Final = "_m_props"
 
 
 @verify(UNIQUE)
@@ -60,7 +60,7 @@ class BaseElement(ABC):
 
     @classmethod
     def vet_base_element(cls, be: Optional[BaseElement]) -> None:
-        if be is not None and be.invalid:
+        if be is not None and be.is_invalid:
             raise DeletedElementException(be.element_type)
 
     @property
@@ -68,6 +68,7 @@ class BaseElement(ABC):
     def element_type(self) -> ElementType:
         pass
 
+    @property
     @abstractmethod
     def _is_null(self) -> bool:
         pass
@@ -115,7 +116,7 @@ class BaseElement(ABC):
 
     def _vet_element(self, be: Optional[BaseElement] = None) -> None:
         if be is None:
-            if self.invalid:
+            if self.is_invalid:
                 raise DeletedElementException(self.element_type)
         else:
             be._vet_element()
@@ -144,7 +145,7 @@ class BaseElement(ABC):
         if isinstance(key, Property):
             if not key.is_implemented_by(self.element_type):
                 raise UnimplementedException(self, key)
-            elif for_mutable_op and key.read_only_property:
+            elif for_mutable_op and key.is_read_only_property:
                 raise ReadOnlyException(self, key)
         elif isinstance(key, str):
             key = self.__vet_text_key(key)
@@ -191,7 +192,7 @@ class BaseElement(ABC):
     def has_property(self, key: Property | str) -> bool:
         if isinstance(key, Property):
             if key.is_implemented_by(self.element_type):
-                if key.required_property:
+                if key.is_required_property:
                     # required properties are always present, even if not yet set!
                     return True
                 else:
@@ -226,7 +227,7 @@ class BaseElement(ABC):
             return None
 
     @property
-    def invalid(self) -> bool:
+    def is_invalid(self) -> bool:
         """
         Returns True if the element has been deleted, either explicitly or because
         a parent element has been deleted
@@ -235,35 +236,35 @@ class BaseElement(ABC):
         return self._is_set(BaseElementState.IS_INVALID_FLAG)
 
     @property
-    def valid(self) -> bool:
+    def is_valid(self) -> bool:
         """
         Returns True if the element has not been deleted
         :return: True if element has not been deleted
         """
-        return not self.invalid
+        return not self.is_invalid
 
     @property
-    def supports_null(self) -> bool:
+    def is_supports_null(self) -> bool:
         return self._is_set(BaseElementState.SUPPORTS_NULL_FLAG)
 
-    @supports_null.setter
-    def supports_null(self, state: bool) -> None:
+    @is_supports_null.setter
+    def is_supports_null(self, state: bool) -> None:
         self.__mutate_flag(BaseElementState.SUPPORTS_NULL_FLAG, state)
 
     @property
-    def read_only(self) -> bool:
+    def is_read_only(self) -> bool:
         return self._is_set(BaseElementState.READONLY_FLAG)
 
-    @read_only.setter
-    def read_only(self, state: bool) -> None:
+    @is_read_only.setter
+    def is_read_only(self, state: bool) -> None:
         self.__mutate_flag(BaseElementState.READONLY_FLAG, state)
 
     @property
-    def enforce_datatype(self) -> bool:
+    def is_enforce_datatype(self) -> bool:
         return self._is_set(BaseElementState.ENFORCE_DATATYPE_FLAG)
 
-    @enforce_datatype.setter
-    def enforce_datatype(self, state: bool) -> None:
+    @is_enforce_datatype.setter
+    def is_enforce_datatype(self, state: bool) -> None:
         self.__mutate_flag(BaseElementState.ENFORCE_DATATYPE_FLAG, state)
 
     #

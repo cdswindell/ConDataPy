@@ -4,7 +4,9 @@ from __future__ import annotations
 class Tag:
     @staticmethod
     def as_strings(tags: set[Tag]) -> list[str]:
-        return sorted([t.label for t in tags])
+        return sorted([t.label for t in tags if isinstance(t, Tag)])
+
+    __slots__ = ["_label"]
 
     def __init__(self, label: str) -> None:
         self._label = " ".join(label.strip().lower().split())
@@ -13,7 +15,7 @@ class Tag:
         return f"Tag('{self._label}')"
 
     def __str__(self) -> str:
-        return f"Tag: '{self._label}'"
+        return f"[Tag: '{self._label}']"
 
     def __hash__(self) -> int:
         return hash(self._label)
@@ -39,8 +41,10 @@ class Tag:
 
 
 class Category(Tag):
+    __slots__ = ["_label"]
+
     def __repr__(self) -> str:
         return f"Category('{self._label}')"
 
     def __str__(self) -> str:
-        return f"Category: '{self._label}'"
+        return f"[Category: '{self._label}']"

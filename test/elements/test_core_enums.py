@@ -27,19 +27,19 @@ def test_element_type_properties() -> None:
         for p in et.properties():
             assert p
             assert p.is_implemented_by(et)
-            if p.required_property:
+            if p.is_required_property:
                 assert p in et.required_properties()
                 assert p not in et.optional_properties()
-            if p.optional_property:
+            if p.is_optional_property:
                 assert p not in et.required_properties()
                 assert p in et.optional_properties()
-            if p.read_only_property:
+            if p.is_read_only_property:
                 assert p in et.read_only_properties()
                 assert p not in et.mutable_properties()
-            if p.mutable_property:
+            if p.is_mutable_property:
                 assert p not in et.read_only_properties()
                 assert p in et.mutable_properties()
-            if p.initializable_property:
+            if p.is_initializable_property:
                 assert p in et.initializable_properties()
 
 
@@ -160,20 +160,20 @@ def test_is_implemented_by() -> None:
 def test_property_flags() -> None:
     for p in Property:
         if p.value._read_only:
-            assert p.read_only_property
-            assert not p.mutable_property
+            assert p.is_read_only_property
+            assert not p.is_mutable_property
         else:
-            assert not p.read_only_property
-            assert p.mutable_property
+            assert not p.is_read_only_property
+            assert p.is_mutable_property
 
         if p.value._optional:
-            assert not p.required_property
-            assert p.optional_property
+            assert not p.is_required_property
+            assert p.is_optional_property
         else:
-            assert p.required_property
-            assert not p.optional_property
+            assert p.is_required_property
+            assert not p.is_optional_property
 
         if p.value._initializable:
-            assert p.initializable_property
+            assert p.is_initializable_property
         else:
-            assert not p.initializable_property
+            assert not p.is_initializable_property
