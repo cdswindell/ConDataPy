@@ -26,4 +26,6 @@ class InvalidPropertyException(BaseTableException):
             message = f"Invalid: {e.name}->'{key}'"
         elif isinstance(key, Property):
             message = f"Invalid: {e.name}->{key.name}"
+        elif key:
+            message = f"Invalid Property: {type(key)}"  # type: ignore
         super().__init__(e, message)

@@ -77,36 +77,6 @@ class BaseElement(ABC):
         """
         self._m_flags = BaseElementState.NO_FLAGS
 
-    @overload
-    def __vet_key_for_mutable_op(self, key: Property) -> Property:
-        ...
-
-    @overload
-    def __vet_key_for_mutable_op(self, key: Optional[str]) -> str:
-        ...
-
-    def __vet_key_for_mutable_op(self, key: Union[Property, str, None]) -> Property | str:
-        if key is None:
-            raise InvalidPropertyException(self)
-        elif isinstance(key, Property):
-            if not key.is_implemented_by(self.element_type()):
-                raise UnimplementedException(self, key)
-            elif key.read_only_property:
-                raise ReadOnlyException(self, key)
-        elif isinstance(key, str):
-            key = self.__vet_text_key(key)
-        else:
-            raise AttributeError(f"Unsupported property key type: {type(key)}")
-        return key
-
-    def __vet_text_key(self, key: Optional[str]) -> str:
-        # normalize all string keys
-        # replace multiple whitespace with a single space
-        key = " ".join(key.strip().lower().split()) if key else None
-        if key is None:
-            raise InvalidPropertyException(self)
-        return key
-
     def _implements(self, p: Optional[Property]) -> bool:
         """
         Returns :True: if the :BaseElement: supports
@@ -135,7 +105,7 @@ class BaseElement(ABC):
 
     def _invalidate(self) -> None:
         self._m_flags |= BaseElementState.IS_INVALID_FLAG
-        self._reset_elem_properties()
+        self._reset_element_properties()
 
     def _vet_element(self, be: Optional[BaseElement] = None) -> None:
         if be is None:
@@ -144,8 +114,40 @@ class BaseElement(ABC):
         else:
             be._vet_element()
 
+    def __vet_text_key(self, key: Optional[str]) -> str:
+        # normalize all string keys
+        # replace multiple whitespace with a single space
+        key = " ".join(key.strip().lower().split()) if key else None
+        if key is None:
+            raise InvalidPropertyException(self)
+        return key
+
+    @overload
+    def _vet_property_key(self, key: Property, for_mutable_op: Optional[bool] = None) -> Property:
+        ...
+
+    @overload
+    def _vet_property_key(self, key: Optional[str], for_mutable_op: Optional[bool] = None) -> str:
+        ...
+
+    def _vet_property_key(
+        self, key: Union[Property, str, None], for_mutable_op: Optional[bool] = None
+    ) -> Union[Property, str]:
+        if key is None:
+            raise InvalidPropertyException(self)
+        if isinstance(key, Property):
+            if not key.is_implemented_by(self.element_type()):
+                raise UnimplementedException(self, key)
+            elif for_mutable_op and key.read_only_property:
+                raise ReadOnlyException(self, key)
+        elif isinstance(key, str):
+            key = self.__vet_text_key(key)
+        else:
+            raise InvalidPropertyException(self, key)
+        return key
+
     @synchronized
-    def _reset_elem_properties(self) -> None:
+    def _reset_element_properties(self) -> None:
         t_props: Dict = vars(self).pop(TABLE_PROPERTIES_KEY, None)
         if t_props:
             t_props.clear()
@@ -160,7 +162,7 @@ class BaseElement(ABC):
 
     @synchronized
     def _set_property(self, key: Property | str, value: Any) -> Any:
-        key = self.__vet_key_for_mutable_op(key)
+        key = self._vet_property_key(key, for_mutable_op=True)
 
         # get the dictionary from the base object, creating it if empty
         properties: dict = cast(dict, self._element_properties(True))
@@ -171,7 +173,7 @@ class BaseElement(ABC):
 
     @synchronized
     def _clear_property(self, key: Property | str) -> bool:
-        key = self.__vet_key_for_mutable_op(key)
+        key = self._vet_property_key(key, for_mutable_op=True)
 
         key_present = False
         properties = self._element_properties(False)
@@ -198,6 +200,24 @@ class BaseElement(ABC):
             if properties and key in properties:
                 return True
         return False
+
+    @overload
+    def get_property(self, key: Optional[Property]) -> Any:
+        ...
+
+    @overload
+    def get_property(self, key: Optional[str]) -> Any:
+        ...
+
+    @synchronized
+    def get_property(self, key: Union[Property, str, None]) -> Any:
+        key = self._vet_property_key(key)
+
+        tprops = self._element_properties()
+        if tprops:
+            return tprops.get(key, None)
+        else:
+            return None
 
     @property
     def invalid(self) -> bool:
