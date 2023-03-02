@@ -270,8 +270,8 @@ class BaseElement(ABC):
     # define some helper functions to get/set common properties
     #
     @property
-    def label(self) -> bool:
-        return self.get_property(Property.Label)
+    def label(self) -> Optional[str]:
+        return cast(str, self.get_property(Property.Label))
 
     @label.setter
     def label(self, value: str) -> None:
@@ -282,8 +282,8 @@ class BaseElement(ABC):
             self._clear_property(Property.Label)
 
     @property
-    def description(self) -> bool:
-        return self.get_property(Property.Label)
+    def description(self) -> Optional[str]:
+        return cast(str, self.get_property(Property.Label))
 
     @description.setter
     def description(self, value: str) -> None:
@@ -292,6 +292,3 @@ class BaseElement(ABC):
             self._set_property(Property.Description, value)
         else:
             self._clear_property(Property.Description)
-
-
-

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 class Tag:
     @staticmethod
-    def as_strings(tags: set(Tag)) -> list[str]:
+    def as_strings(tags: set[Tag]) -> list[str]:
         return sorted([t.label for t in tags])
 
     def __init__(self, label: str) -> None:

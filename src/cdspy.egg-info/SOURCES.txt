@@ -11,9 +11,11 @@ src/cdspy/__pycache__/__init__.cpython-311.pyc
 src/cdspy/elements/__init__.py
 src/cdspy/elements/base_element.py
 src/cdspy/elements/core_enums.py
+src/cdspy/elements/tag.py
 src/cdspy/elements/__pycache__/__init__.cpython-311.pyc
 src/cdspy/elements/__pycache__/base_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/core_enums.cpython-311.pyc
+src/cdspy/elements/__pycache__/tag.cpython-311.pyc
 src/cdspy/exceptions/__init__.py
 src/cdspy/exceptions/base_exceptions.py
 src/cdspy/exceptions/deleted_element_exception.py
