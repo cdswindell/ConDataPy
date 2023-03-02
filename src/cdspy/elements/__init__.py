@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from .core_enums import ElementType as ElementType
 from .core_enums import Property as Property
+
 from .base_element import BaseElementState as BaseElementState
 from .base_element import BaseElement as BaseElement
 
+from .tag import Tag as Tag
+from .tag import Category as Category
 
 _ENFORCE_DATATYPE_FLAG = BaseElementState.ENFORCE_DATATYPE_FLAG
 _READONLY_FLAG = BaseElementState.READONLY_FLAG

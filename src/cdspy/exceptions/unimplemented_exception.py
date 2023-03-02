@@ -11,6 +11,6 @@ if TYPE_CHECKING:
 
 class UnimplementedException(BaseTableException):
     def __init__(self, be: BaseElement, key: Property) -> None:
-        e = be.element_type()
+        e = be.element_type
         message = f"Unimplemented: {e.name}->{key.name}"
         super().__init__(e, message)

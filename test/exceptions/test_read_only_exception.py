@@ -13,5 +13,5 @@ def test_new_read_only_exception_with_all_args() -> None:
     c = ReadOnlyException(me, p)
     assert c
     assert type(c) == ReadOnlyException
-    assert c.element_type() == ElementType.Table
-    assert c.message() == f"ReadOnly: {me.element_type().name}->{p.name}"
+    assert c.element_type == ElementType.Table
+    assert c.message == f"ReadOnly: {me.element_type.name}->{p.name}"

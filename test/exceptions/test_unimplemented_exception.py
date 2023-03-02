@@ -13,5 +13,5 @@ def test_new_unimplemented_exception_with_all_args() -> None:
     c = UnimplementedException(me, p)
     assert c
     assert type(c) == UnimplementedException
-    assert c.element_type() == ElementType.Table
-    assert c.message() == f"Unimplemented: {me.element_type().name}->{p.name}"
+    assert ElementType.Table == c.element_type
+    assert c.message == f"Unimplemented: {me.element_type.name}->{p.name}"

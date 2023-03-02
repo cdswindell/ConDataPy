@@ -28,7 +28,8 @@ class ElementType(Enum):
     Derivation = 7
     """An algebraic formula used to calculate a cell value"""
 
-    def as_reference_label(self) -> str:
+    @property
+    def nickname(self) -> str:
         if self == ElementType.Column:
             return "Col"
         else:
@@ -65,18 +66,18 @@ class _TableProperty:
         optional: bool,
         read_only: bool,
         initializable: bool,
-        abbreviation: Optional[str] = None,
+        nickname: Optional[str] = None,
         delegates: Optional[list[ElementType]] = None,
         *args: ElementType,
     ) -> None:
         self._optional = optional
         self._read_only = read_only
         self._initializable = initializable
-        self._abbreviation = abbreviation
+        self._nickname = nickname
         self._delegates = set(delegates) if delegates else None
         self._implemented_by = set(args) if args else set(ElementType)
 
-    def __repr__(self) -> str:
+    def __str__(self) -> str:
         optional = "optional" if self._optional else "required"
         ro = ", read-only" if self._read_only else ""
         return f"[{optional}{ro}]"
@@ -325,11 +326,11 @@ class Property(Enum):
                 raise ValueError(f"None/Empty is not a valid {cls.__name__}")
 
     @staticmethod
-    def by_abbreviation(abbrev: Optional[str] = None) -> Optional[Property]:
-        if abbrev is None or abbrev.strip() is None:
+    def by_nickname(short_name: Optional[str] = None) -> Optional[Property]:
+        if short_name is None or short_name.strip() is None:
             return None
-        abbrev = abbrev.strip().lower()
-        return _PROPERTIES_BY_ABBREVIATION[abbrev] if abbrev in _PROPERTIES_BY_ABBREVIATION else None
+        short_name = short_name.strip().lower()
+        return _PROPERTIES_BY_NICKNAME[short_name] if short_name in _PROPERTIES_BY_NICKNAME else None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Property):
@@ -350,9 +351,9 @@ class Property(Enum):
         return self.name.__hash__()
 
     @property
-    def tag(self) -> str:
-        if self.value._abbreviation:
-            return str(self.value._abbreviation)
+    def nickname(self) -> str:
+        if self.value._nickname:
+            return str(self.value._nickname)
         else:
             return self.name
 
@@ -364,7 +365,7 @@ class Property(Enum):
         if isinstance(e, ElementType):
             return e in self.value._implemented_by
         if isinstance(e, BaseElement):
-            return self.is_implemented_by(e.element_type())
+            return self.is_implemented_by(e.element_type)
         else:
             return False  # type: ignore
 
@@ -422,5 +423,5 @@ class Property(Enum):
         }
 
 
-# Define static Tag map
-_PROPERTIES_BY_ABBREVIATION = {p.tag.lower(): p for p in Property}
+# Define static Nickname map
+_PROPERTIES_BY_NICKNAME = {p.nickname.lower(): p for p in Property}

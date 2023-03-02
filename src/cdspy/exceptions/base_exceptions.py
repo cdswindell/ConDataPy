@@ -12,8 +12,10 @@ class BaseTableException(RuntimeError):
         self._element_type = et
         self._message = message
 
+    @property
     def element_type(self) -> Optional[ElementType]:
         return self._element_type
 
+    @property
     def message(self) -> Optional[str]:
         return self._message

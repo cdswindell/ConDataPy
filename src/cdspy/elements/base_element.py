@@ -61,8 +61,9 @@ class BaseElement(ABC):
     @classmethod
     def vet_base_element(cls, be: Optional[BaseElement]) -> None:
         if be is not None and be.invalid:
-            raise DeletedElementException(be.element_type())
+            raise DeletedElementException(be.element_type)
 
+    @property
     @abstractmethod
     def element_type(self) -> ElementType:
         pass
@@ -77,6 +78,11 @@ class BaseElement(ABC):
         """
         self._m_flags = BaseElementState.NO_FLAGS
 
+    def __str__(self) -> str:
+        label = self.get_property(Property.Label)
+        label = ": " + label if label else ""
+        return f"[{self.element_type.name}{label}]"
+
     def _implements(self, p: Optional[Property]) -> bool:
         """
         Returns :True: if the :BaseElement: supports
@@ -85,7 +91,7 @@ class BaseElement(ABC):
         if p is None:
             return False
         else:
-            return p.is_implemented_by(self.element_type())
+            return p.is_implemented_by(self.element_type)
 
     def __mutate_flag(self, flag: BaseElementState, state: bool) -> None:
         """Protected method used to modify element flags internal state"""
@@ -110,7 +116,7 @@ class BaseElement(ABC):
     def _vet_element(self, be: Optional[BaseElement] = None) -> None:
         if be is None:
             if self.invalid:
-                raise DeletedElementException(self.element_type())
+                raise DeletedElementException(self.element_type)
         else:
             be._vet_element()
 
@@ -136,7 +142,7 @@ class BaseElement(ABC):
         if key is None:
             raise InvalidPropertyException(self)
         if isinstance(key, Property):
-            if not key.is_implemented_by(self.element_type()):
+            if not key.is_implemented_by(self.element_type):
                 raise UnimplementedException(self, key)
             elif for_mutable_op and key.read_only_property:
                 raise ReadOnlyException(self, key)
@@ -184,7 +190,7 @@ class BaseElement(ABC):
 
     def has_property(self, key: Property | str) -> bool:
         if isinstance(key, Property):
-            if key.is_implemented_by(self.element_type()):
+            if key.is_implemented_by(self.element_type):
                 if key.required_property:
                     # required properties are always present, even if not yet set!
                     return True
@@ -259,3 +265,33 @@ class BaseElement(ABC):
     @enforce_datatype.setter
     def enforce_datatype(self, state: bool) -> None:
         self.__mutate_flag(BaseElementState.ENFORCE_DATATYPE_FLAG, state)
+
+    #
+    # define some helper functions to get/set common properties
+    #
+    @property
+    def label(self) -> bool:
+        return self.get_property(Property.Label)
+
+    @label.setter
+    def label(self, value: str) -> None:
+        value = value.strip()
+        if value:
+            self._set_property(Property.Label, value)
+        else:
+            self._clear_property(Property.Label)
+
+    @property
+    def description(self) -> bool:
+        return self.get_property(Property.Label)
+
+    @description.setter
+    def description(self, value: str) -> None:
+        value = value.strip()
+        if value:
+            self._set_property(Property.Description, value)
+        else:
+            self._clear_property(Property.Description)
+
+
+

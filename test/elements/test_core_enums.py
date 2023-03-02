@@ -9,8 +9,8 @@ from cdspy.elements import Property
 
 
 def test_element_type_basic() -> None:
-    assert ElementType.Column.as_reference_label() == "Col"
-    assert ElementType.Row.as_reference_label() == "Row"
+    assert ElementType.Column.nickname == "Col"
+    assert ElementType.Row.nickname == "Row"
     assert len(ElementType) == 7
     assert ElementType["TableContext"] == ElementType.TableContext
     assert ElementType["Table"] == ElementType.Table
@@ -60,7 +60,7 @@ def test_property_getters() -> None:
     # test dict
     assert Property["Label"] == Property.Label
     assert Property.Label in Property
-    assert Property.Label.tag is not None
+    assert Property.Label.nickname is not None
 
     # test callable
     assert Property("Label") == Property.Label
@@ -72,45 +72,45 @@ def test_property_getters() -> None:
         assert Property.by_name(" " + p.name + "  ") == p
         assert Property.by_name(p.name.lower()) == p
         assert Property.by_name(p.name.upper()) == p
-        if p.tag:
-            assert Property.by_abbreviation(p.tag) == p
-            assert Property.by_abbreviation("  " + p.tag + "  ") == p
-            assert Property.by_abbreviation(p.tag.lower()) == p
-            assert Property.by_abbreviation(p.tag.upper()) == p
+        if p.nickname:
+            assert Property.by_nickname(p.nickname) == p
+            assert Property.by_nickname("  " + p.nickname + "  ") == p
+            assert Property.by_nickname(p.nickname.lower()) == p
+            assert Property.by_nickname(p.nickname.upper()) == p
         else:
-            assert Property.by_abbreviation(p.tag) is None
-            assert Property.by_abbreviation(p.tag.lower()) is None
-            assert Property.by_abbreviation(p.tag.upper()) is None
+            assert Property.by_nickname(p.nickname) is None
+            assert Property.by_nickname(p.nickname.lower()) is None
+            assert Property.by_nickname(p.nickname.upper()) is None
 
 
 def test_property_getter_failures() -> None:
-    assert Property.by_abbreviation() is None
-    assert Property.by_abbreviation("") is None
-    assert Property.by_abbreviation("  ") is None
-    assert Property.by_abbreviation(" abbreviation not present ") is None
+    assert Property.by_nickname() is None
+    assert Property.by_nickname("") is None
+    assert Property.by_nickname("  ") is None
+    assert Property.by_nickname(" nickname not present ") is None
 
     # test Property.by_name()
     with pytest.raises(ValueError, match="None/Empty is not a valid Property"):
         Property.by_name("  ")
 
-    with pytest.raises(ValueError, match="'abbreviation not present' is not a valid Property"):
-        Property.by_name(" abbreviation not present ")
+    with pytest.raises(ValueError, match="'nickname not present' is not a valid Property"):
+        Property.by_name(" nickname not present ")
 
     with pytest.raises(ValueError) as e_info:
-        Property.by_name(" abbreviation not present ")
+        Property.by_name(" nickname not present ")
     assert e_info is not None
-    assert e_info.value.args[0] == "'abbreviation not present' is not a valid Property"
-    assert str(e_info.value) == "'abbreviation not present' is not a valid Property"
+    assert e_info.value.args[0] == "'nickname not present' is not a valid Property"
+    assert str(e_info.value) == "'nickname not present' is not a valid Property"
 
     # test Property() and Property._missing_()
-    with pytest.raises(ValueError, match="'abbreviation not present' is not a valid Property"):
-        Property(" abbreviation not present ")
+    with pytest.raises(ValueError, match="'nickname not present' is not a valid Property"):
+        Property(" nickname not present ")
 
     with pytest.raises(ValueError) as e_info:
-        Property(" abbreviation not present ")
+        Property(" nickname not present ")
     assert e_info is not None
-    assert e_info.value.args[0] == "'abbreviation not present' is not a valid Property"
-    assert str(e_info.value) == "'abbreviation not present' is not a valid Property"
+    assert e_info.value.args[0] == "'nickname not present' is not a valid Property"
+    assert str(e_info.value) == "'nickname not present' is not a valid Property"
 
 
 def test_property_lt_oper() -> None:

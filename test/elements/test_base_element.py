@@ -47,6 +47,7 @@ class MockBaseElement(BaseElement):
         super().__init__()
         self._element_type = et
 
+    @property
     def element_type(self) -> ElementType:
         return self._element_type  # type: ignore
 
@@ -122,7 +123,7 @@ def test_clear_property() -> None:
     assert Property.Label not in tc._element_properties()
 
     # test a read-only property cannot be cleared
-    rop = tc.element_type().read_only_properties()
+    rop = tc.element_type.read_only_properties()
     assert rop
     for p in rop:
         with pytest.raises(ReadOnlyException, match=f"ReadOnly: Cell->{p.name}"):
@@ -157,11 +158,11 @@ def test_vet_property_key() -> None:
     assert tc._vet_property_key("  this   is a   str KEY ") == "this is a str key"  # type: ignore
 
     # test that mutable table properties are allowed
-    for p in tc.element_type().mutable_properties():
+    for p in tc.element_type.mutable_properties():
         assert tc._vet_property_key(p, for_mutable_op=True) == p  # type: ignore
 
     # test that read-only table properties are not allowed
-    for p in tc.element_type().read_only_properties():
+    for p in tc.element_type.read_only_properties():
         with pytest.raises(ReadOnlyException, match=f"ReadOnly: Table->{p.name}"):
             assert tc._vet_property_key(p, for_mutable_op=True) == p  # type: ignore
 
@@ -169,7 +170,7 @@ def test_vet_property_key() -> None:
     ap = set(Property)  # all properties
     assert ap
 
-    tp = set(tc.element_type().properties())  # all table properties
+    tp = set(tc.element_type.properties())  # all table properties
     assert tp
 
     nsp = tp.symmetric_difference(ap)
@@ -262,4 +263,3 @@ def test_get_property() -> None:
     # fail if key is not a string or property
     with pytest.raises(InvalidPropertyException, match=f"Invalid Property: {type(42)}"):
         assert tc.get_property(42) == 42  # type: ignore
-

@@ -11,6 +11,6 @@ if TYPE_CHECKING:
 
 class ReadOnlyException(BaseTableException):
     def __init__(self, be: BaseElement, p: Property) -> None:
-        e = be.element_type()
+        e = be.element_type
         message = f"ReadOnly: {e.name}->{p.name}"
         super().__init__(e, message)

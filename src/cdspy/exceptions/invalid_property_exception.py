@@ -16,7 +16,7 @@ class InvalidPropertyException(BaseTableException):
         key: Union[Property, str, None] = None,
         message: Optional[str] = None,
     ) -> None:
-        e = be.element_type()
+        e = be.element_type
 
         if message is None:
             message = "Property not specified"

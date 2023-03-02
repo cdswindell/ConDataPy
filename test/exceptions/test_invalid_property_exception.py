@@ -12,8 +12,8 @@ def test_new_invalid_property_exception_with_arg() -> None:
     c = InvalidPropertyException(r)
     assert c
     assert type(c) == InvalidPropertyException
-    assert c.element_type() == ElementType.Row
-    assert c.message() == "Property not specified"
+    assert c.element_type == ElementType.Row
+    assert c.message == "Property not specified"
 
 
 def test_invalid_property_exception_with_all_args() -> None:
@@ -22,8 +22,8 @@ def test_invalid_property_exception_with_all_args() -> None:
     c = InvalidPropertyException(me, key)
     assert c
     assert type(c) == InvalidPropertyException
-    assert c.element_type() == ElementType.Table
-    assert c.message() == f"Invalid: Table->{key.name}"
+    assert c.element_type == ElementType.Table
+    assert c.message == f"Invalid: Table->{key.name}"
 
 
 def test_invalid_property_exception_with_str_key() -> None:
@@ -32,13 +32,13 @@ def test_invalid_property_exception_with_str_key() -> None:
     c = InvalidPropertyException(me, key)
     assert c
     assert type(c) == InvalidPropertyException
-    assert c.element_type() == ElementType.Table
-    assert c.message() == f"Invalid: {me.element_type().name}->'{key}'"
+    assert c.element_type == ElementType.Table
+    assert c.message == f"Invalid: {me.element_type.name}->'{key}'"
 
     me = MockBaseElement(ElementType.Group)
     key = "my group property"
     c = InvalidPropertyException(me, key)
     assert c
     assert type(c) == InvalidPropertyException
-    assert c.element_type() == ElementType.Group
-    assert c.message() == f"Invalid: Group->'{key}'"
+    assert c.element_type == ElementType.Group
+    assert c.message == f"Invalid: Group->'{key}'"
