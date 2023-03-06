@@ -75,14 +75,49 @@ class BaseElement(ABC):
 
     def __init__(self) -> None:
         """
-        Constructs a base element, initializing the flags property to empty
+        Constructs a base element, initializing the flags property to NO_FLAGS
         """
         self._m_flags = BaseElementState.NO_FLAGS
+
+    def __getattribute__(self, name: str) -> Any:
+        """
+        Allow attribute names that match Property keys to return values.
+        Note that only properties supported by the BaseElement are returned;
+
+        :param name:
+        :return:
+        """
+        try:
+            return super().__getattribute__(name)
+        except AttributeError:
+            p = Property.by_name("".join(name.title().split("_")), no_raise=True)
+            if p and self._implements(p):
+                return self.get_property(p)
+            else:
+                raise AttributeError(name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        p = Property.by_name("".join(name.title().split("_")), no_raise=True)
+        if p:
+            # special process for strings
+            value = self._normalize(value) if isinstance(value, str) else value
+            if value:
+                self._set_property(p, value)
+            else:
+                self._clear_property(p, value)
+        else:
+            super().__setattr__(name, value)
 
     def __str__(self) -> str:
         label = self.get_property(Property.Label)
         label = ": " + label if label else ""
         return f"[{self.element_type.name}{label}]"
+
+    def _normalize(self, value: Any) -> Any:
+        if isinstance(value, str):
+            return " ".join(value.strip().split())
+        else:
+            return value
 
     def _implements(self, p: Optional[Property]) -> bool:
         """
@@ -94,7 +129,7 @@ class BaseElement(ABC):
         else:
             return p.is_implemented_by(self.element_type)
 
-    def __mutate_flag(self, flag: BaseElementState, state: bool) -> None:
+    def _mutate_flag(self, flag: BaseElementState, state: bool) -> None:
         """Protected method used to modify element flags internal state"""
         if state:
             self._m_flags |= flag
@@ -249,7 +284,7 @@ class BaseElement(ABC):
 
     @is_supports_null.setter
     def is_supports_null(self, state: bool) -> None:
-        self.__mutate_flag(BaseElementState.SUPPORTS_NULL_FLAG, state)
+        self._mutate_flag(BaseElementState.SUPPORTS_NULL_FLAG, state)
 
     @property
     def is_read_only(self) -> bool:
@@ -257,7 +292,7 @@ class BaseElement(ABC):
 
     @is_read_only.setter
     def is_read_only(self, state: bool) -> None:
-        self.__mutate_flag(BaseElementState.READONLY_FLAG, state)
+        self._mutate_flag(BaseElementState.READONLY_FLAG, state)
 
     @property
     def is_enforce_datatype(self) -> bool:
@@ -265,31 +300,4 @@ class BaseElement(ABC):
 
     @is_enforce_datatype.setter
     def is_enforce_datatype(self, state: bool) -> None:
-        self.__mutate_flag(BaseElementState.ENFORCE_DATATYPE_FLAG, state)
-
-    #
-    # define some helper functions to get/set common properties
-    #
-    @property
-    def label(self) -> Optional[str]:
-        return cast(str, self.get_property(Property.Label))
-
-    @label.setter
-    def label(self, value: str) -> None:
-        value = value.strip()
-        if value:
-            self._set_property(Property.Label, value)
-        else:
-            self._clear_property(Property.Label)
-
-    @property
-    def description(self) -> Optional[str]:
-        return cast(str, self.get_property(Property.Label))
-
-    @description.setter
-    def description(self, value: str) -> None:
-        value = value.strip()
-        if value:
-            self._set_property(Property.Description, value)
-        else:
-            self._clear_property(Property.Description)
+        self._mutate_flag(BaseElementState.ENFORCE_DATATYPE_FLAG, state)

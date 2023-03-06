@@ -72,7 +72,11 @@ def test_property_getters() -> None:
         assert Property.by_name(" " + p.name + "  ") == p
         assert Property.by_name(p.name.lower()) == p
         assert Property.by_name(p.name.upper()) == p
+        unique_nicknames = set()
         if p.nickname:
+            # test that nicknames are unique
+            assert p.nickname.lower() not in unique_nicknames
+            unique_nicknames.add(p.nickname.lower())
             assert Property.by_nickname(p.nickname) == p
             assert Property.by_nickname("  " + p.nickname + "  ") == p
             assert Property.by_nickname(p.nickname.lower()) == p

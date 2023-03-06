@@ -146,11 +146,12 @@ class Property(Enum):
 
     # TableContext/Table Properties
     NumTables = _TableProperty(False, True, False, None, None, ElementType.TableContext)
-    TokenMapper = _TableProperty(False, True, True, None, None, ElementType.TableContext)
+    TokenMapper = _TableProperty(False, False, True, None, None, ElementType.TableContext)
     RowCapacityIncr = _TableProperty(False, False, True, "rci", None, ElementType.TableContext, ElementType.Table)
     ColumnCapacityIncr = _TableProperty(False, False, True, "cci", None, ElementType.TableContext, ElementType.Table)
     FreeSpaceThreshold = _TableProperty(False, False, True, "fst", None, ElementType.TableContext, ElementType.Table)
     IsAutoRecalculate = _TableProperty(False, False, True, "recalc", None, ElementType.TableContext, ElementType.Table)
+    IsTableLabelsIndexed = _TableProperty(False, False, True, "isTLBX", None, ElementType.TableContext)
     IsRowLabelsIndexed = _TableProperty(False, False, True, "isRLbX", None, ElementType.TableContext, ElementType.Table)
     IsColumnLabelsIndexed = _TableProperty(
         False, False, True, "isCLbX", None, ElementType.TableContext, ElementType.Table
@@ -161,7 +162,7 @@ class Property(Enum):
     IsGroupLabelsIndexed = _TableProperty(
         False, False, True, "isGLbX", None, ElementType.TableContext, ElementType.Table
     )
-    IsPersistent = _TableProperty(False, False, True, "isP", None, ElementType.TableContext, ElementType.Table)
+    AreTablesPersistent = _TableProperty(False, False, True, "isP", None, ElementType.TableContext, ElementType.Table)
 
     # PendingDerivationThreadPool Properties
     IsPendingAllowCoreThreadTimeout = _TableProperty(
@@ -190,6 +191,42 @@ class Property(Enum):
     )
 
     # Table Element Properties
+    IsReadOnlyDefault = _TableProperty(
+        True,
+        False,
+        True,
+        "rod",
+        None,
+        ElementType.TableContext,
+        ElementType.Table,
+        ElementType.Row,
+        ElementType.Column,
+        ElementType.Cell,
+    )
+    IsSupportsNullsDefault = _TableProperty(
+        True,
+        False,
+        True,
+        "snd",
+        None,
+        ElementType.TableContext,
+        ElementType.Table,
+        ElementType.Row,
+        ElementType.Column,
+        ElementType.Cell,
+    )
+    IsEnforceDataTypeDefault = _TableProperty(
+        True,
+        False,
+        True,
+        "edt",
+        None,
+        ElementType.TableContext,
+        ElementType.Table,
+        ElementType.Row,
+        ElementType.Column,
+        ElementType.Cell,
+    )
     NumSubsets = _TableProperty(
         False,
         True,
@@ -310,7 +347,7 @@ class Property(Enum):
         raise ValueError(f"'{name}' is not a valid {cls.__name__}")
 
     @classmethod
-    def by_name(cls, name: str) -> Property:
+    def by_name(cls, name: str, no_raise: Optional[bool] = False) -> Property | None:
         name = name.strip()
         if name in cls.__members__:
             return cls[name]
@@ -320,6 +357,8 @@ class Property(Enum):
             if k.lower() == name:
                 return v
         else:
+            if no_raise:
+                return None
             if name:
                 raise ValueError(f"'{name}' is not a valid {cls.__name__}")
             else:
@@ -425,3 +464,11 @@ class Property(Enum):
 
 # Define static Nickname map
 _PROPERTIES_BY_NICKNAME = {p.nickname.lower(): p for p in Property}
+
+
+@verify(UNIQUE)
+class TimeUnit(Enum):
+    MIN = 1.0 / 60.0
+    SEC = 1
+    MSEC = 1000
+    USEC = 1000000
