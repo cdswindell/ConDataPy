@@ -134,11 +134,11 @@ def test_as_strings() -> None:
     s = {Tag("d"), Tag("a"), Tag("b"), Tag("d"), Tag("c"), Tag("d")}
     assert s
     assert len(s) == 4
-    assert Tag.as_strings(s) == ["a", "b", "c", "d"]
+    assert Tag.as_labels(s) == ["a", "b", "c", "d"]
 
     # test that set containing non-tags is handled
 
     s = {Tag("d"), Tag("a"), 42, Tag("b"), Tag("d"), Tag("c"), Tag("d"), "d"}  # type: ignore
     assert s
     assert len(s) == 6
-    assert Tag.as_strings(s) == ["a", "b", "c", "d"]
+    assert Tag.as_labels(s) == ["a", "b", "c", "d"]

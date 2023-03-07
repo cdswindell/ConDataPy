@@ -94,6 +94,7 @@ class Property(Enum):
     Label = _TableProperty(True, False, False, "lb")
     Description = _TableProperty(True, False, False, "desc")
     Tags = _TableProperty(True, False, False, "tags")
+    Categories = _TableProperty(True, False, False, "categories")
     UUID = _TableProperty(
         True,
         True,

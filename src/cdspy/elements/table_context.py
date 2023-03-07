@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 from threading import Lock
-from typing import Dict, Final, Optional, Set
+from typing import Any, Dict, Final, Optional, Set, TYPE_CHECKING
 from weakref import WeakSet
 
-from . import BaseElement
 from . import BaseElementState
+from . import BaseElement
+
 from . import ElementType
 from . import Property
 from . import TimeUnit
-from . import Tag
 
-_TABLE_CONTEXT_DEFAULTS = {
+if TYPE_CHECKING:
+    from . import Category
+    from . import Tag
+
+_TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.RowCapacityIncr: 256,
     Property.ColumnCapacityIncr: 256,
     Property.FreeSpaceThreshold: 2.0,
@@ -33,6 +37,7 @@ _TABLE_CONTEXT_DEFAULTS = {
     Property.NumPendingMaxPoolThreads: 128,
     Property.PendingThreadKeepAliveTimeout: 5,
     Property.PendingThreadKeepAliveTimeoutUnit: TimeUnit.SEC,
+    Property.Tags: {},
 }
 
 _EVENTS_NOTIFY_IN_SAME_THREAD_DEFAULT: Final[bool] = False
@@ -65,15 +70,18 @@ class TableContext(BaseElement):
     def __init__(self, template_context: Optional[TableContext] = None) -> None:
         super().__init__()
 
-        is_default = True if template_context is None else False
-
-        self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, is_default)
         self._m_registered_nonpersistent_tables: WeakSet[BaseElement] = WeakSet()
         self._m_registered_persistent_tables: Set[BaseElement] = set()
-        self._m_global_tag_cache: Dict[str, Tag] = {}
+        self._m_lock = Lock()
+
+        self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template_context is not None)
 
         # initialize all initializable properties
         self._initialize(template_context)
+
+        # initialize the tags and categories caches
+        self.categories: Dict[str, Category] = {}
+        self.tags: Dict[str, Tag] = {}
 
     def _initialize(self, template: Optional[TableContext] = None) -> None:
         global _TABLE_CONTEXT_DEFAULTS
@@ -98,3 +106,18 @@ class TableContext(BaseElement):
     @property
     def num_tables(self) -> int:
         return len(self._m_registered_nonpersistent_tables) + len(self._m_registered_persistent_tables)
+
+    def to_cononical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
+        from . import Tag
+
+        label = Tag.normalize_label(label)
+        if not label:
+            return None
+
+        with self._m_lock:
+            tags: Dict[str, Tag] = self.get_property(Property.Tags)
+            tag: Optional[Tag] = tags.get(label, None)
+            if not tag and create:
+                tag = Tag(label)
+                tags[label] = tag
+            return tag

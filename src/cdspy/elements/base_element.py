@@ -100,11 +100,11 @@ class BaseElement(ABC):
         p = Property.by_name("".join(name.title().split("_")), no_raise=True)
         if p:
             # special process for strings
-            value = self._normalize(value) if isinstance(value, str) else value
-            if value:
-                self._set_property(p, value)
+            value = self._normalize(value)
+            if value is None:
+                self._clear_property(p)
             else:
-                self._clear_property(p, value)
+                self._set_property(p, value)
         else:
             super().__setattr__(name, value)
 
@@ -114,8 +114,14 @@ class BaseElement(ABC):
         return f"[{self.element_type.name}{label}]"
 
     def _normalize(self, value: Any) -> Any:
+        if value is None:
+            return None
         if isinstance(value, str):
-            return " ".join(value.strip().split())
+            s = " ".join(value.strip().split())
+            if s:
+                return s
+            else:
+                return None
         else:
             return value
 
