@@ -17,11 +17,11 @@ class Tag:
     @staticmethod
     def as_labels(tags: Collection[Tag]) -> Collection[str] | None:
         if not tags:
-            return set()
+            return None
         return sorted({t.label for t in tags if isinstance(t, Tag)})
 
     @staticmethod
-    def as_tags(labels: Collection[str], context: TableContext, create: Optional[bool] = True) -> Collection[Tag]:
+    def as_tags(labels: Collection[str], context: TableContext, create: Optional[bool] = True) -> Set[Tag]:
         if not labels:
             return set()
 
@@ -67,13 +67,3 @@ class Tag:
     @property
     def label(self) -> str:
         return self._label
-
-
-class Category(Tag):
-    __slots__ = ["_label"]
-
-    def __repr__(self) -> str:
-        return f"Category('{self._label}')"
-
-    def __str__(self) -> str:
-        return f"[Category: '{self._label}']"

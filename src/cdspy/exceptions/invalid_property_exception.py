@@ -3,13 +3,13 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING, Union
 
 from ..elements import Property
-from .base_exceptions import BaseTableException
+from . import InvalidException
 
 if TYPE_CHECKING:
     from ..elements.base_element import BaseElement
 
 
-class InvalidPropertyException(BaseTableException):
+class InvalidPropertyException(InvalidException):
     def __init__(
         self,
         be: BaseElement,

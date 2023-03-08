@@ -7,31 +7,6 @@ import pytest
 from cdspy.elements import ElementType, BaseElementState
 from cdspy.elements import Property
 
-from cdspy.elements import _ENFORCE_DATATYPE_FLAG
-from cdspy.elements import _READONLY_FLAG
-from cdspy.elements import _SUPPORTS_NULL_FLAG
-from cdspy.elements import _PENDING_THREAD_POOL_FLAG
-from cdspy.elements import _IN_USE_FLAG
-from cdspy.elements import _HAS_CELL_VALIDATOR_FLAG
-from cdspy.elements import _AUTO_RECALCULATE_DISABLED_FLAG
-from cdspy.elements import _AUTO_RECALCULATE_FLAG
-from cdspy.elements import _IS_DERIVED_CELL_FLAG
-from cdspy.elements import _IS_PENDING_FLAG
-from cdspy.elements import _IS_AWAITING_FLAG
-from cdspy.elements import _ROW_LABELS_INDEXED_FLAG
-from cdspy.elements import _COLUMN_LABELS_INDEXED_FLAG
-from cdspy.elements import _CELL_LABELS_INDEXED_FLAG
-from cdspy.elements import _TABLE_LABELS_INDEXED_FLAG
-from cdspy.elements import _GROUP_LABELS_INDEXED_FLAG
-from cdspy.elements import _IS_TABLE_PERSISTENT_FLAG
-from cdspy.elements import _EVENTS_NOTIFY_IN_SAME_THREAD_FLAG
-from cdspy.elements import _EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG
-from cdspy.elements import _PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG
-from cdspy.elements import _IS_DEFAULT_FLAG
-from cdspy.elements import _IS_DIRTY_FLAG
-from cdspy.elements import _HAS_CELL_ERROR_MSG_FLAG
-from cdspy.elements import _IS_INVALID_FLAG
-from cdspy.elements import _IS_PROCESSED_FLAG
 
 from cdspy.elements.base_element import TABLE_PROPERTIES_KEY
 from cdspy.elements.base_element import BaseElement
@@ -54,34 +29,6 @@ class MockBaseElement(BaseElement):
     @property
     def _is_null(self) -> bool:
         return False
-
-
-def test_base_element_state_flags() -> None:
-    assert _ENFORCE_DATATYPE_FLAG == BaseElementState.ENFORCE_DATATYPE_FLAG
-    assert _READONLY_FLAG == BaseElementState.READONLY_FLAG
-    assert _SUPPORTS_NULL_FLAG == BaseElementState.SUPPORTS_NULL_FLAG
-    assert _PENDING_THREAD_POOL_FLAG == BaseElementState.PENDING_THREAD_POOL_FLAG
-    assert _IN_USE_FLAG == BaseElementState.IN_USE_FLAG
-    assert _HAS_CELL_VALIDATOR_FLAG == BaseElementState.HAS_CELL_VALIDATOR_FLAG
-    assert _HAS_CELL_ERROR_MSG_FLAG == BaseElementState.HAS_CELL_ERROR_MSG_FLAG
-    assert _AUTO_RECALCULATE_DISABLED_FLAG == BaseElementState.AUTO_RECALCULATE_DISABLED_FLAG
-    assert _AUTO_RECALCULATE_FLAG == BaseElementState.AUTO_RECALCULATE_FLAG
-    assert _IS_PENDING_FLAG == BaseElementState.IS_PENDING_FLAG
-    assert _IS_DERIVED_CELL_FLAG == BaseElementState.IS_DERIVED_CELL_FLAG
-    assert _IS_AWAITING_FLAG == BaseElementState.IS_AWAITING_FLAG
-    assert _ROW_LABELS_INDEXED_FLAG == BaseElementState.ROW_LABELS_INDEXED_FLAG
-    assert _COLUMN_LABELS_INDEXED_FLAG == BaseElementState.COLUMN_LABELS_INDEXED_FLAG
-    assert _CELL_LABELS_INDEXED_FLAG == BaseElementState.CELL_LABELS_INDEXED_FLAG
-    assert _TABLE_LABELS_INDEXED_FLAG == BaseElementState.TABLE_LABELS_INDEXED_FLAG
-    assert _GROUP_LABELS_INDEXED_FLAG == BaseElementState.GROUP_LABELS_INDEXED_FLAG
-    assert _IS_TABLE_PERSISTENT_FLAG == BaseElementState.IS_TABLE_PERSISTENT_FLAG
-    assert _EVENTS_NOTIFY_IN_SAME_THREAD_FLAG == BaseElementState.EVENTS_NOTIFY_IN_SAME_THREAD_FLAG
-    assert _EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG == BaseElementState.EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG
-    assert _PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG == BaseElementState.PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG
-    assert _IS_DEFAULT_FLAG == BaseElementState.IS_DEFAULT_FLAG
-    assert _IS_DIRTY_FLAG == BaseElementState.IS_DIRTY_FLAG
-    assert _IS_INVALID_FLAG == BaseElementState.IS_INVALID_FLAG
-    assert _IS_PROCESSED_FLAG == BaseElementState.IS_PROCESSED_FLAG
 
 
 def test_base_element_initial_state() -> None:

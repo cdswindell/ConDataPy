@@ -3,12 +3,31 @@ ElementType enum defines all components available in the cdsPy
 """
 from __future__ import annotations
 
+import re
 from typing import Optional, TYPE_CHECKING, Union
 
-from enum import Enum, verify, UNIQUE
+from enum import auto, Enum, verify, UNIQUE
 
 if TYPE_CHECKING:
     from .base_element import BaseElement
+
+
+@verify(UNIQUE)
+class Access(Enum):
+    First = auto()
+    Last = auto()
+    Next = auto()
+    Previous = auto()
+    Current = auto()
+    ByIndex = auto()
+    ByIdent = auto()
+    ByReference = auto()
+    ByLabel = auto()
+    ByDescription = auto()
+    ByProperty = auto()
+    ByDataType = auto()
+    ByUUID = auto()
+    Tag = auto()
 
 
 @verify(UNIQUE)
@@ -93,8 +112,7 @@ class Property(Enum):
     # Base element properties supported by all table elements
     Label = _TableProperty(True, False, False, "lb")
     Description = _TableProperty(True, False, False, "desc")
-    Tags = _TableProperty(True, False, False, "tags")
-    Categories = _TableProperty(True, False, False, "categories")
+    Tags = _TableProperty(True, True, False, "tags")
     UUID = _TableProperty(
         True,
         True,
@@ -348,7 +366,7 @@ class Property(Enum):
         raise ValueError(f"'{name}' is not a valid {cls.__name__}")
 
     @classmethod
-    def by_name(cls, name: str, no_raise: Optional[bool] = False) -> Property | None:
+    def by_name(cls, name: str) -> Property | None:
         name = name.strip()
         if name in cls.__members__:
             return cls[name]
@@ -358,12 +376,17 @@ class Property(Enum):
             if k.lower() == name:
                 return v
         else:
-            if no_raise:
-                return None
             if name:
                 raise ValueError(f"'{name}' is not a valid {cls.__name__}")
             else:
                 raise ValueError(f"None/Empty is not a valid {cls.__name__}")
+
+    @classmethod
+    def by_attr_name(cls, name: str) -> Optional[Property]:
+        try:
+            return Property.by_name("".join(name.title().split("_")))
+        except ValueError:
+            return None
 
     @staticmethod
     def by_nickname(short_name: Optional[str] = None) -> Optional[Property]:
@@ -389,6 +412,10 @@ class Property(Enum):
 
     def __hash__(self) -> int:
         return self.name.__hash__()
+
+    @property
+    def as_attr_name(self) -> str:
+        return "_".join([t.lower() for t in re.split("(?<=.)(?=[A-Z])", self.name)])
 
     @property
     def nickname(self) -> str:

@@ -63,6 +63,27 @@ class BaseElement(ABC):
         if be is not None and be.is_invalid:
             raise DeletedElementException(be.element_type)
 
+    @staticmethod
+    def _normalize(value: Any) -> Any:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            s = " ".join(value.strip().split())
+            if s:
+                return s
+            else:
+                return None
+        else:
+            return value
+
+    @staticmethod
+    def __normalize_property_value_bool(p: Property, v: object) -> bool:
+        from . import TableContext
+
+        if v is None or not isinstance(v, bool):
+            v = cast(bool, TableContext.default_table_context().get_property(p))
+        return v
+
     @property
     @abstractmethod
     def element_type(self) -> ElementType:
@@ -90,17 +111,17 @@ class BaseElement(ABC):
         try:
             return super().__getattribute__(name)
         except AttributeError:
-            p = Property.by_name("".join(name.title().split("_")), no_raise=True)
+            p = Property.by_attr_name(name)
             if p and self._implements(p):
                 return self.get_property(p)
             else:
                 raise AttributeError(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        p = Property.by_name("".join(name.title().split("_")), no_raise=True)
+        p = Property.by_attr_name(name)
         if p:
             # special process for strings
-            value = self._normalize(value)
+            value = BaseElement._normalize(value)
             if value is None:
                 self._clear_property(p)
             else:
@@ -108,22 +129,12 @@ class BaseElement(ABC):
         else:
             super().__setattr__(name, value)
 
-    def __str__(self) -> str:
-        label = self.get_property(Property.Label)
-        label = ": " + label if label else ""
-        return f"[{self.element_type.name}{label}]"
-
-    def _normalize(self, value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            s = " ".join(value.strip().split())
-            if s:
-                return s
-            else:
-                return None
+    def __repr__(self) -> str:
+        if self.is_invalid:
+            return f"[Deleted {self.element_type.name}]"
         else:
-            return value
+            label = ": " + self.label if self.label else ""
+            return f"[{self.element_type.name}{label}]"
 
     def _implements(self, p: Optional[Property]) -> bool:
         """
@@ -220,6 +231,17 @@ class BaseElement(ABC):
         return retval
 
     @synchronized
+    def _initialize_property(self, key: Property | str, value: Any) -> Any:
+        key = self._vet_property_key(key, for_mutable_op=False)
+
+        # get the dictionary from the base object, creating it if empty
+        properties: dict = cast(dict, self._element_properties(True))
+
+        retval = properties[key] if key in properties else None
+        properties[key] = value
+        return retval
+
+    @synchronized
     def _clear_property(self, key: Property | str) -> bool:
         key = self._vet_property_key(key, for_mutable_op=True)
 
@@ -260,12 +282,16 @@ class BaseElement(ABC):
     @synchronized
     def get_property(self, key: Union[Property, str, None]) -> Any:
         key = self._vet_property_key(key)
-
         tprops = self._element_properties()
         if tprops:
             return tprops.get(key, None)
         else:
             return None
+
+    @synchronized
+    def _delete(self) -> None:
+        self._reset_element_properties()
+        self._invalidate()
 
     @property
     def is_invalid(self) -> bool:
@@ -283,6 +309,20 @@ class BaseElement(ABC):
         :return: True if element has not been deleted
         """
         return not self.is_invalid
+
+    # noinspection PyCompatibility
+    def _initialize_state_from_property(self, p: Property, v: object) -> bool:
+        _initialized_state = True
+        match p:
+            case Property.IsReadOnlyDefault:
+                self.is_read_only = BaseElement.__normalize_property_value_bool(p, v)
+            case Property.IsSupportsNullsDefault:
+                self.is_supports_null = BaseElement.__normalize_property_value_bool(p, v)
+            case Property.IsEnforceDataTypeDefault:
+                self.is_enforce_datatype = BaseElement.__normalize_property_value_bool(p, v)
+            case _:
+                _initialized_state = False
+        return _initialized_state
 
     @property
     def is_supports_null(self) -> bool:

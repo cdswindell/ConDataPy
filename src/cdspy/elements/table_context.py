@@ -7,12 +7,17 @@ from weakref import WeakSet
 from . import BaseElementState
 from . import BaseElement
 
+from . import Access
 from . import ElementType
 from . import Property
 from . import TimeUnit
 
+from ..mixins import DerivableThreadPool
+from ..mixins import DerivableThreadPoolConfig
+from ..mixins import EventProcessorThreadPool
+from ..mixins import EventsProcessorThreadPoolCreator
+
 if TYPE_CHECKING:
-    from . import Category
     from . import Tag
 
 _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
@@ -37,7 +42,6 @@ _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.NumPendingMaxPoolThreads: 128,
     Property.PendingThreadKeepAliveTimeout: 5,
     Property.PendingThreadKeepAliveTimeoutUnit: TimeUnit.SEC,
-    Property.Tags: {},
 }
 
 _EVENTS_NOTIFY_IN_SAME_THREAD_DEFAULT: Final[bool] = False
@@ -47,7 +51,13 @@ _EVENTS_KEEP_ALIVE_TIMEOUT_SEC_DEFAULT: Final[int] = 30
 _EVENTS_ALLOW_CORE_THREAD_TIMEOUT_DEFAULT: Final[bool] = False
 
 
-class TableContext(BaseElement):
+class TableContext(
+    BaseElement,
+    DerivableThreadPool,
+    DerivableThreadPoolConfig,
+    EventProcessorThreadPool,
+    EventsProcessorThreadPoolCreator,
+):
     _default_table_context: Optional[TableContext] = None
     _lock = Lock()
 
@@ -67,29 +77,21 @@ class TableContext(BaseElement):
     def default_table_context(cls) -> TableContext:
         return cls.__new__(cls)
 
-    def __init__(self, template_context: Optional[TableContext] = None) -> None:
+    def __init__(self, template: Optional[TableContext] = None) -> None:
         super().__init__()
 
         self._m_registered_nonpersistent_tables: WeakSet[BaseElement] = WeakSet()
         self._m_registered_persistent_tables: Set[BaseElement] = set()
         self._m_lock = Lock()
 
-        self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template_context is not None)
+        self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template is not None)
 
-        # initialize all initializable properties
-        self._initialize(template_context)
-
-        # initialize the tags and categories caches
-        self.categories: Dict[str, Category] = {}
-        self.tags: Dict[str, Tag] = {}
-
-    def _initialize(self, template: Optional[TableContext] = None) -> None:
         global _TABLE_CONTEXT_DEFAULTS
         for p in self.element_type.initializable_properties():
             v = template.get_property(p) if template else None
             if v is None:
                 v = _TABLE_CONTEXT_DEFAULTS.get(p, None)
-            self._set_property(p, v)
+            self._initialize_property(p, v)
 
     @property
     def _is_null(self) -> bool:
@@ -107,6 +109,15 @@ class TableContext(BaseElement):
     def num_tables(self) -> int:
         return len(self._m_registered_nonpersistent_tables) + len(self._m_registered_persistent_tables)
 
+    def clear(self) -> None:
+        # delete the persistent tables
+        for t in self._m_registered_persistent_tables:
+            if t.is_valid:
+                t._delete()
+
+        self._m_registered_persistent_tables.clear()
+        self._m_registered_nonpersistent_tables.clear()
+
     def to_cononical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
         from . import Tag
 
@@ -121,3 +132,6 @@ class TableContext(BaseElement):
                 tag = Tag(label)
                 tags[label] = tag
             return tag
+
+    def get_table(self, mode: Access, *args: object) -> Optional[BaseElement]:
+        pass
