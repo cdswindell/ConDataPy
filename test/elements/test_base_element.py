@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, cast, Dict, Optional
 
 import pytest
 
@@ -34,7 +34,7 @@ class MockBaseElement(BaseElement):
 def test_base_element_initial_state() -> None:
     tc = MockBaseElement()
     assert tc
-    assert tc._m_flags == BaseElementState.NO_FLAGS
+    assert tc._flags == BaseElementState.NO_FLAGS
     assert vars(tc).get(TABLE_PROPERTIES_KEY) is None
     assert tc._element_properties() is None
 
@@ -63,12 +63,12 @@ def test_clear_property() -> None:
     assert tc._set_property(Property.Label, "Test Label") is None
     assert tc.has_property(Property.Label)
     assert tc._element_properties() is not None
-    assert tc._element_properties()[Property.Label] == "Test Label"
+    assert cast(Dict[Property, str], tc._element_properties())[Property.Label] == "Test Label"
 
     # clear the property, should return True
     assert tc._clear_property(Property.Label)
     assert not tc.has_property(Property.Label)
-    assert Property.Label not in tc._element_properties()
+    assert Property.Label not in cast(Dict[Property, Any], tc._element_properties())
 
     # test a read-only property cannot be cleared
     rop = tc.element_type.read_only_properties()
@@ -85,12 +85,12 @@ def test_clear_property() -> None:
     # set a str property on the cell
     assert tc._set_property(key, "Test Str") is None
     assert tc.has_property(key)
-    assert tc._element_properties()[key] == "Test Str"
+    assert cast(Dict[str, str], tc._element_properties())[key] == "Test Str"
 
     # clear the property, should return True
     assert tc._clear_property(key)
     assert not tc.has_property(key)
-    assert key not in tc._element_properties()
+    assert key not in cast(Dict[str, str], tc._element_properties())
 
 
 def test_vet_property_key() -> None:
@@ -145,8 +145,8 @@ def test_set_property() -> None:
     assert tc
 
     # verify read-only properties can not be set
-    with pytest.raises(ReadOnlyException, match="ReadOnly: TableContext->NumTables"):
-        assert tc._set_property(Property.NumTables, 42) == 42  # type: ignore
+    with pytest.raises(ReadOnlyException, match="ReadOnly: TableContext->Tags"):
+        assert tc._set_property(Property.Tags, 42) == 42  # type: ignore
 
     # verify unsupported properties can not be set
     with pytest.raises(UnimplementedException, match="Unimplemented: TableContext->Derivation"):

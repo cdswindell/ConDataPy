@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import verify, UNIQUE, Flag
+from threading import RLock
 from typing import Any, Final, Optional, Dict, overload, cast, Union
-
-from wrapt import synchronized
 
 from . import ElementType
 from . import Property
@@ -13,7 +12,7 @@ from ..exceptions import InvalidPropertyException
 from ..exceptions import ReadOnlyException
 from ..exceptions import UnimplementedException
 
-TABLE_PROPERTIES_KEY: Final = "_m_props"
+TABLE_PROPERTIES_KEY: Final = "_props"
 
 
 @verify(UNIQUE)
@@ -98,7 +97,8 @@ class BaseElement(ABC):
         """
         Constructs a base element, initializing the flags property to NO_FLAGS
         """
-        self._m_flags = BaseElementState.NO_FLAGS
+        self._flags = BaseElementState.NO_FLAGS
+        self._lock = RLock()
 
     def __getattribute__(self, name: str) -> Any:
         """
@@ -112,14 +112,14 @@ class BaseElement(ABC):
             return super().__getattribute__(name)
         except AttributeError:
             p = Property.by_attr_name(name)
-            if p and self._implements(p):
+            if p and self._implements(p) and p.is_initializable_property:
                 return self.get_property(p)
             else:
                 raise AttributeError(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
         p = Property.by_attr_name(name)
-        if p:
+        if p and p.is_initializable_property:
             # special process for strings
             value = BaseElement._normalize(value)
             if value is None:
@@ -149,21 +149,21 @@ class BaseElement(ABC):
     def _mutate_flag(self, flag: BaseElementState, state: bool) -> None:
         """Protected method used to modify element flags internal state"""
         if state:
-            self._m_flags |= flag
+            self._flags |= flag
         else:
-            self._m_flags &= ~flag
+            self._flags &= ~flag
 
     def _set(self, flag: BaseElementState) -> None:
-        self._m_flags |= flag
+        self._flags |= flag
 
     def _reset(self, flag: BaseElementState) -> None:
-        self._m_flags &= ~flag
+        self._flags &= ~flag
 
     def _is_set(self, flag: BaseElementState) -> bool:
-        return (self._m_flags & flag) != BaseElementState.NO_FLAGS
+        return (self._flags & flag) != BaseElementState.NO_FLAGS
 
     def _invalidate(self) -> None:
-        self._m_flags |= BaseElementState.IS_INVALID_FLAG
+        self._flags |= BaseElementState.IS_INVALID_FLAG
         self._reset_element_properties()
 
     def _vet_element(self, be: Optional[BaseElement] = None) -> None:
@@ -205,52 +205,52 @@ class BaseElement(ABC):
             raise InvalidPropertyException(self, key)
         return key
 
-    @synchronized
     def _reset_element_properties(self) -> None:
-        t_props: Dict = vars(self).pop(TABLE_PROPERTIES_KEY, None)
-        if t_props:
-            t_props.clear()
+        with self.lock:
+            t_props: Dict = vars(self).pop(TABLE_PROPERTIES_KEY, None)
+            if t_props:
+                t_props.clear()
 
-    @synchronized
     def _element_properties(self, create_if_empty: bool = False) -> Optional[Dict]:
-        t_props: Dict = vars(self).get(TABLE_PROPERTIES_KEY, None)
-        if t_props is None and create_if_empty:  # type: ignore
-            t_props = dict()  # type: ignore
-            setattr(self, TABLE_PROPERTIES_KEY, t_props)
-        return t_props
+        with self.lock:
+            t_props: Dict = vars(self).get(TABLE_PROPERTIES_KEY, None)
+            if t_props is None and create_if_empty:  # type: ignore
+                t_props = dict()  # type: ignore
+                setattr(self, TABLE_PROPERTIES_KEY, t_props)
+            return t_props
 
-    @synchronized
     def _set_property(self, key: Property | str, value: Any) -> Any:
-        key = self._vet_property_key(key, for_mutable_op=True)
+        with self.lock:
+            key = self._vet_property_key(key, for_mutable_op=True)
 
-        # get the dictionary from the base object, creating it if empty
-        properties: dict = cast(dict, self._element_properties(True))
+            # get the dictionary from the base object, creating it if empty
+            properties: dict = cast(dict, self._element_properties(True))
 
-        retval = properties[key] if key in properties else None
-        properties[key] = value
+            retval = properties[key] if key in properties else None
+            properties[key] = value
         return retval
 
-    @synchronized
     def _initialize_property(self, key: Property | str, value: Any) -> Any:
-        key = self._vet_property_key(key, for_mutable_op=False)
+        with self.lock:
+            # vet the key, throw exceptions if invalid
+            key = self._vet_property_key(key, for_mutable_op=False)
 
-        # get the dictionary from the base object, creating it if empty
-        properties: dict = cast(dict, self._element_properties(True))
+            # get the dictionary from the base object, creating it if empty
+            properties: dict = cast(dict, self._element_properties(True))
+            retval = properties[key] if key in properties else None
+            properties[key] = value
+            return retval
 
-        retval = properties[key] if key in properties else None
-        properties[key] = value
-        return retval
-
-    @synchronized
     def _clear_property(self, key: Property | str) -> bool:
-        key = self._vet_property_key(key, for_mutable_op=True)
+        with self.lock:
+            key = self._vet_property_key(key, for_mutable_op=True)
 
-        key_present = False
-        properties = self._element_properties(False)
-        if properties and key in properties:
-            properties.pop(key)
-            key_present = True
-        return key_present
+            key_present = False
+            properties = self._element_properties(False)
+            if properties and key in properties:
+                properties.pop(key)
+                key_present = True
+            return key_present
 
     def has_property(self, key: Property | str) -> bool:
         if isinstance(key, Property):
@@ -265,7 +265,7 @@ class BaseElement(ABC):
         elif isinstance(key, str):
             key = self.__vet_text_key(key)
 
-        with synchronized(self):
+        with self.lock:
             properties = self._element_properties(False)
             if properties and key in properties:
                 return True
@@ -279,19 +279,19 @@ class BaseElement(ABC):
     def get_property(self, key: Optional[str]) -> Any:
         ...
 
-    @synchronized
     def get_property(self, key: Union[Property, str, None]) -> Any:
-        key = self._vet_property_key(key)
-        tprops = self._element_properties()
-        if tprops:
-            return tprops.get(key, None)
-        else:
-            return None
+        with self.lock:
+            key = self._vet_property_key(key)
+            tprops = self._element_properties()
+            if tprops:
+                return tprops.get(key, None)
+            else:
+                return None
 
-    @synchronized
     def _delete(self) -> None:
-        self._reset_element_properties()
-        self._invalidate()
+        with self.lock:
+            self._reset_element_properties()
+            self._invalidate()
 
     @property
     def is_invalid(self) -> bool:
@@ -325,6 +325,10 @@ class BaseElement(ABC):
         return _initialized_state
 
     @property
+    def lock(self) -> RLock:
+        return self._lock
+
+    @property
     def is_supports_null(self) -> bool:
         return self._is_set(BaseElementState.SUPPORTS_NULL_FLAG)
 
@@ -347,3 +351,19 @@ class BaseElement(ABC):
     @is_enforce_datatype.setter
     def is_enforce_datatype(self, state: bool) -> None:
         self._mutate_flag(BaseElementState.ENFORCE_DATATYPE_FLAG, state)
+
+    @property
+    def label(self) -> str | None:
+        return cast(str, self.get_property(Property.Label))
+
+    @label.setter
+    def label(self, value: Optional[str]) -> None:
+        self._set_property(Property.Label, value)
+
+    @property
+    def description(self) -> str | None:
+        return cast(str, self.get_property(Property.Description))
+
+    @description.setter
+    def description(self, value: Optional[str]) -> None:
+        self._set_property(Property.Description, value)

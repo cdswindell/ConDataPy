@@ -8,10 +8,10 @@ from ..elements.test_base_element import MockBaseElement
 
 
 def test_new_unimplemented_exception_with_all_args() -> None:
-    me = MockBaseElement(ElementType.Table)
-    p = Property.NumRows
+    me = MockBaseElement(ElementType.TableContext)
+    p = Property.UUID
     c = UnimplementedException(me, p)
     assert c
     assert type(c) == UnimplementedException
-    assert ElementType.Table == c.element_type
+    assert ElementType.TableContext == c.element_type
     assert c.message == f"Unimplemented: {me.element_type.name}->{p.name}"

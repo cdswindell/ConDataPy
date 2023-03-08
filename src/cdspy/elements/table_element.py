@@ -17,12 +17,16 @@ if TYPE_CHECKING:
 class TableElement(BaseElement, ABC):
     @property
     @abstractmethod
-    def table(self) -> BaseElement:
+    def table(self) -> TableElement:
         pass
 
     @property
     @abstractmethod
-    def table_context(self) -> TableContext:
+    def table_context(self) -> TableContext | None:
+        pass
+
+    @abstractmethod
+    def _delete(self, compress: Optional[bool] = True) -> None:
         pass
 
     @abstractmethod
@@ -33,6 +37,14 @@ class TableElement(BaseElement, ABC):
     def clear(self) -> bool:
         pass
 
+    @abstractmethod
+    def _register_affects(self, d: Derivable) -> None:
+        pass
+
+    @abstractmethod
+    def _deregister_affects(self, d: Derivable) -> None:
+        pass
+
     @property
     @abstractmethod
     def num_cells(self) -> int:
@@ -40,7 +52,17 @@ class TableElement(BaseElement, ABC):
 
     @property
     @abstractmethod
+    def num_groups(self) -> int:
+        pass
+
+    @property
+    @abstractmethod
     def is_pendings(self) -> bool:
+        pass
+
+    @property
+    @abstractmethod
+    def is_null(self) -> bool:
         pass
 
     @property
@@ -56,18 +78,6 @@ class TableElement(BaseElement, ABC):
     @property
     @abstractmethod
     def derived_elements(self) -> Collection[Derivable]:
-        pass
-
-    @abstractmethod
-    def _delete(self, compress: Optional[bool] = True) -> None:
-        pass
-
-    @abstractmethod
-    def _register_affects(self, d: Derivable) -> None:
-        pass
-
-    @abstractmethod
-    def _deregister_affects(self, d: Derivable) -> None:
         pass
 
     def __init__(self, te: TableElement) -> None:

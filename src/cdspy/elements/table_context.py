@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from threading import Lock
+from threading import RLock
 from typing import Any, Dict, Final, Optional, Set, TYPE_CHECKING
 from weakref import WeakSet
 
@@ -26,6 +26,7 @@ _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.FreeSpaceThreshold: 2.0,
     Property.IsAutoRecalculate: True,
     Property.DisplayFormat: None,
+    Property.Units: None,
     Property.Precision: None,
     Property.IsReadOnlyDefault: False,
     Property.IsSupportsNullsDefault: True,
@@ -59,7 +60,7 @@ class TableContext(
     EventsProcessorThreadPoolCreator,
 ):
     _default_table_context: Optional[TableContext] = None
-    _lock = Lock()
+    _lock = RLock()
 
     def __new__(cls, template_context: Optional[TableContext] = None) -> TableContext:
         if template_context is not None:
@@ -80,9 +81,8 @@ class TableContext(
     def __init__(self, template: Optional[TableContext] = None) -> None:
         super().__init__()
 
-        self._m_registered_nonpersistent_tables: WeakSet[BaseElement] = WeakSet()
-        self._m_registered_persistent_tables: Set[BaseElement] = set()
-        self._m_lock = Lock()
+        self._registered_nonpersistent_tables: WeakSet[BaseElement] = WeakSet()
+        self._registered_persistent_tables: Set[BaseElement] = set()
 
         self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template is not None)
 
@@ -95,7 +95,7 @@ class TableContext(
 
     @property
     def _is_null(self) -> bool:
-        return not self._m_registered_nonpersistent_tables and not self._m_registered_persistent_tables
+        return not self._registered_nonpersistent_tables and not self._registered_persistent_tables
 
     @property
     def element_type(self) -> ElementType:
@@ -107,16 +107,16 @@ class TableContext(
 
     @property
     def num_tables(self) -> int:
-        return len(self._m_registered_nonpersistent_tables) + len(self._m_registered_persistent_tables)
+        return len(self._registered_nonpersistent_tables) + len(self._registered_persistent_tables)
 
     def clear(self) -> None:
         # delete the persistent tables
-        for t in self._m_registered_persistent_tables:
+        for t in self._registered_persistent_tables:
             if t.is_valid:
                 t._delete()
 
-        self._m_registered_persistent_tables.clear()
-        self._m_registered_nonpersistent_tables.clear()
+        self._registered_persistent_tables.clear()
+        self._registered_nonpersistent_tables.clear()
 
     def to_cononical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
         from . import Tag
@@ -125,7 +125,7 @@ class TableContext(
         if not label:
             return None
 
-        with self._m_lock:
+        with self.lock:
             tags: Dict[str, Tag] = self.get_property(Property.Tags)
             tag: Optional[Tag] = tags.get(label, None)
             if not tag and create:

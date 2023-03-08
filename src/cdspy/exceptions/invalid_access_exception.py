@@ -13,30 +13,30 @@ class InvalidAccessException(InvalidException):
     def __init__(
         self, parent: BaseElement, child: BaseElement, access: Access, is_insert: Optional[bool] = False, *args: object
     ) -> None:
-        self._m_parent = parent
-        self._m_child = child
-        self._m_access = access
-        self._m_is_insert = False if is_insert is None else is_insert
-        self._m_metadata = args if args else None
+        self._parent = parent
+        self._child = child
+        self._access = access
+        self._is_insert = False if is_insert is None else is_insert
+        self._metadata = args if args else None
         message = f"Invalid {'Insert' if is_insert else 'Get'} Request: {access.name} Child: {child.element_type.name}"
         super().__init__(parent.element_type, message)
 
     @property
     def parent(self) -> BaseElement:
-        return self._m_parent
+        return self._parent
 
     @property
     def child(self) -> BaseElement:
-        return self._m_child
+        return self._child
 
     @property
     def access(self) -> Access:
-        return self._m_access
+        return self._access
 
     @property
     def is_insert(self) -> bool:
-        return self._m_is_insert
+        return self._is_insert
 
     @property
     def metadata(self) -> Any:
-        return self._m_metadata
+        return self._metadata

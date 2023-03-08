@@ -9,7 +9,7 @@ from ..elements.test_base_element import MockBaseElement
 
 def test_new_read_only_exception_with_all_args() -> None:
     me = MockBaseElement(ElementType.Table)
-    p = Property.NumRows
+    p = Property.Tags
     c = ReadOnlyException(me, p)
     assert c
     assert type(c) == ReadOnlyException

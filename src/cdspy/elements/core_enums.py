@@ -138,33 +138,9 @@ class Property(Enum):
     )
 
     # Table Element Properties(TableContext implements initializable ones)
-    Context = _TableProperty(
-        False,
-        True,
-        False,
-        None,
-        None,
-        ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Cell,
-        ElementType.Group,
-    )
-    Table = _TableProperty(
-        False,
-        True,
-        False,
-        None,
-        None,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Cell,
-        ElementType.Group,
-    )
     Precision = _TableProperty(True, False, True, "pr", None, ElementType.TableContext, ElementType.Table)
 
     # TableContext/Table Properties
-    NumTables = _TableProperty(False, True, False, None, None, ElementType.TableContext)
     TokenMapper = _TableProperty(False, False, True, None, None, ElementType.TableContext)
     RowCapacityIncr = _TableProperty(False, False, True, "rci", None, ElementType.TableContext, ElementType.Table)
     ColumnCapacityIncr = _TableProperty(False, False, True, "cci", None, ElementType.TableContext, ElementType.Table)
@@ -246,30 +222,6 @@ class Property(Enum):
         ElementType.Column,
         ElementType.Cell,
     )
-    NumSubsets = _TableProperty(
-        False,
-        True,
-        False,
-        "nSets",
-        None,
-        ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Group,
-    )
-    NumRows = _TableProperty(False, True, False, "nRows", None, ElementType.Table, ElementType.Group)
-    NumColumns = _TableProperty(False, True, False, "nCols", None, ElementType.Table, ElementType.Group)
-    NumCells = _TableProperty(
-        False,
-        True,
-        False,
-        "nCells",
-        None,
-        ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Group,
-    )
     NumRowsCapacity = _TableProperty(False, True, False, None, None, ElementType.Table)
     NumColumnsCapacity = _TableProperty(False, True, False, None, None, ElementType.Table)
     NumCellsCapacity = _TableProperty(False, True, False, None, None, ElementType.Column)
@@ -285,33 +237,6 @@ class Property(Enum):
         ElementType.Cell,
     )
     TimeSeries = _TableProperty(False, False, False, "tx", None, ElementType.Column, ElementType.Row)
-    Affects = _TableProperty(
-        False,
-        True,
-        False,
-        None,
-        None,
-        ElementType.Table,
-        ElementType.Group,
-        ElementType.Column,
-        ElementType.Row,
-        ElementType.Cell,
-    )
-    Index = _TableProperty(False, True, False, None, None, ElementType.Row, ElementType.Column)
-    Rows = _TableProperty(False, True, False, None, None, ElementType.Table, ElementType.Group)
-    Columns = _TableProperty(False, True, False, None, None, ElementType.Table, ElementType.Group)
-    Groups = _TableProperty(
-        False,
-        True,
-        False,
-        None,
-        None,
-        ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Group,
-    )
-    Cells = _TableProperty(False, True, False, None, None, ElementType.Row, ElementType.Column, ElementType.Group)
 
     # Cell properties
     Row = _TableProperty(False, True, False, None, None, ElementType.Cell)
@@ -324,7 +249,7 @@ class Property(Enum):
     Units = _TableProperty(
         True,
         False,
-        False,
+        True,
         "u",
         None,
         ElementType.Row,
@@ -339,16 +264,6 @@ class Property(Enum):
         None,
         ElementType.TableContext,
         ElementType.Table,
-        ElementType.Row,
-        ElementType.Column,
-        ElementType.Cell,
-    )
-    Validator = _TableProperty(
-        True,
-        False,
-        False,
-        "cv",
-        None,
         ElementType.Row,
         ElementType.Column,
         ElementType.Cell,
@@ -470,7 +385,6 @@ class Property(Enum):
 
         # handle one-offs by placing them in set
         return self in {
-            Property.Index,
             Property.Precision,
             Property.CellOffset,
             Property.NextCellOffset,
