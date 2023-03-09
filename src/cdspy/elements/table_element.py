@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection
 from typing import Optional, TYPE_CHECKING
 
-from ordered_set import OrderedSet
-
 from . import Property
 from . import BaseElement
 
@@ -72,7 +70,7 @@ class TableElement(BaseElement, ABC):
 
     @property
     @abstractmethod
-    def affects(self) -> OrderedSet[Derivable]:
+    def affects(self) -> Collection[Derivable]:
         pass
 
     @property

@@ -27,6 +27,7 @@ src/cdspy/exceptions/base_exceptions.py
 src/cdspy/exceptions/deleted_element_exception.py
 src/cdspy/exceptions/invalid_access_exception.py
 src/cdspy/exceptions/invalid_exception.py
+src/cdspy/exceptions/invalid_parent_exception.py
 src/cdspy/exceptions/invalid_property_exception.py
 src/cdspy/exceptions/read_only_exception.py
 src/cdspy/exceptions/unimplemented_exception.py
@@ -35,6 +36,7 @@ src/cdspy/exceptions/__pycache__/base_exceptions.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/deleted_element_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/invalid_access_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/invalid_exception.cpython-311.pyc
+src/cdspy/exceptions/__pycache__/invalid_parent_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/invalid_property_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/read_only_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/unimplemented_exception.cpython-311.pyc

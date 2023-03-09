@@ -15,7 +15,7 @@ class Tag:
         return " ".join(label.strip().lower().split())
 
     @staticmethod
-    def as_labels(tags: Collection[Tag]) -> Collection[str] | None:
+    def as_labels(tags: Optional[Collection[Tag]]) -> Collection[str] | None:
         if not tags:
             return None
         return sorted({t.label for t in tags if isinstance(t, Tag)})
