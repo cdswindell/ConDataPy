@@ -141,3 +141,13 @@ def test_template_contexts() -> None:
 
     assert ntc.display_format == "Value: {value}"
     assert ntc.display_format == tc.display_format
+
+
+def test_clear_tables() -> None:
+    pass
+    # TODO
+
+
+def test_get_tables() -> None:
+    pass
+    # TODO
