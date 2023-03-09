@@ -80,7 +80,7 @@ class BaseElement(ABC):
         from . import TableContext
 
         if v is None or not isinstance(v, bool):
-            v = cast(bool, TableContext.default_table_context().get_property(p))
+            v = cast(bool, TableContext().get_property(p))
         return v
 
     @property

@@ -177,7 +177,7 @@ class TableCellsElement(TableElement, ABC):
             cur_tags: set[Tag] = self._tags
             if tags and cur_tags:
                 tc = cast(TableContext, self.table_context)
-                un_tags: set[Tag] = Tag.as_tags(tags, tc)
+                un_tags: set[Tag] = Tag.as_tags(tags, tc, False)
                 if un_tags and cur_tags & un_tags:
                     self._initialize_property(Property.Tags, cur_tags - un_tags)
                     return True
@@ -190,7 +190,7 @@ class TableCellsElement(TableElement, ABC):
             cur_tags = self._tags if self.table else set()
             if not cur_tags:
                 return False
-            query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context))
+            query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
             # return True if query_tags is a proper subset of current tags
             return bool(query_tags) and cur_tags >= query_tags
 
@@ -201,6 +201,6 @@ class TableCellsElement(TableElement, ABC):
             cur_tags = self._tags if self.table else set()
             if not cur_tags:
                 return False
-            query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context))
+            query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
             # return True if query_tags is a proper subset of current tags
             return bool(cur_tags & query_tags)
