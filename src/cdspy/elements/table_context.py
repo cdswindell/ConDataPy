@@ -121,8 +121,6 @@ class TableContext(
 
     @property
     def _tags(self) -> Dict[str, Tag] | None:
-        from . import Tag
-
         return cast(Dict[str, Tag], self.get_property(Property.Tags))
 
     @property
