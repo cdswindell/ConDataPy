@@ -148,28 +148,27 @@ class TableCellsElement(TableElement, ABC):
 
     @tags.setter
     def tags(self, *tags: str) -> None:
-        if tags:
-            new_tags = Tag.as_tags(tags, cast(TableContext, self.table_context))
-            self._initialize_property(Property.Tags, new_tags)
-        else:
-            self._clear_property(Property.Tags)
+        with self.lock:
+            if tags:
+                new_tags = Tag.as_tags(tags, cast(TableContext, self.table_context))
+                self._initialize_property(Property.Tags, new_tags)
+            else:
+                self._clear_property(Property.Tags)
 
     def tag(self, *tags: str) -> bool:
         if tags:
             tc = cast(TableContext, self.table_context)
             with self.lock:
                 new_tags: set[Tag] = Tag.as_tags(tags, tc)
-                if not new_tags:
-                    return False
-
-                cur_tags: set[Tag] = self._tags
-                if not cur_tags:
-                    self._initialize_property(Property.Tags, new_tags)
-                    return True
-                else:
-                    any_added = cur_tags > new_tags
-                    cur_tags.update(new_tags)
-                    return any_added
+                if new_tags:
+                    cur_tags: set[Tag] = self._tags
+                    if cur_tags:
+                        prev_len = len(cur_tags)
+                        cur_tags.update(new_tags)
+                        return len(cur_tags) > prev_len
+                    else:
+                        self._initialize_property(Property.Tags, new_tags)
+                        return True
         return False
 
     def untag(self, *tags: str) -> bool:

@@ -121,6 +121,8 @@ class TableContext(
 
     @property
     def _tags(self) -> Dict[str, Tag] | None:
+        from . import Tag
+
         return cast(Dict[str, Tag], self.get_property(Property.Tags))
 
     @property
@@ -129,7 +131,7 @@ class TableContext(
             tags = self._tags
             return sorted([str(k) for k in tags.keys()]) if tags else None
 
-    def to_cononical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
+    def to_canonical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
         from . import Tag
 
         label = Tag.normalize_label(label)

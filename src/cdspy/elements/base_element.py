@@ -237,7 +237,7 @@ class BaseElement(ABC):
 
             # get the dictionary from the base object, creating it if empty
             properties: dict = cast(dict, self._element_properties(True))
-            retval = properties[key] if key in properties else None
+            retval = properties.get(key, None)
             properties[key] = value
             return retval
 

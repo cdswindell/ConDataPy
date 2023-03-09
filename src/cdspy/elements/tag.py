@@ -30,7 +30,7 @@ class Tag:
             label = Tag.normalize_label(label)
             if not label:
                 continue
-            tag = context.to_cononical_tag(label, create)
+            tag = context.to_canonical_tag(label, create)
             if tag:
                 tags.add(tag)
         return tags

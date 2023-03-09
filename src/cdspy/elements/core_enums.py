@@ -252,6 +252,8 @@ class Property(Enum):
         True,
         "u",
         None,
+        ElementType.TableContext,
+        ElementType.Table,
         ElementType.Row,
         ElementType.Column,
         ElementType.Cell,
