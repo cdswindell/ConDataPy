@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Collection
 from threading import RLock
-from typing import Any, Dict, Final, Optional, Set, TYPE_CHECKING
+from typing import Any, cast, Dict, Final, Optional, Set, TYPE_CHECKING
 from weakref import WeakSet
 
 from . import BaseElementState
@@ -75,8 +76,8 @@ class TableContext(
         return cls._default_table_context
 
     @classmethod
-    def default_table_context(cls) -> TableContext:
-        return cls.__new__(cls)
+    def generate_default_table_context(cls) -> TableContext:
+        return cls()
 
     def __init__(self, template: Optional[TableContext] = None) -> None:
         super().__init__()
@@ -84,7 +85,7 @@ class TableContext(
         self._registered_nonpersistent_tables: WeakSet[BaseElement] = WeakSet()
         self._registered_persistent_tables: Set[BaseElement] = set()
 
-        self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template is not None)
+        self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template is None)
 
         global _TABLE_CONTEXT_DEFAULTS
         for p in self.element_type.initializable_properties():
@@ -118,20 +119,35 @@ class TableContext(
         self._registered_persistent_tables.clear()
         self._registered_nonpersistent_tables.clear()
 
+    @property
+    def _tags(self) -> Dict[str, Tag] | None:
+        from . import Tag
+
+        return cast(Dict[str, Tag], self.get_property(Property.Tags))
+
+    @property
+    def tags(self) -> Collection[str] | None:
+        with self.lock:
+            tags = self._tags
+            return sorted([str(k) for k in tags.keys()]) if tags else None
+
     def to_cononical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
         from . import Tag
 
         label = Tag.normalize_label(label)
-        if not label:
-            return None
-
-        with self.lock:
-            tags: Dict[str, Tag] = self.get_property(Property.Tags)
-            tag: Optional[Tag] = tags.get(label, None)
-            if not tag and create:
-                tag = Tag(label)
-                tags[label] = tag
-            return tag
+        if label:
+            with self.lock:
+                tags = self._tags
+                if tags is None:
+                    tags = {}
+                    self._initialize_property(Property.Tags, tags)
+                # do we know about this tag?
+                tag = tags.get(label, None)
+                if not tag and create:
+                    tag = Tag(label)
+                    tags[label] = tag
+                return tag
+        return None
 
     def get_table(self, mode: Access, *args: object) -> Optional[BaseElement]:
         pass
