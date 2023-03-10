@@ -15,25 +15,27 @@ class Tag:
         return " ".join(label.strip().lower().split())
 
     @staticmethod
-    def as_labels(tags: Optional[Collection[Tag]]) -> Collection[str] | None:
+    def as_labels(tags: Optional[Collection[Tag]]) -> Collection[str]:
         if not tags:
-            return None
+            return []
         return sorted({t.label for t in tags if isinstance(t, Tag)})
 
     @staticmethod
     def as_tags(labels: Collection[str], context: TableContext, create: Optional[bool] = True) -> Set[Tag]:
-        if not labels:
-            return set()
+        if labels:
+            tags: Set[Tag] = set()
+            for label in labels:
+                label = Tag.normalize_label(label)
+                if not label:
+                    continue
+                # if tag not present in context, it will be added if
+                # create is True, else, None is returned
+                tag = context.to_canonical_tag(label, create)
 
-        tags: Set[Tag] = set()
-        for label in labels:
-            label = Tag.normalize_label(label)
-            if not label:
-                continue
-            tag = context.to_canonical_tag(label, create)
-            if tag:
-                tags.add(tag)
-        return tags
+                # if None is returned, create the tag without adding it to context
+                tags.add(tag if tag else Tag(label))
+            return tags
+        return set()
 
     __slots__ = ["_label"]
 

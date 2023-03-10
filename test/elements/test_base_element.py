@@ -27,7 +27,7 @@ class MockBaseElement(BaseElement):
         return self._element_type  # type: ignore
 
     @property
-    def _is_null(self) -> bool:
+    def is_null(self) -> bool:
         return False
 
 

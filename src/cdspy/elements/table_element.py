@@ -60,11 +60,6 @@ class TableElement(BaseElement, ABC):
 
     @property
     @abstractmethod
-    def is_null(self) -> bool:
-        pass
-
-    @property
-    @abstractmethod
     def is_label_indexed(self) -> bool:
         pass
 
@@ -78,7 +73,7 @@ class TableElement(BaseElement, ABC):
     def derived_elements(self) -> Collection[Derivable]:
         pass
 
-    def __init__(self, te: TableElement) -> None:
+    def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__()
         self._clear_property(Property.Label)
         self._clear_property(Property.Description)

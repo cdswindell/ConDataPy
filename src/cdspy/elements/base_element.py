@@ -64,16 +64,15 @@ class BaseElement(ABC):
 
     @staticmethod
     def _normalize(value: Any) -> Any:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            s = " ".join(value.strip().split())
-            if s:
-                return s
-            else:
-                return None
-        else:
-            return value
+        if value:
+            if isinstance(value, str):
+                s = " ".join(value.strip().split())
+                return s if s else None
+            elif isinstance(value, tuple) and value[0]:
+                value = value[0]
+                if isinstance(value, tuple):
+                    value = list(value)
+        return value
 
     @staticmethod
     def __normalize_property_value_bool(p: Property, v: object) -> bool:
@@ -90,7 +89,7 @@ class BaseElement(ABC):
 
     @property
     @abstractmethod
-    def _is_null(self) -> bool:
+    def is_null(self) -> bool:
         pass
 
     def __init__(self) -> None:
@@ -148,7 +147,7 @@ class BaseElement(ABC):
 
     def _mutate_flag(self, flag: BaseElementState, state: bool) -> None:
         """Protected method used to modify element flags internal state"""
-        if state:
+        if bool(state):
             self._flags |= flag
         else:
             self._flags &= ~flag
@@ -320,6 +319,8 @@ class BaseElement(ABC):
                 self.is_supports_null = BaseElement.__normalize_property_value_bool(p, v)
             case Property.IsEnforceDataTypeDefault:
                 self.is_enforce_datatype = BaseElement.__normalize_property_value_bool(p, v)
+            case Property.AreTablesPersistent:
+                self.is_persistent = BaseElement.__normalize_property_value_bool(p, v)
             case _:
                 _initialized_state = False
         return _initialized_state
@@ -327,6 +328,14 @@ class BaseElement(ABC):
     @property
     def lock(self) -> RLock:
         return self._lock
+
+    @property
+    def is_persistent(self) -> bool:
+        return self._is_set(BaseElementState.IS_TABLE_PERSISTENT_FLAG)
+
+    @is_persistent.setter
+    def is_persistent(self, state: bool) -> None:
+        self._mutate_flag(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)
 
     @property
     def is_supports_null(self) -> bool:

@@ -15,6 +15,7 @@ from . import Property
 from . import TableElement
 
 if TYPE_CHECKING:
+    from . import Table
     from . import TableContext
     from ..mixins import Derivable
 
@@ -54,10 +55,10 @@ class AtomicInteger:
 class TableCellsElement(TableElement, ABC):
     ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1000)
 
-    def __init__(self, te: TableElement) -> None:
+    def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
         self._pendings = 0
-        self._table = te.table
+        self._table = te.table if te else None
         self._affects = OrderedSet()
         self._initialize_property(Property.Ident, TableCellsElement.ELEMENT_IDENT_GENERATOR.inc())
 
@@ -75,6 +76,13 @@ class TableCellsElement(TableElement, ABC):
                         e._table = self.table
                     elif e.table != self.table:
                         raise InvalidParentException(e, self)
+
+    def __lt__(self, other: TableCellsElement) -> bool:
+        if not isinstance(other, TableCellsElement):
+            raise NotImplementedError
+        s = self.label if self.label else self.uuid
+        o = other.label if other.label else other.uuid
+        return s < o
 
     def _delete(self, compress: Optional[bool] = True) -> None:
         # TODO: Fire events
@@ -100,7 +108,10 @@ class TableCellsElement(TableElement, ABC):
 
     @property
     def table(self) -> TableElement:
-        return self._table
+        return cast(Table, self._table)
+
+    def _set_table(self, table: Table) -> None:
+        self._table = table
 
     @property
     def table_context(self) -> TableContext | None:
@@ -122,7 +133,7 @@ class TableCellsElement(TableElement, ABC):
     @property
     def uuid(self) -> str:
         with self.lock:
-            value = self.get_property(Property.Ident)
+            value = self.get_property(Property.UUID)
             if value is None:
                 value = uuid.uuid4()
                 self._initialize_property(Property.UUID, value)
@@ -142,20 +153,23 @@ class TableCellsElement(TableElement, ABC):
         return cast(set[Tag], self.get_property(Property.Tags))
 
     @property
-    def tags(self) -> Collection[str] | None:
+    def tags(self) -> Collection[str]:
         with self.lock:
             return Tag.as_labels(self._tags)
 
     @tags.setter
     def tags(self, *tags: str) -> None:
+        from . import TableContext
+        print(f"{tags} {tags[0]} {type(tags)} {type(tags[0])} {self._normalize(tags)}")
         with self.lock:
             if tags:
-                new_tags = Tag.as_tags(tags, cast(TableContext, self.table_context))
+                new_tags = Tag.as_tags(self._normalize(tags), cast(TableContext, self.table_context))
                 self._initialize_property(Property.Tags, new_tags)
             else:
                 self._clear_property(Property.Tags)
 
     def tag(self, *tags: str) -> bool:
+        from . import TableContext
         if tags:
             tc = cast(TableContext, self.table_context)
             with self.lock:
@@ -172,6 +186,7 @@ class TableCellsElement(TableElement, ABC):
         return False
 
     def untag(self, *tags: str) -> bool:
+        from . import TableContext
         with self.lock:
             cur_tags: set[Tag] = self._tags
             if tags and cur_tags:
@@ -183,23 +198,23 @@ class TableCellsElement(TableElement, ABC):
             return False
 
     def has_all_tags(self, *tags: str) -> bool:
-        if not tags:
-            return False
-        with self.lock:
-            cur_tags = self._tags if self.table else set()
-            if not cur_tags:
-                return False
-            query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
-            # return True if query_tags is a proper subset of current tags
-            return bool(query_tags) and cur_tags >= query_tags
+        from . import TableContext
+        if tags:
+            with self.lock:
+                cur_tags = self._tags if self.table else set()
+                if cur_tags:
+                    query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
+                    # return True if query_tags is a proper subset of current tags
+                    return bool(query_tags) and cur_tags >= query_tags
+        return False
 
     def has_any_tags(self, *tags: str) -> bool:
-        if not tags:
-            return False
-        with self.lock:
-            cur_tags = self._tags if self.table else set()
-            if not cur_tags:
-                return False
-            query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
-            # return True if query_tags is a proper subset of current tags
-            return bool(cur_tags & query_tags)
+        from . import TableContext
+        if tags:
+            with self.lock:
+                cur_tags = self._tags if self.table else set()
+                if cur_tags:
+                    query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
+                    # return True if query_tags is a proper subset of current tags
+                    return bool(cur_tags & query_tags)
+        return False

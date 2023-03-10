@@ -23,7 +23,7 @@ def test_default_table_context() -> None:
     assert dtc.num_tables == 0
 
     # should be null
-    assert dtc._is_null
+    assert dtc.is_null
 
     # verify all default values have been set
     for p in ElementType.TableContext.initializable_properties():

@@ -20,6 +20,7 @@ from ..mixins import EventsProcessorThreadPoolCreator
 
 if TYPE_CHECKING:
     from . import Tag
+    from . import Table
 
 _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.RowCapacityIncr: 256,
@@ -82,8 +83,8 @@ class TableContext(
     def __init__(self, template: Optional[TableContext] = None) -> None:
         super().__init__()
 
-        self._registered_nonpersistent_tables: WeakSet[BaseElement] = WeakSet()
-        self._registered_persistent_tables: Set[BaseElement] = set()
+        self._registered_nonpersistent_tables: WeakSet[Table] = WeakSet()
+        self._registered_persistent_tables: Set[Table] = set()
 
         self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template is None)
 
@@ -95,7 +96,15 @@ class TableContext(
             self._initialize_property(p, v)
 
     @property
-    def _is_null(self) -> bool:
+    def __all_tables(self) -> Collection[Table]:
+        return set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)
+
+    @property
+    def tables(self) -> Collection[Table]:
+        return tuple(sorted(self.__all_tables))
+
+    @property
+    def is_null(self) -> bool:
         return not self._registered_nonpersistent_tables and not self._registered_persistent_tables
 
     @property
@@ -119,6 +128,19 @@ class TableContext(
         self._registered_persistent_tables.clear()
         self._registered_nonpersistent_tables.clear()
 
+    def _register(self, t: Table) -> TableContext:
+        if t:
+            if t.is_persistent:
+                self._registered_nonpersistent_tables.discard(t)
+                self._registered_persistent_tables.add(t)
+            else:
+                self._registered_persistent_tables.discard(t)
+                self._registered_nonpersistent_tables.add(t)
+        return self
+
+    def is_registered(self, t: Table) -> bool:
+        return t in self._registered_persistent_tables or t in self._registered_nonpersistent_tables
+
     @property
     def _tags(self) -> Dict[str, Tag] | None:
         from . import Tag
@@ -129,7 +151,7 @@ class TableContext(
     def tags(self) -> Collection[str] | None:
         with self.lock:
             tags = self._tags
-            return sorted([str(k) for k in tags.keys()]) if tags else None
+            return sorted([str(k) for k in tags.keys()]) if tags else []
 
     def to_canonical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
         from . import Tag

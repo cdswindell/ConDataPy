@@ -14,3 +14,4 @@ from .table_element import TableElement as TableElement
 from .table_cells_element import TableCellsElement as TableCellsElement
 
 from .table_context import TableContext as TableContext
+from .table import Table as Table
