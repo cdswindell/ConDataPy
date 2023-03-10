@@ -39,7 +39,7 @@ class Table(TableCellsElement):
 
     @property
     def table_context(self) -> TableContext:
-        return cast(TableContext, self._context)
+        return self._context
 
     @property
     def element_type(self) -> ElementType:
@@ -80,7 +80,7 @@ class Table(TableCellsElement):
         return []
 
     # override to
-    @BaseElement.is_persistent.setter
+    @BaseElement.is_persistent.setter  # type: ignore
     def is_persistent(self, state: bool) -> None:
-        BaseElement.is_persistent.fset(self, state)
+        BaseElement.is_persistent.fset(self, state)  # type: ignore
         self.table_context._register(self)

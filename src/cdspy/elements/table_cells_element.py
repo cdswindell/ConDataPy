@@ -160,6 +160,7 @@ class TableCellsElement(TableElement, ABC):
     @tags.setter
     def tags(self, *tags: str) -> None:
         from . import TableContext
+
         print(f"{tags} {tags[0]} {type(tags)} {type(tags[0])} {self._normalize(tags)}")
         with self.lock:
             if tags:
@@ -170,6 +171,7 @@ class TableCellsElement(TableElement, ABC):
 
     def tag(self, *tags: str) -> bool:
         from . import TableContext
+
         if tags:
             tc = cast(TableContext, self.table_context)
             with self.lock:
@@ -187,6 +189,7 @@ class TableCellsElement(TableElement, ABC):
 
     def untag(self, *tags: str) -> bool:
         from . import TableContext
+
         with self.lock:
             cur_tags: set[Tag] = self._tags
             if tags and cur_tags:
@@ -199,6 +202,7 @@ class TableCellsElement(TableElement, ABC):
 
     def has_all_tags(self, *tags: str) -> bool:
         from . import TableContext
+
         if tags:
             with self.lock:
                 cur_tags = self._tags if self.table else set()
@@ -210,6 +214,7 @@ class TableCellsElement(TableElement, ABC):
 
     def has_any_tags(self, *tags: str) -> bool:
         from . import TableContext
+
         if tags:
             with self.lock:
                 cur_tags = self._tags if self.table else set()

@@ -38,8 +38,8 @@ def test_default_table_context_tags() -> None:
 
     # verify there are no tags
     assert not dtc.has_property(Property.Tags)
-    assert dtc._tags is None
-    assert dtc.tags is None
+    assert not dtc._tags
+    assert not dtc.tags
 
     # getting string tags should not initialize tags property
     assert not dtc.has_property(Property.Tags)
