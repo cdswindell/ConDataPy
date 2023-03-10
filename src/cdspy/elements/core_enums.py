@@ -27,7 +27,7 @@ class Access(Enum):
     ByProperty = auto()
     ByDataType = auto()
     ByUUID = auto()
-    Tag = auto()
+    ByTags = auto()
 
 
 @verify(UNIQUE)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, cast, Dict, Optional
+from typing import Any, cast, Dict, Optional, Iterator
 
 import pytest
 
@@ -29,6 +29,10 @@ class MockBaseElement(BaseElement):
     @property
     def is_null(self) -> bool:
         return False
+
+    @property
+    def _iter_objs(self) -> Iterator[BaseElement]:
+        return [self]
 
 
 def test_base_element_initial_state() -> None:

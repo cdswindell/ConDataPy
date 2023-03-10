@@ -13,6 +13,9 @@ from . import ElementType
 from . import Property
 from . import TimeUnit
 
+from ..exceptions import InvalidException
+from ..exceptions import InvalidAccessException
+
 from ..mixins import DerivableThreadPool
 from ..mixins import DerivableThreadPoolConfig
 from ..mixins import EventProcessorThreadPool
@@ -95,6 +98,9 @@ class TableContext(
                 v = _TABLE_CONTEXT_DEFAULTS.get(p, None)
             self._initialize_property(p, v)
 
+    def _iter_objs(self) -> Collection[Table]:
+        return self.tables
+
     @property
     def __all_tables(self) -> Collection[Table]:
         return set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)
@@ -172,4 +178,23 @@ class TableContext(
         return None
 
     def get_table(self, mode: Access, *args: object) -> Optional[BaseElement]:
-        pass
+        from . import Table
+
+        if mode == Access.ByTags:
+            if not args or str not in {type(t) for t in args}:
+                raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
+            return BaseElement._find_tagged(self.tables, *args)
+        elif mode == Access.ByProperty:
+            key = cast(Property, args[0]) if args and len(args) > 0 else None
+            value = args[1] if args and len(args) > 1 else None
+            if not key or not value:
+                raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {value}")
+            return BaseElement._find(self.tables, key, value)
+        elif mode == Access.ByReference:
+            if args:
+                t = cast(BaseElement, args[0])
+                if not t or not isinstance(t, Table) or t.element_type != ElementType.Table:
+                    raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {t}")
+                self._vet_element(t)
+                return t
+        raise InvalidAccessException(self, ElementType.Table, mode, False, args)

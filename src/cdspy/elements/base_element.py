@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from enum import verify, UNIQUE, Flag
 from threading import RLock
-from typing import Any, Final, Optional, Dict, overload, cast, Union
+from typing import Any, Final, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, Union
 
 from . import ElementType
 from . import Property
@@ -11,6 +12,9 @@ from ..exceptions import DeletedElementException
 from ..exceptions import InvalidPropertyException
 from ..exceptions import ReadOnlyException
 from ..exceptions import UnimplementedException
+
+if TYPE_CHECKING:
+    from . import TableElement
 
 TABLE_PROPERTIES_KEY: Final = "_props"
 
@@ -82,6 +86,33 @@ class BaseElement(ABC):
             v = cast(bool, TableContext().get_property(p))
         return v
 
+    @staticmethod
+    def _find_tagged(elems: Collection[TableElement], *tags: object) -> BaseElement | None:
+        from . import Tag
+
+        if elems and tags:
+            query_tags = Tag.as_tags(tags)
+            if bool(query_tags):
+                for te in elems:
+                    te_tags = te._tags
+                    if te_tags and te_tags >= query_tags:
+                        return te
+        return None
+
+    @staticmethod
+    def _find(elems: Collection[TableElement], key: Property | str, *value: object) -> BaseElement | None:
+        # special case tags
+        if key == Property.Tags:
+            return BaseElement._find_tagged(elems, *value)
+        if elems and key and value:
+            for elem in elems:
+                if elem:
+                    pv = elem.get_property(key)
+                    if pv == value[0]:
+                        # TODO: set current if row or column
+                        return elem
+        return None
+
     @property
     @abstractmethod
     def element_type(self) -> ElementType:
@@ -90,6 +121,10 @@ class BaseElement(ABC):
     @property
     @abstractmethod
     def is_null(self) -> bool:
+        pass
+
+    @abstractmethod
+    def _iter_objs(self) -> Iterator[BaseElement]:
         pass
 
     def __init__(self) -> None:
@@ -134,6 +169,10 @@ class BaseElement(ABC):
         else:
             label = ": " + self.label if self.label else ""
             return f"[{self.element_type.name}{label}]"
+
+    def __iter__(self) -> Iterator[BaseElement]:
+        for be in self._iter_objs():
+            yield be
 
     def _implements(self, p: Optional[Property]) -> bool:
         """

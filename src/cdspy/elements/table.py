@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast, Optional, Collection
+from typing import Iterator, Optional, Collection
 
 from . import BaseElement
 from . import ElementType
@@ -32,6 +32,9 @@ class Table(TableCellsElement):
 
         # register table with table_context
         self._context = table_context._register(self)
+
+    def _iter_objs(self) -> Collection[Table]:
+        return [self]
 
     @property
     def table(self) -> Table:

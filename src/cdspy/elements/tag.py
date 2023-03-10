@@ -21,7 +21,9 @@ class Tag:
         return sorted({t.label for t in tags if isinstance(t, Tag)})
 
     @staticmethod
-    def as_tags(labels: Collection[str], context: TableContext, create: Optional[bool] = True) -> Set[Tag]:
+    def as_tags(
+        labels: Collection[str], context: Optional[TableContext] = None, create: Optional[bool] = True
+    ) -> Set[Tag]:
         if labels:
             tags: Set[Tag] = set()
             for label in labels:
@@ -30,8 +32,9 @@ class Tag:
                     continue
                 # if tag not present in context, it will be added if
                 # create is True, else, None is returned
-                tag = context.to_canonical_tag(label, create)
-
+                tag = None
+                if context:
+                    tag = context.to_canonical_tag(label, create)
                 # if None is returned, create the tag without adding it to context
                 tags.add(tag if tag else Tag(label))
             return tags
