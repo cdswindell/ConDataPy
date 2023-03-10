@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-from typing import Iterator, Optional, Collection
+from typing import cast, Optional, Collection, TYPE_CHECKING
 
 from . import BaseElement
 from . import ElementType
 from . import TableCellsElement
 from . import TableContext
+
 from ..mixins import Derivable
+
+if TYPE_CHECKING:
+    from . import T
 
 
 class Table(TableCellsElement):
@@ -33,8 +37,8 @@ class Table(TableCellsElement):
         # register table with table_context
         self._context = table_context._register(self)
 
-    def _iter_objs(self) -> Collection[Table]:
-        return [self]
+    def _iter_objs(self) -> Collection[T]:
+        return cast(Collection[T], [self])
 
     @property
     def table(self) -> Table:

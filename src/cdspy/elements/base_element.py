@@ -14,6 +14,7 @@ from ..exceptions import ReadOnlyException
 from ..exceptions import UnimplementedException
 
 if TYPE_CHECKING:
+    from . import T
     from . import TableElement
 
 TABLE_PROPERTIES_KEY: Final = "_props"
@@ -87,26 +88,28 @@ class BaseElement(ABC):
         return v
 
     @staticmethod
-    def _find_tagged(elems: Collection[TableElement], *tags: object) -> BaseElement | None:
+    def _find_tagged(elems: Collection[TableElement], *tags: str) -> BaseElement | None:
         from . import Tag
 
         if elems and tags:
-            query_tags = Tag.as_tags(tags)
+            query_tags = Tag.as_tags(list(tags))
             if bool(query_tags):
                 for te in elems:
-                    te_tags = te._tags
-                    if te_tags and te_tags >= query_tags:
-                        return te
+                    if te and te.is_valid:
+                        te_tags = te._tags
+                        if te_tags and te_tags >= query_tags:
+                            return te
         return None
 
     @staticmethod
     def _find(elems: Collection[TableElement], key: Property | str, *value: object) -> BaseElement | None:
         # special case tags
         if key == Property.Tags:
-            return BaseElement._find_tagged(elems, *value)
+            return BaseElement._find_tagged(elems, *[v for v in value if v and isinstance(v, str)])
         if elems and key and value:
+            # value we're looking for is in the first element of the value tuple
             for elem in elems:
-                if elem:
+                if elem and elem.is_valid:
                     pv = elem.get_property(key)
                     if pv == value[0]:
                         # TODO: set current if row or column
@@ -124,7 +127,7 @@ class BaseElement(ABC):
         pass
 
     @abstractmethod
-    def _iter_objs(self) -> Iterator[BaseElement]:
+    def _iter_objs(self) -> Collection[T]:
         pass
 
     def __init__(self) -> None:
@@ -170,9 +173,9 @@ class BaseElement(ABC):
             label = ": " + self.label if self.label else ""
             return f"[{self.element_type.name}{label}]"
 
-    def __iter__(self) -> Iterator[BaseElement]:
-        for be in self._iter_objs():
-            yield be
+    def __iter__(self) -> Iterator[T]:
+        for te in cast(Collection[T], self._iter_objs()):
+            yield te
 
     def _implements(self, p: Optional[Property]) -> bool:
         """
@@ -289,6 +292,12 @@ class BaseElement(ABC):
                 properties.pop(key)
                 key_present = True
             return key_present
+
+    def set_property(self, key: str, value: Any) -> Any:
+        # verify the key is a String
+        if not isinstance(key, str):
+            raise InvalidPropertyException(self, key)
+        return self._set_property(key, value)
 
     def has_property(self, key: Property | str) -> bool:
         if isinstance(key, Property):

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, cast, Dict, Optional, Iterator
+from typing import Any, cast, Dict, Optional, Collection, TYPE_CHECKING
 
 import pytest
 
-from cdspy.elements import ElementType, BaseElementState
+from cdspy.elements import ElementType
+from cdspy.elements import BaseElementState
 from cdspy.elements import Property
 
 
@@ -14,6 +15,9 @@ from cdspy.elements.base_element import BaseElement
 from cdspy.exceptions import InvalidPropertyException
 from cdspy.exceptions import ReadOnlyException
 from cdspy.exceptions import UnimplementedException
+
+if TYPE_CHECKING:
+    from cdspy.elements import T
 
 
 # create test class from BaseElement
@@ -30,9 +34,8 @@ class MockBaseElement(BaseElement):
     def is_null(self) -> bool:
         return False
 
-    @property
-    def _iter_objs(self) -> Iterator[BaseElement]:
-        return [self]
+    def _iter_objs(self) -> Collection[T]:
+        return cast(Collection[T], [self])
 
 
 def test_base_element_initial_state() -> None:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TypeVar
+
 from .core_enums import Access as Access
 from .core_enums import ElementType as ElementType
 from .core_enums import Property as Property
@@ -15,3 +17,5 @@ from .table_cells_element import TableCellsElement as TableCellsElement
 
 from .table_context import TableContext as TableContext
 from .table import Table as Table
+
+T = TypeVar("T", bound=TableElement)

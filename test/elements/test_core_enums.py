@@ -48,7 +48,7 @@ def test_property_basic() -> None:
     for p in Property:
         assert p.name
         assert p.value
-        assert p.value.__class__.__name__ == "_TableProperty"
+        assert p.value.__class__.__name__ == "_TablePropertyInfo"
         assert hash(p) == hash(p.name)
         assert hash(p) != p
         v = p.value

@@ -6,28 +6,10 @@ from __future__ import annotations
 import re
 from typing import Optional, TYPE_CHECKING, Union
 
-from enum import auto, Enum, verify, UNIQUE
+from enum import Enum, verify, UNIQUE
 
 if TYPE_CHECKING:
     from .base_element import BaseElement
-
-
-@verify(UNIQUE)
-class Access(Enum):
-    First = auto()
-    Last = auto()
-    Next = auto()
-    Previous = auto()
-    Current = auto()
-    ByIndex = auto()
-    ByIdent = auto()
-    ByReference = auto()
-    ByLabel = auto()
-    ByDescription = auto()
-    ByProperty = auto()
-    ByDataType = auto()
-    ByUUID = auto()
-    ByTags = auto()
 
 
 @verify(UNIQUE)
@@ -73,7 +55,7 @@ class ElementType(Enum):
         return sorted({p for p in Property if p.is_implemented_by(self) and p.is_mutable_property})
 
 
-class _TableProperty:
+class _TablePropertyInfo:
     """
     Private class used to construct Property enums. Defines the core
     characteristics of every Property along with the set of Table Element(s)
@@ -110,10 +92,10 @@ class Property(Enum):
     """
 
     # Base element properties supported by all table elements
-    Label = _TableProperty(True, False, False, "lb")
-    Description = _TableProperty(True, False, False, "desc")
-    Tags = _TableProperty(True, True, False, "tags")
-    UUID = _TableProperty(
+    Label = _TablePropertyInfo(True, False, False, "lb")
+    Description = _TablePropertyInfo(True, False, False, "desc")
+    Tags = _TablePropertyInfo(True, True, False, "tags")
+    UUID = _TablePropertyInfo(
         True,
         True,
         False,
@@ -125,7 +107,7 @@ class Property(Enum):
         ElementType.Group,
         ElementType.Cell,
     )
-    Ident = _TableProperty(
+    Ident = _TablePropertyInfo(
         True,
         True,
         False,
@@ -138,29 +120,39 @@ class Property(Enum):
     )
 
     # Table Element Properties(TableContext implements initializable ones)
-    Precision = _TableProperty(True, False, True, "pr", None, ElementType.TableContext, ElementType.Table)
+    Precision = _TablePropertyInfo(True, False, True, "pr", None, ElementType.TableContext, ElementType.Table)
 
     # TableContext/Table Properties
-    TokenMapper = _TableProperty(False, False, True, None, None, ElementType.TableContext)
-    RowCapacityIncr = _TableProperty(False, False, True, "rci", None, ElementType.TableContext, ElementType.Table)
-    ColumnCapacityIncr = _TableProperty(False, False, True, "cci", None, ElementType.TableContext, ElementType.Table)
-    FreeSpaceThreshold = _TableProperty(False, False, True, "fst", None, ElementType.TableContext, ElementType.Table)
-    IsAutoRecalculate = _TableProperty(False, False, True, "recalc", None, ElementType.TableContext, ElementType.Table)
-    IsTableLabelsIndexed = _TableProperty(False, False, True, "isTLBX", None, ElementType.TableContext)
-    IsRowLabelsIndexed = _TableProperty(False, False, True, "isRLbX", None, ElementType.TableContext, ElementType.Table)
-    IsColumnLabelsIndexed = _TableProperty(
+    TokenMapper = _TablePropertyInfo(False, False, True, None, None, ElementType.TableContext)
+    RowCapacityIncr = _TablePropertyInfo(False, False, True, "rci", None, ElementType.TableContext, ElementType.Table)
+    ColumnCapacityIncr = _TablePropertyInfo(
+        False, False, True, "cci", None, ElementType.TableContext, ElementType.Table
+    )
+    FreeSpaceThreshold = _TablePropertyInfo(
+        False, False, True, "fst", None, ElementType.TableContext, ElementType.Table
+    )
+    IsAutoRecalculate = _TablePropertyInfo(
+        False, False, True, "recalc", None, ElementType.TableContext, ElementType.Table
+    )
+    IsTableLabelsIndexed = _TablePropertyInfo(False, False, True, "isTLBX", None, ElementType.TableContext)
+    IsRowLabelsIndexed = _TablePropertyInfo(
+        False, False, True, "isRLbX", None, ElementType.TableContext, ElementType.Table
+    )
+    IsColumnLabelsIndexed = _TablePropertyInfo(
         False, False, True, "isCLbX", None, ElementType.TableContext, ElementType.Table
     )
-    IsCellLabelsIndexed = _TableProperty(
+    IsCellLabelsIndexed = _TablePropertyInfo(
         False, False, True, "isClLbX", None, ElementType.TableContext, ElementType.Table
     )
-    IsGroupLabelsIndexed = _TableProperty(
+    IsGroupLabelsIndexed = _TablePropertyInfo(
         False, False, True, "isGLbX", None, ElementType.TableContext, ElementType.Table
     )
-    AreTablesPersistent = _TableProperty(False, False, True, "isP", None, ElementType.TableContext, ElementType.Table)
+    AreTablesPersistent = _TablePropertyInfo(
+        False, False, True, "isP", None, ElementType.TableContext, ElementType.Table
+    )
 
     # PendingDerivationThreadPool Properties
-    IsPendingAllowCoreThreadTimeout = _TableProperty(
+    IsPendingAllowCoreThreadTimeout = _TablePropertyInfo(
         True,
         False,
         True,
@@ -169,24 +161,24 @@ class Property(Enum):
         ElementType.TableContext,
         ElementType.Table,
     )
-    NumPendingCorePoolThreads = _TableProperty(
+    NumPendingCorePoolThreads = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
-    NumPendingMaxPoolThreads = _TableProperty(
+    NumPendingMaxPoolThreads = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
-    PendingThreadKeepAliveTimeout = _TableProperty(
+    PendingThreadKeepAliveTimeout = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
-    PendingThreadKeepAliveTimeoutUnit = _TableProperty(
+    PendingThreadKeepAliveTimeoutUnit = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
-    IsPendingThreadPoolEnabled = _TableProperty(
+    IsPendingThreadPoolEnabled = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
 
     # Table Element Properties
-    IsReadOnlyDefault = _TableProperty(
+    IsReadOnlyDefault = _TablePropertyInfo(
         True,
         False,
         True,
@@ -198,7 +190,7 @@ class Property(Enum):
         ElementType.Column,
         ElementType.Cell,
     )
-    IsSupportsNullsDefault = _TableProperty(
+    IsSupportsNullsDefault = _TablePropertyInfo(
         True,
         False,
         True,
@@ -210,7 +202,7 @@ class Property(Enum):
         ElementType.Column,
         ElementType.Cell,
     )
-    IsEnforceDataTypeDefault = _TableProperty(
+    IsEnforceDataTypeDefault = _TablePropertyInfo(
         True,
         False,
         True,
@@ -222,11 +214,11 @@ class Property(Enum):
         ElementType.Column,
         ElementType.Cell,
     )
-    NumRowsCapacity = _TableProperty(False, True, False, None, None, ElementType.Table)
-    NumColumnsCapacity = _TableProperty(False, True, False, None, None, ElementType.Table)
-    NumCellsCapacity = _TableProperty(False, True, False, None, None, ElementType.Column)
-    NextCellOffset = _TableProperty(False, True, False, None, None, ElementType.Table)
-    Derivation = _TableProperty(
+    NumRowsCapacity = _TablePropertyInfo(False, True, False, None, None, ElementType.Table)
+    NumColumnsCapacity = _TablePropertyInfo(False, True, False, None, None, ElementType.Table)
+    NumCellsCapacity = _TablePropertyInfo(False, True, False, None, None, ElementType.Column)
+    NextCellOffset = _TablePropertyInfo(False, True, False, None, None, ElementType.Table)
+    Derivation = _TablePropertyInfo(
         False,
         False,
         False,
@@ -236,17 +228,17 @@ class Property(Enum):
         ElementType.Row,
         ElementType.Cell,
     )
-    TimeSeries = _TableProperty(False, False, False, "tx", None, ElementType.Column, ElementType.Row)
+    TimeSeries = _TablePropertyInfo(False, False, False, "tx", None, ElementType.Column, ElementType.Row)
 
     # Cell properties
-    Row = _TableProperty(False, True, False, None, None, ElementType.Cell)
-    Column = _TableProperty(False, True, False, None, None, ElementType.Cell)
-    CellOffset = _TableProperty(False, True, False, None, None, ElementType.Row, ElementType.Cell)
-    DataType = _TableProperty(False, False, False, "dt", None, ElementType.Column, ElementType.Cell)
+    Row = _TablePropertyInfo(False, True, False, None, None, ElementType.Cell)
+    Column = _TablePropertyInfo(False, True, False, None, None, ElementType.Cell)
+    CellOffset = _TablePropertyInfo(False, True, False, None, None, ElementType.Row, ElementType.Cell)
+    DataType = _TablePropertyInfo(False, False, False, "dt", None, ElementType.Column, ElementType.Cell)
 
-    CellValue = _TableProperty(False, False, False, "v", None, ElementType.Cell)
-    ErrorMessage = _TableProperty(True, False, False, "e", None, ElementType.Cell)
-    Units = _TableProperty(
+    CellValue = _TablePropertyInfo(False, False, False, "v", None, ElementType.Cell)
+    ErrorMessage = _TablePropertyInfo(True, False, False, "e", None, ElementType.Cell)
+    Units = _TablePropertyInfo(
         True,
         False,
         True,
@@ -258,7 +250,7 @@ class Property(Enum):
         ElementType.Column,
         ElementType.Cell,
     )
-    DisplayFormat = _TableProperty(
+    DisplayFormat = _TablePropertyInfo(
         True,
         False,
         True,
@@ -408,6 +400,39 @@ class Property(Enum):
 
 # Define static Nickname map
 _PROPERTIES_BY_NICKNAME = {p.nickname.lower(): p for p in Property}
+
+
+class _AccessInfo:
+    """ """
+
+    def __init__(self, p: Optional[Property] = None) -> None:
+        self._associated_property = p
+
+
+@verify(UNIQUE)
+class Access(Enum):
+    First = _AccessInfo()
+    Last = _AccessInfo()
+    Next = _AccessInfo()
+    Previous = _AccessInfo()
+    Current = _AccessInfo()
+    ByIndex = _AccessInfo()
+    ByReference = _AccessInfo()
+    ByProperty = _AccessInfo()
+    ByTags = _AccessInfo()
+    ByDataType = _AccessInfo(Property.DataType)
+    ByIdent = _AccessInfo(Property.Ident)
+    ByLabel = _AccessInfo(Property.Label)
+    ByDescription = _AccessInfo(Property.Description)
+    ByUUID = _AccessInfo(Property.UUID)
+
+    @property
+    def has_associated_property(self) -> bool:
+        return self.value._associated_property is not None
+
+    @property
+    def associated_property(self) -> Property | None:
+        return self.value._associated_property
 
 
 @verify(UNIQUE)

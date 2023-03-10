@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import Optional, Set, TYPE_CHECKING
+from typing import cast, Optional, Set, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from . import TableContext
@@ -38,7 +38,7 @@ class Tag:
                 # if None is returned, create the tag without adding it to context
                 tags.add(tag if tag else Tag(label))
             return tags
-        return set()
+        return cast(Set[Tag], set())
 
     __slots__ = ["_label"]
 

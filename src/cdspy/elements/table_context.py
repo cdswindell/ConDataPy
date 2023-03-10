@@ -22,8 +22,10 @@ from ..mixins import EventProcessorThreadPool
 from ..mixins import EventsProcessorThreadPoolCreator
 
 if TYPE_CHECKING:
+    from . import T
     from . import Tag
     from . import Table
+
 
 _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.RowCapacityIncr: 256,
@@ -98,8 +100,8 @@ class TableContext(
                 v = _TABLE_CONTEXT_DEFAULTS.get(p, None)
             self._initialize_property(p, v)
 
-    def _iter_objs(self) -> Collection[Table]:
-        return self.tables
+    def _iter_objs(self) -> Collection[T]:
+        return cast(Collection[T], self.tables)
 
     @property
     def __all_tables(self) -> Collection[Table]:
@@ -180,16 +182,20 @@ class TableContext(
     def get_table(self, mode: Access, *args: object) -> Optional[BaseElement]:
         from . import Table
 
-        if mode == Access.ByTags:
-            if not args or str not in {type(t) for t in args}:
-                raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
-            return BaseElement._find_tagged(self.tables, *args)
+        if mode.has_associated_property:
+            if args:
+                return BaseElement._find(self.tables, cast(Property, mode.associated_property), args[0])
+            raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
+        elif mode == Access.ByTags:
+            if args and str in {type(t) for t in args}:
+                return BaseElement._find_tagged(self.tables, *[v for v in args if v and isinstance(v, str)])
+            raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
         elif mode == Access.ByProperty:
             key = cast(Property, args[0]) if args and len(args) > 0 else None
             value = args[1] if args and len(args) > 1 else None
-            if not key or not value:
-                raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {value}")
-            return BaseElement._find(self.tables, key, value)
+            if key:
+                return BaseElement._find(self.tables, key, value)
+            raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {value}")
         elif mode == Access.ByReference:
             if args:
                 t = cast(BaseElement, args[0])

@@ -10,7 +10,6 @@ from ordered_set import OrderedSet
 
 from ..exceptions import InvalidParentException
 
-from . import Tag
 from . import Property
 from . import TableElement
 
