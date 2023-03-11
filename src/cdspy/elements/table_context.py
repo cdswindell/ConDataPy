@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Collection
 from threading import RLock
-from typing import Any, cast, Dict, Final, Optional, Set, TYPE_CHECKING
+from typing import Any, cast, Dict, Final, Iterator, Optional, Set, TYPE_CHECKING
 from weakref import WeakSet
 
 from . import BaseElementState
 from . import BaseElement
+from . import _BaseElementIterable
 
 from . import Access
 from . import ElementType
@@ -100,8 +101,8 @@ class TableContext(
                 v = _TABLE_CONTEXT_DEFAULTS.get(p, None)
             self._initialize_property(p, v)
 
-    def _iter_objs(self) -> Collection[T]:
-        return cast(Collection[T], self.tables)
+    def __iter__(self) -> Iterator[T]:
+        return iter(_BaseElementIterable(self.tables))
 
     @property
     def __all_tables(self) -> Collection[Table]:
@@ -128,23 +129,33 @@ class TableContext(
         return len(self._registered_nonpersistent_tables) + len(self._registered_persistent_tables)
 
     def clear(self) -> None:
-        # delete the persistent tables
-        for t in self._registered_persistent_tables:
-            if t.is_valid:
-                t._delete()
+        with self.lock:
+            while self._registered_persistent_tables:
+                t = self._registered_persistent_tables.pop()
+                if t and t.is_valid:
+                    t._delete()
 
-        self._registered_persistent_tables.clear()
-        self._registered_nonpersistent_tables.clear()
+            while self._registered_nonpersistent_tables:
+                t = self._registered_nonpersistent_tables.pop()
+                if t and t.is_valid:
+                    t._delete()
 
     def _register(self, t: Table) -> TableContext:
         if t:
-            if t.is_persistent:
-                self._registered_nonpersistent_tables.discard(t)
-                self._registered_persistent_tables.add(t)
-            else:
-                self._registered_persistent_tables.discard(t)
-                self._registered_nonpersistent_tables.add(t)
+            with self.lock:
+                if t.is_persistent:
+                    self._registered_nonpersistent_tables.discard(t)
+                    self._registered_persistent_tables.add(t)
+                else:
+                    self._registered_persistent_tables.discard(t)
+                    self._registered_nonpersistent_tables.add(t)
         return self
+
+    def _deregister(self, t: Table) -> None:
+        if t:
+            with self.lock:
+                self._registered_nonpersistent_tables.discard(t)
+                self._registered_persistent_tables.discard(t)
 
     def is_registered(self, t: Table) -> bool:
         return t in self._registered_persistent_tables or t in self._registered_nonpersistent_tables
@@ -152,7 +163,6 @@ class TableContext(
     @property
     def _tags(self) -> Dict[str, Tag] | None:
         from . import Tag
-
         return cast(Dict[str, Tag], self.get_property(Property.Tags))
 
     @property

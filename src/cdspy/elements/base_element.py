@@ -126,10 +126,6 @@ class BaseElement(ABC):
     def is_null(self) -> bool:
         pass
 
-    @abstractmethod
-    def _iter_objs(self) -> Collection[T]:
-        pass
-
     def __init__(self) -> None:
         """
         Constructs a base element, initializing the flags property to NO_FLAGS
@@ -424,3 +420,15 @@ class BaseElement(ABC):
     @description.setter
     def description(self, value: Optional[str]) -> None:
         self._set_property(Property.Description, value)
+
+
+class _BaseElementIterable:
+    __slots__ = ["_elems"]
+
+    def __init__(self, elems: Collection[T]) -> None:
+        self._elems = tuple(elems)
+
+    def __iter__(self) -> Iterator[T]:
+        for elem in self._elems:
+            if elem and elem.is_valid:
+                yield elem

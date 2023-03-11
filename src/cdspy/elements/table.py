@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import cast, Optional, Collection, TYPE_CHECKING
+from typing import Optional, Collection
 
 from . import BaseElement
 from . import ElementType
@@ -8,9 +8,6 @@ from . import TableCellsElement
 from . import TableContext
 
 from ..mixins import Derivable
-
-if TYPE_CHECKING:
-    from . import T
 
 
 class Table(TableCellsElement):
@@ -37,8 +34,27 @@ class Table(TableCellsElement):
         # register table with table_context
         self._context = table_context._register(self)
 
-    def _iter_objs(self) -> Collection[T]:
-        return cast(Collection[T], [self])
+    def __del__(self) -> None:
+        print(f"*** Deleting {self}")
+        self._delete(False)
+
+    def _delete(self, compress: Optional[bool] = True) -> None:
+        with self.lock:
+            super()._delete(compress)
+            try:
+                if compress:
+                    self._reclaim_column_space()
+                    self._reclaim_row_space()
+            finally:
+                self._invalidate()
+                if self.table_context:
+                    self.table_context._deregister(self)
+
+    def _reclaim_column_space(self) -> None:
+        pass
+
+    def _reclaim_row_space(self) -> None:
+        pass
 
     @property
     def table(self) -> Table:
