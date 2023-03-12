@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Collection, TYPE_CHECKING
 
+from . import BaseElementState
 from . import BaseElement
 from . import ElementType
 from . import TableElement
@@ -26,19 +27,20 @@ class Table(TableCellsElement):
     ) -> None:
         super().__init__(None)
 
-        # we need a context for default property initialization purposes
-        table_context = table_context if table_context else TableContext()
+        # define Table with superclass
+        self._set_table(self)
 
-        # initialize default properties
+        # we need a context for default property initialization purposes
+        table_context = table_context if table_context else template_table.table_context if template_table else TableContext()
+        self._context = table_context
+
+        # finally, with context set, initialize default properties
         for p in ElementType.Table.initializable_properties():
             source = template_table if template_table else table_context
             self._initialize_property(p, source.get_property(p))
 
-        # define Table with superclass
-        self._set_table(self)
-
-        # register table with table_context
-        self._context = table_context._register(self)
+        # finally, register table with context
+        table_context._register(self)
 
     def __del__(self) -> None:
         print(f"*** Deleting {self}")
@@ -77,6 +79,18 @@ class Table(TableCellsElement):
     @property
     def element_type(self) -> ElementType:
         return ElementType.Table
+
+    @property
+    def is_datatype_enforced(self) -> bool:
+        if self.is_enforce_datatype:
+            return True
+        return self.table_context.is_enforce_datatype if self.table_context else False
+
+    @property
+    def is_nulls_supported(self) -> bool:
+        if self.is_supports_null:
+            return True
+        return self.table_context.is_supports_null if self.table_context else False
 
     @property
     def num_rows(self) -> int:
@@ -119,7 +133,7 @@ class Table(TableCellsElement):
     # override to
     @BaseElement.is_persistent.setter  # type: ignore
     def is_persistent(self, state: bool) -> None:
-        BaseElement.is_persistent.fset(self, state)  # type: ignore
+        self._mutate_state(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)  # type: ignore
         if self.table_context:
             self.table_context._register(self)
 

@@ -20,6 +20,7 @@ src/cdspy/elements/table.py
 src/cdspy/elements/table_cells_element.py
 src/cdspy/elements/table_context.py
 src/cdspy/elements/table_element.py
+src/cdspy/elements/table_slice_element.py
 src/cdspy/elements/tag.py
 src/cdspy/elements/__pycache__/__init__.cpython-311.pyc
 src/cdspy/elements/__pycache__/base_element.cpython-311.pyc

@@ -5,10 +5,12 @@ from collections.abc import Collection
 from enum import verify, UNIQUE, Flag
 from threading import RLock
 from typing import Any, Final, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, Union
+from uuid import UUID
 
 from . import ElementType
 from . import Property
 from ..exceptions import DeletedElementException
+from ..exceptions import InvalidException
 from ..exceptions import InvalidPropertyException
 from ..exceptions import ReadOnlyException
 from ..exceptions import UnimplementedException
@@ -88,6 +90,16 @@ class BaseElement(ABC):
         return v
 
     @staticmethod
+    def _normalize_uuid(uuid: UUID | str) -> UUID:
+        if isinstance(uuid, UUID):
+            pass
+        elif isinstance(uuid, str):
+            uuid = UUID(uuid.strip())
+        else:
+            raise InvalidException(None, f"'{uuid}' is not a valid GUID/UUID")
+        return uuid
+
+    @staticmethod
     def _find_tagged(elems: Collection[TableElement], *tags: str) -> BaseElement | None:
         from . import Tag
 
@@ -159,6 +171,8 @@ class BaseElement(ABC):
                 self._clear_property(p)
             else:
                 self._set_property(p, value)
+            if p.is_state_default_property:
+                self._initialize_state_from_property(p, value)
         else:
             super().__setattr__(name, value)
 
@@ -276,7 +290,23 @@ class BaseElement(ABC):
             properties: dict = cast(dict, self._element_properties(True))
             retval = properties.get(key, None)
             properties[key] = value
+
+            # if this property is a state default, initialize it now
+            if isinstance(key, Property) and key.is_state_default_property:
+                self._initialize_state_from_property(key, value)
             return retval
+
+    # noinspection PyCompatibility
+    def _initialize_state_from_property(self, p: Property, v: object) -> None:
+        match p:
+            case Property.IsReadOnlyDefault:
+                self.is_read_only = BaseElement.__normalize_property_value_bool(p, v)
+            case Property.IsSupportsNullsDefault:
+                self.is_supports_null = BaseElement.__normalize_property_value_bool(p, v)
+            case Property.IsEnforceDataTypeDefault:
+                self.is_enforce_datatype = BaseElement.__normalize_property_value_bool(p, v)
+            case Property.AreTablesPersistentDefault:
+                self.is_persistent = BaseElement.__normalize_property_value_bool(p, v)
 
     def _clear_property(self, key: Property | str) -> bool:
         with self.lock:
@@ -352,22 +382,6 @@ class BaseElement(ABC):
         :return: True if element has not been deleted
         """
         return not self.is_invalid
-
-    # noinspection PyCompatibility
-    def _initialize_state_from_property(self, p: Property, v: object) -> bool:
-        _initialized_state = True
-        match p:
-            case Property.IsReadOnlyDefault:
-                self.is_read_only = BaseElement.__normalize_property_value_bool(p, v)
-            case Property.IsSupportsNullsDefault:
-                self.is_supports_null = BaseElement.__normalize_property_value_bool(p, v)
-            case Property.IsEnforceDataTypeDefault:
-                self.is_enforce_datatype = BaseElement.__normalize_property_value_bool(p, v)
-            case Property.AreTablesPersistent:
-                self.is_persistent = BaseElement.__normalize_property_value_bool(p, v)
-            case _:
-                _initialized_state = False
-        return _initialized_state
 
     @property
     def lock(self) -> RLock:

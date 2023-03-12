@@ -90,8 +90,8 @@ def test_property_getters() -> None:
     # test a handful of as_attr_name examples
     assert Property.Tags.as_attr_name == "tags"
     assert Property.by_attr_name("tags") == Property.Tags
-    assert Property.AreTablesPersistent.as_attr_name == "are_tables_persistent"
-    assert Property.by_attr_name("are_tables_persistent") == Property.AreTablesPersistent
+    assert Property.AreTablesPersistentDefault.as_attr_name == "are_tables_persistent_default"
+    assert Property.by_attr_name("are_tables_persistent_default") == Property.AreTablesPersistentDefault
     assert Property.IsPendingAllowCoreThreadTimeout.as_attr_name == "is_pending_allow_core_thread_timeout"
 
 

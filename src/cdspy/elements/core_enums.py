@@ -9,7 +9,7 @@ from typing import Optional, TYPE_CHECKING, Union
 from enum import Enum, verify, UNIQUE
 
 if TYPE_CHECKING:
-    from .base_element import BaseElement
+    from . import TableElement
 
 
 @verify(UNIQUE)
@@ -68,14 +68,14 @@ class _TablePropertyInfo:
         read_only: bool,
         initializable: bool,
         nickname: Optional[str] = None,
-        delegates: Optional[list[ElementType]] = None,
+        state: Optional[bool] = False,
         *args: ElementType,
     ) -> None:
         self._optional = optional
         self._read_only = read_only
         self._initializable = initializable
         self._nickname = nickname
-        self._delegates = set(delegates) if delegates else None
+        self._state = bool(state)
         self._implemented_by = set(args) if args else set(ElementType)
 
     def __str__(self) -> str:
@@ -147,10 +147,6 @@ class Property(Enum):
     IsGroupLabelsIndexed = _TablePropertyInfo(
         False, False, True, "isGLbX", None, ElementType.TableContext, ElementType.Table
     )
-    AreTablesPersistent = _TablePropertyInfo(
-        False, False, True, "isP", None, ElementType.TableContext, ElementType.Table
-    )
-
     # PendingDerivationThreadPool Properties
     IsPendingAllowCoreThreadTimeout = _TablePropertyInfo(
         True,
@@ -176,6 +172,9 @@ class Property(Enum):
     IsPendingThreadPoolEnabled = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
+    AreTablesPersistentDefault = _TablePropertyInfo(
+        False, False, True, "isP", True, ElementType.TableContext, ElementType.Table
+    )
 
     # Table Element Properties
     IsReadOnlyDefault = _TablePropertyInfo(
@@ -183,7 +182,7 @@ class Property(Enum):
         False,
         True,
         "rod",
-        None,
+        True,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -195,7 +194,7 @@ class Property(Enum):
         False,
         True,
         "snd",
-        None,
+        True,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -207,7 +206,7 @@ class Property(Enum):
         False,
         True,
         "edt",
-        None,
+        True,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -333,14 +332,14 @@ class Property(Enum):
         else:
             return self.name
 
-    def is_implemented_by(self, e: Union[ElementType, BaseElement, None]) -> bool:
-        from .base_element import BaseElement
+    def is_implemented_by(self, e: Union[ElementType, TableElement, None]) -> bool:
+        from . import TableElement
 
         if e is None:
             return False
         if isinstance(e, ElementType):
             return e in self.value._implemented_by
-        if isinstance(e, BaseElement):
+        if isinstance(e, TableElement):
             return self.is_implemented_by(e.element_type)
         else:
             return False  # type: ignore
@@ -364,6 +363,10 @@ class Property(Enum):
     @property
     def is_initializable_property(self) -> bool:
         return self.value._initializable
+
+    @property
+    def is_state_default_property(self) -> bool:
+        return bool(self.value._state)
 
     @property
     def is_boolean_property(self) -> bool:
@@ -433,6 +436,51 @@ class Access(Enum):
     @property
     def associated_property(self) -> Property | None:
         return self.value._associated_property
+
+
+class _EventTypeInfo:
+    """ """
+
+    def __init__(self, notify_in_same_thread: bool, notify_parent: bool, *args: ElementType) -> None:
+        self._notify_in_same_thread = bool(notify_in_same_thread)
+        self._notify_parent = bool(notify_parent)
+        self._implemented_by = set(args) if args else {}
+
+
+@verify(UNIQUE)
+class EventType(Enum):
+    OnBeforeCreate = _EventTypeInfo(
+        True, False, ElementType.Table, ElementType.Group, ElementType.Row, ElementType.Column
+    )
+    OnBeforeDelete = _EventTypeInfo(
+        True, True, ElementType.Table, ElementType.Group, ElementType.Row, ElementType.Column
+    )
+    OnBeforeNewValue = _EventTypeInfo(
+        True, True, ElementType.Table, ElementType.Row, ElementType.Column, ElementType.Cell
+    )
+    OnNewValue = _EventTypeInfo(False, True, ElementType.Table, ElementType.Row, ElementType.Column, ElementType.Cell)
+    OnCreate = _EventTypeInfo(False, True, ElementType.Table, ElementType.Group, ElementType.Row, ElementType.Column)
+    OnDelete = _EventTypeInfo(False, True, ElementType.Table, ElementType.Group, ElementType.Row, ElementType.Column)
+    OnPendings = _EventTypeInfo(False, True, ElementType.Table, ElementType.Row, ElementType.Column, ElementType.Cell)
+    OnNoPendings = _EventTypeInfo(False, True, ElementType.Table, ElementType.Row, ElementType.Column, ElementType.Cell)
+    OnRecalculate = _EventTypeInfo(
+        False, True, ElementType.Table, ElementType.Row, ElementType.Column, ElementType.Cell
+    )
+
+    @property
+    def is_notify_parent(self) -> bool:
+        return self.value._notify_parent
+
+    @property
+    def is_notify_in_same_thread(self) -> bool:
+        return self.value._notify_in_same_thread
+
+    def is_implemented_by(self, e: ElementType | TableElement) -> bool:
+        from . import TableElement
+
+        if isinstance(e, TableElement):
+            e = e.element_type
+        return e in self.value._implemented_by
 
 
 @verify(UNIQUE)

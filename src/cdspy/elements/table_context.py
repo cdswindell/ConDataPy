@@ -44,7 +44,7 @@ _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.IsColumnLabelsIndexed: False,
     Property.IsCellLabelsIndexed: False,
     Property.IsGroupLabelsIndexed: False,
-    Property.AreTablesPersistent: False,
+    Property.AreTablesPersistentDefault: False,
     Property.IsPendingThreadPoolEnabled: True,
     Property.IsPendingAllowCoreThreadTimeout: True,
     Property.NumPendingCorePoolThreads: 8,
@@ -71,7 +71,9 @@ class TableContext(
     _lock = RLock()
 
     def __new__(cls, template_context: Optional[TableContext] = None) -> TableContext:
+        print("*** in TemplateContext.__new__...")
         if template_context is not None:
+            print("*** from template")
             return super().__new__(cls)
         with cls._lock:
             # Another thread could have created the instance
@@ -79,8 +81,9 @@ class TableContext(
             # instance is still nonexistent.
             if not cls._default_table_context:
                 cls._default_table_context = super().__new__(cls)
+                print("*** created defzault context")
                 cls._default_table_context.label = "Default Table Context"
-        return cls._default_table_context
+            return cls._default_table_context
 
     @classmethod
     def generate_default_table_context(cls) -> TableContext:
@@ -92,17 +95,19 @@ class TableContext(
         self._registered_nonpersistent_tables: WeakSet[Table] = WeakSet()
         self._registered_persistent_tables: Set[Table] = set()
 
-        self._mutate_state(BaseElementState.IS_DEFAULT_FLAG, template is None)
+        is_default = False if template and (template != TableContext()) else True
+        self._mutate_state(BaseElementState.IS_DEFAULT_FLAG, is_default)
 
         global _TABLE_CONTEXT_DEFAULTS
         for p in self.element_type.initializable_properties():
-            v = template.get_property(p) if template else None
-            if v is None:
-                v = _TABLE_CONTEXT_DEFAULTS.get(p, None)
+            v = template.get_property(p) if template else _TABLE_CONTEXT_DEFAULTS.get(p, None)
             self._initialize_property(p, v)
 
     def __iter__(self) -> Iterator[T]:
         return iter(_BaseElementIterable(self.tables))
+
+    def __len__(self) -> int:
+        return self.num_tables
 
     @property
     def __all_tables(self) -> Collection[Table]:
@@ -114,7 +119,7 @@ class TableContext(
 
     @property
     def is_null(self) -> bool:
-        return not self._registered_nonpersistent_tables and not self._registered_persistent_tables
+        return self.num_tables != 0
 
     @property
     def element_type(self) -> ElementType:
@@ -126,7 +131,8 @@ class TableContext(
 
     @property
     def num_tables(self) -> int:
-        return len(self._registered_nonpersistent_tables) + len(self._registered_persistent_tables)
+        with self.lock:
+            return len(self._registered_nonpersistent_tables) + len(self._registered_persistent_tables)
 
     def clear(self) -> None:
         with self.lock:
@@ -159,6 +165,10 @@ class TableContext(
 
     def is_registered(self, t: Table) -> bool:
         return t in self._registered_persistent_tables or t in self._registered_nonpersistent_tables
+
+    @property
+    def is_datatype_enforced(self) -> bool:
+        return self.is_enforce_datatype
 
     @property
     def _tags(self) -> Dict[str, Tag] | None:

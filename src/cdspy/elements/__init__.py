@@ -5,6 +5,7 @@ from typing import TypeVar
 from .core_enums import Access as Access
 from .core_enums import ElementType as ElementType
 from .core_enums import Property as Property
+from .core_enums import EventType as EventType
 from .core_enums import TimeUnit as TimeUnit
 
 from .tag import Tag as Tag
