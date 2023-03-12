@@ -130,7 +130,7 @@ class BaseElement(ABC):
         """
         Constructs a base element, initializing the flags property to NO_FLAGS
         """
-        self._flags = BaseElementState.NO_FLAGS
+        self._state = BaseElementState.NO_FLAGS
         self._lock = RLock()
 
     def __getattribute__(self, name: str) -> Any:
@@ -183,32 +183,32 @@ class BaseElement(ABC):
         else:
             return p.is_implemented_by(self.element_type)
 
-    def _mutate_flag(self, flag: BaseElementState, state: bool) -> None:
+    def _mutate_state(self, state: BaseElementState, value: bool) -> None:
         """Protected method used to modify element flags internal state"""
-        if bool(state):
-            self._flags |= flag
+        if bool(value):
+            self._state |= state
         else:
-            self._flags &= ~flag
+            self._state &= ~state
 
-    def _set(self, flag: BaseElementState) -> None:
-        self._flags |= flag
+    def _set(self, state: BaseElementState) -> None:
+        self._state |= state
 
-    def _reset(self, flag: BaseElementState) -> None:
-        self._flags &= ~flag
+    def _reset(self, state: BaseElementState) -> None:
+        self._state &= ~state
 
-    def _is_set(self, flag: BaseElementState) -> bool:
-        return (self._flags & flag) != BaseElementState.NO_FLAGS
+    def _is_set(self, state: BaseElementState) -> bool:
+        return (self._state & state) != BaseElementState.NO_FLAGS
 
     def _invalidate(self) -> None:
-        self._flags |= BaseElementState.IS_INVALID_FLAG
+        self._state |= BaseElementState.IS_INVALID_FLAG
         self._reset_element_properties()
 
-    def _vet_element(self, be: Optional[BaseElement] = None) -> None:
+    def vet_element(self, be: Optional[BaseElement] = None) -> None:
         if be is None:
             if self.is_invalid:
                 raise DeletedElementException(self.element_type)
         else:
-            be._vet_element()
+            be.vet_element()
 
     def __vet_text_key(self, key: Optional[str]) -> str:
         # normalize all string keys
@@ -379,7 +379,7 @@ class BaseElement(ABC):
 
     @is_persistent.setter
     def is_persistent(self, state: bool) -> None:
-        self._mutate_flag(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)
+        self._mutate_state(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)
 
     @property
     def is_supports_null(self) -> bool:
@@ -387,7 +387,7 @@ class BaseElement(ABC):
 
     @is_supports_null.setter
     def is_supports_null(self, state: bool) -> None:
-        self._mutate_flag(BaseElementState.SUPPORTS_NULL_FLAG, state)
+        self._mutate_state(BaseElementState.SUPPORTS_NULL_FLAG, state)
 
     @property
     def is_read_only(self) -> bool:
@@ -395,7 +395,7 @@ class BaseElement(ABC):
 
     @is_read_only.setter
     def is_read_only(self, state: bool) -> None:
-        self._mutate_flag(BaseElementState.READONLY_FLAG, state)
+        self._mutate_state(BaseElementState.READONLY_FLAG, state)
 
     @property
     def is_enforce_datatype(self) -> bool:
@@ -403,7 +403,7 @@ class BaseElement(ABC):
 
     @is_enforce_datatype.setter
     def is_enforce_datatype(self, state: bool) -> None:
-        self._mutate_flag(BaseElementState.ENFORCE_DATATYPE_FLAG, state)
+        self._mutate_state(BaseElementState.ENFORCE_DATATYPE_FLAG, state)
 
     @property
     def label(self) -> str | None:

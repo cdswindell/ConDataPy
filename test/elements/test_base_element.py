@@ -41,7 +41,7 @@ class MockBaseElement(BaseElement):
 def test_base_element_initial_state() -> None:
     tc = MockBaseElement()
     assert tc
-    assert tc._flags == BaseElementState.NO_FLAGS
+    assert tc._state == BaseElementState.NO_FLAGS
     assert vars(tc).get(TABLE_PROPERTIES_KEY) is None
     assert tc._element_properties() is None
 

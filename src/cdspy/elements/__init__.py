@@ -11,12 +11,12 @@ from .tag import Tag as Tag
 
 from .base_element import BaseElementState as BaseElementState
 from .base_element import BaseElement as BaseElement
-from .base_element import _BaseElementIterable as _BaseElementIterable
 from .table_element import TableElement as TableElement
 from .table_cells_element import TableCellsElement as TableCellsElement
 
 from .table_context import TableContext as TableContext
 from .table import Table as Table
+from .cell import Cell as Cell
 
 
 T = TypeVar("T", bound=TableElement)

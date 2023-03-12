@@ -7,7 +7,7 @@ from weakref import WeakSet
 
 from . import BaseElementState
 from . import BaseElement
-from . import _BaseElementIterable
+from .base_element import _BaseElementIterable
 
 from . import Access
 from . import ElementType
@@ -92,7 +92,7 @@ class TableContext(
         self._registered_nonpersistent_tables: WeakSet[Table] = WeakSet()
         self._registered_persistent_tables: Set[Table] = set()
 
-        self._mutate_flag(BaseElementState.IS_DEFAULT_FLAG, template is None)
+        self._mutate_state(BaseElementState.IS_DEFAULT_FLAG, template is None)
 
         global _TABLE_CONTEXT_DEFAULTS
         for p in self.element_type.initializable_properties():
@@ -140,7 +140,7 @@ class TableContext(
                 if t and t.is_valid:
                     t._delete()
 
-    def _register(self, t: Table) -> TableContext:
+    def _register(self, t: Table) -> Optional[TableContext]:
         if t:
             with self.lock:
                 if t.is_persistent:
@@ -163,6 +163,7 @@ class TableContext(
     @property
     def _tags(self) -> Dict[str, Tag] | None:
         from . import Tag
+
         return cast(Dict[str, Tag], self.get_property(Property.Tags))
 
     @property
@@ -211,6 +212,6 @@ class TableContext(
                 t = cast(BaseElement, args[0])
                 if not t or not isinstance(t, Table) or t.element_type != ElementType.Table:
                     raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {t}")
-                self._vet_element(t)
+                self.vet_element(t)
                 return t
         raise InvalidAccessException(self, ElementType.Table, mode, False, args)

@@ -4,12 +4,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection
 from typing import cast, Optional, TYPE_CHECKING
 
-from . import Tag
 from . import Property
 from . import BaseElement
 
 if TYPE_CHECKING:
     from . import Tag
+    from . import Table
     from . import TableContext
     from ..mixins import Derivable
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 class TableElement(BaseElement, ABC):
     @property
     @abstractmethod
-    def table(self) -> TableElement:
+    def table(self) -> Table | None:
         pass
 
     @property

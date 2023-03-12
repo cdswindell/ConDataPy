@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Collection
-from threading import Lock
 from typing import cast, Final, Optional, TYPE_CHECKING
 import uuid
+from weakref import ref
 
 from ordered_set import OrderedSet
 
@@ -12,6 +12,7 @@ from ..exceptions import InvalidParentException
 
 from . import Property
 from . import TableElement
+from ..utils.atomic_integer import AtomicInteger
 
 if TYPE_CHECKING:
     from . import Table
@@ -19,47 +20,15 @@ if TYPE_CHECKING:
     from ..mixins import Derivable
 
 
-class AtomicInteger:
-    def __init__(self, value: int = 0) -> None:
-        self._value = int(value)
-        self._lock = Lock()
-
-    def inc(self, d: Optional[int] = 1) -> int:
-        d = d if d is not None else 1
-        with self._lock:
-            retval = self._value
-            self._value += int(d)
-            return retval
-
-    def dec(self, d: Optional[int] = 1) -> int:
-        d = d if d is not None else 1
-        with self._lock:
-            retval = self._value
-            self.inc(-d)
-            return retval
-
-    @property
-    def value(self) -> int:
-        with self._lock:
-            return self._value
-
-    # setter is not used in cdspy, but is included for completeness here
-    # @value.setter
-    # def value(self, v):
-    #     with self._lock:
-    #         self._value = int(v)
-    #         return self._value
-
-
 class TableCellsElement(TableElement, ABC):
-    ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1000)
+    _ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1000)
 
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
         self._pendings = 0
-        self._table = te.table if te else None
+        self._table_ref = ref(te.table) if te else None
         self._affects = OrderedSet()
-        self._initialize_property(Property.Ident, TableCellsElement.ELEMENT_IDENT_GENERATOR.inc())
+        self._initialize_property(Property.Ident, TableCellsElement._ELEMENT_IDENT_GENERATOR.inc())
 
     def _vet_parent(self, *elems: TableCellsElement) -> None:
         if elems:
@@ -68,11 +37,11 @@ class TableCellsElement(TableElement, ABC):
                     continue
                 with e.lock:
                     # make sure element is valid
-                    self._vet_element()
+                    self.vet_element()
                     # make sure elem belongs to table
                     if not e.table:
-                        # if not set, set now
-                        e._table = self.table
+                        # if not set, set now; parent could be null...
+                        e._set_table(cast(Table, self.table))
                     elif e.table != self.table:
                         raise InvalidParentException(e, self)
 
@@ -88,6 +57,7 @@ class TableCellsElement(TableElement, ABC):
 
         # clear label; this resets dependent indices
         self.label = None
+        self._table_ref = None
 
     def _register_affects(self, elem: Derivable) -> None:
         with self.lock:
@@ -106,11 +76,11 @@ class TableCellsElement(TableElement, ABC):
             self._pendings += 1
 
     @property
-    def table(self) -> TableElement:
-        return cast(Table, self._table)
+    def table(self) -> Table | None:
+        return self._table_ref() if self._table_ref else None
 
     def _set_table(self, table: Table) -> None:
-        self._table = table
+        self._table_ref = ref(table) if table else None
 
     @property
     def table_context(self) -> TableContext | None:

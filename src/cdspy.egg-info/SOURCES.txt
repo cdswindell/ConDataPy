@@ -8,8 +8,13 @@ src/cdspy.egg-info/SOURCES.txt
 src/cdspy.egg-info/dependency_links.txt
 src/cdspy.egg-info/top_level.txt
 src/cdspy/__pycache__/__init__.cpython-311.pyc
+src/cdspy/computation/__init__.py
+src/cdspy/computation/derivation.py
+src/cdspy/computation/__pycache__/__init__.cpython-311.pyc
+src/cdspy/computation/__pycache__/derivation.cpython-311.pyc
 src/cdspy/elements/__init__.py
 src/cdspy/elements/base_element.py
+src/cdspy/elements/cell.py
 src/cdspy/elements/core_enums.py
 src/cdspy/elements/table.py
 src/cdspy/elements/table_cells_element.py
@@ -18,6 +23,7 @@ src/cdspy/elements/table_element.py
 src/cdspy/elements/tag.py
 src/cdspy/elements/__pycache__/__init__.cpython-311.pyc
 src/cdspy/elements/__pycache__/base_element.cpython-311.pyc
+src/cdspy/elements/__pycache__/cell.cpython-311.pyc
 src/cdspy/elements/__pycache__/core_enums.cpython-311.pyc
 src/cdspy/elements/__pycache__/table.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_cells_element.cpython-311.pyc
@@ -49,4 +55,6 @@ src/cdspy/mixins/__pycache__/__init__.cpython-311.pyc
 src/cdspy/mixins/__pycache__/derivable.cpython-311.pyc
 src/cdspy/mixins/__pycache__/event_processor.cpython-311.pyc
 src/cdspy/utils/__init__.py
+src/cdspy/utils/atomic_integer.py
 src/cdspy/utils/__pycache__/__init__.cpython-311.pyc
+src/cdspy/utils/__pycache__/atomic_integer.cpython-311.pyc

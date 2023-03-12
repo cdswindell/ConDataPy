@@ -1,13 +1,19 @@
 from __future__ import annotations
 
-from typing import Optional, Collection
+from typing import Optional, Collection, TYPE_CHECKING
 
 from . import BaseElement
 from . import ElementType
+from . import TableElement
 from . import TableCellsElement
 from . import TableContext
 
+from ..computation import recalculate_affected
+
 from ..mixins import Derivable
+
+if TYPE_CHECKING:
+    from . import Cell
 
 
 class Table(TableCellsElement):
@@ -15,7 +21,7 @@ class Table(TableCellsElement):
         self,
         num_rows: Optional[int] = TableContext().row_capacity_incr,
         num_cols: Optional[int] = TableContext().column_capacity_incr,
-        table_context: TableContext = TableContext(),
+        table_context: Optional[TableContext] = None,
         template_table: Optional[Table] = None,
     ) -> None:
         super().__init__(None)
@@ -40,15 +46,16 @@ class Table(TableCellsElement):
 
     def _delete(self, compress: Optional[bool] = True) -> None:
         with self.lock:
-            super()._delete(compress)
             try:
                 if compress:
                     self._reclaim_column_space()
                     self._reclaim_row_space()
+                super()._delete(compress)
             finally:
                 self._invalidate()
                 if self.table_context:
                     self.table_context._deregister(self)
+                    self._context = None
 
     def _reclaim_column_space(self) -> None:
         pass
@@ -56,12 +63,15 @@ class Table(TableCellsElement):
     def _reclaim_row_space(self) -> None:
         pass
 
+    def _get_cell_affects(self, cell: Cell, include_indirects: Optional[bool] = True) -> Collection[Derivable]:
+        return []
+
     @property
     def table(self) -> Table:
         return self
 
     @property
-    def table_context(self) -> TableContext:
+    def table_context(self) -> TableContext | None:
         return self._context
 
     @property
@@ -88,6 +98,10 @@ class Table(TableCellsElement):
     def num_groups(self) -> int:
         return 0
 
+    @property
+    def are_cell_labels_indexed(self) -> bool:
+        return False
+
     def fill(self, o: Optional[object]) -> bool:
         return True
 
@@ -106,4 +120,21 @@ class Table(TableCellsElement):
     @BaseElement.is_persistent.setter  # type: ignore
     def is_persistent(self, state: bool) -> None:
         BaseElement.is_persistent.fset(self, state)  # type: ignore
-        self.table_context._register(self)
+        if self.table_context:
+            self.table_context._register(self)
+
+    def delete(self, *elems: TableElement) -> None:
+        if elems:
+            deleted_any = False
+            for elem in elems:
+                if elem and elem.is_valid and elem.table == self:
+                    elem._delete(False)
+                    deleted_any = True
+
+            if deleted_any:
+                self._reclaim_column_space()
+                self._reclaim_row_space()
+                recalculate_affected(self)
+        else:
+            # delete the entire table
+            self._delete(True)
