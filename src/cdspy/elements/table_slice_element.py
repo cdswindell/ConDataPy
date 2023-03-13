@@ -4,6 +4,8 @@ from abc import ABC
 from typing import Optional, Set
 from uuid import UUID
 
+from ..utils import JustInTimeSet
+
 from ..exceptions import InvalidException
 
 from .base_element import _BaseElementIterable
@@ -16,6 +18,7 @@ class TableSliceElement(TableCellsElement, ABC):
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
         self._remote_uuids: Set[UUID] = set()
+        self._groups = JustInTimeSet()
 
     @property
     def is_in_use(self) -> bool:
@@ -51,3 +54,7 @@ class TableSliceElement(TableCellsElement, ABC):
         if self.is_supports_null:
             return True
         return self.table.is_nulls_supported if self.table else False
+
+    @property
+    def num_groups(self) -> int:
+        return len(self._groups)

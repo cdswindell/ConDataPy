@@ -139,11 +139,13 @@ class TableContext(
                 t = self._registered_persistent_tables.pop()
                 if t and t.is_valid:
                     t._delete()
+                    del t
 
             while self._registered_nonpersistent_tables:
                 t = self._registered_nonpersistent_tables.pop()
                 if t and t.is_valid:
                     t._delete()
+                    del t
 
     def _register(self, t: Table) -> Optional[TableContext]:
         if t:
@@ -183,7 +185,6 @@ class TableContext(
 
     def to_canonical_tag(self, label: str, create: Optional[bool] = True) -> Optional[Tag]:
         from . import Tag
-
         label = Tag.normalize_label(label)
         if label:
             with self.lock:
@@ -201,7 +202,6 @@ class TableContext(
 
     def get_table(self, mode: Access, *args: object) -> Optional[BaseElement]:
         from . import Table
-
         if mode.has_associated_property:
             if args:
                 return BaseElement._find(self.tables, cast(Property, mode.associated_property), args[0])

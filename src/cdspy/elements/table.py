@@ -154,6 +154,7 @@ class Table(TableCellsElement):
             for elem in elems:
                 if elem and elem.is_valid and elem.table == self:
                     elem._delete(False)
+                    del elem
                     deleted_any = True
 
             if deleted_any:
