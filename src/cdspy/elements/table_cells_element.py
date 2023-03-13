@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Collection
+from threading import RLock
 from typing import cast, Final, Optional, TYPE_CHECKING
 import uuid
 from weakref import ref
@@ -25,6 +26,7 @@ class TableCellsElement(TableElement, ABC):
 
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
+        self._lock = RLock()
         self._pendings = 0
         self._table_ref = ref(te.table) if te else None
         self._affects = OrderedSet()
@@ -85,6 +87,10 @@ class TableCellsElement(TableElement, ABC):
     @property
     def table_context(self) -> TableContext | None:
         return self.table.table_context if self.table else None
+
+    @property
+    def lock(self) -> RLock:
+        return self._lock
 
     @property
     def is_pendings(self) -> bool:

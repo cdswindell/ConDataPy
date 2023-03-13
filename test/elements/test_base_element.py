@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from threading import RLock
 from typing import Any, cast, Dict, Collection, TYPE_CHECKING
 
 import pytest
@@ -23,17 +24,24 @@ if TYPE_CHECKING:
 class MockBaseElement(BaseElement):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__()
-        self._element_type = self._parse_args(ElementType, "et", 0, ElementType.Table, *args, **kwargs)
+        self._lock = RLock()
+        self._element_type = cast(
+            ElementType, self._parse_args(ElementType, "et", 0, ElementType.Table, *args, **kwargs)
+        )
         if self._parse_args(bool, "initialized", 1, True, *args, **kwargs):
             self._set_initialized()
 
     @property
     def element_type(self) -> ElementType:
-        return self._element_type  # type: ignore
+        return self._element_type
 
     @property
     def is_null(self) -> bool:
         return False
+
+    @property
+    def lock(self) -> RLock:
+        return self._lock
 
     def _iter_objs(self) -> Collection[T]:
         return cast(Collection[T], [self])

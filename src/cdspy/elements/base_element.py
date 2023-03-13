@@ -75,7 +75,7 @@ class BaseElement(ABC):
         if attrib and attrib in kwargs:
             return kwargs[attrib]
         # then try positional args
-        if args and pos is not None and len(args) > pos and args[pos] is not None:
+        if args and pos is not None and len(args) > pos and args[pos] is not None and isinstance(args[pos], arg_type):
             return args[pos]
         # finally, just return default
         return default
@@ -149,12 +149,16 @@ class BaseElement(ABC):
     def is_null(self) -> bool:
         pass
 
+    @property
+    @abstractmethod
+    def lock(self) -> RLock:
+        pass
+
     def __init__(self) -> None:
         """
         Constructs a base element, initializing the flags property to IS_INITIALIZING_FLAG
         """
         self._state = BaseElementState.IS_INITIALIZING_FLAG
-        self._lock = RLock()
 
     def __getattribute__(self, name: str) -> Any:
         """
@@ -393,10 +397,6 @@ class BaseElement(ABC):
         :return: True if element has not been deleted
         """
         return not self.is_invalid
-
-    @property
-    def lock(self) -> RLock:
-        return self._lock
 
     @property
     def is_persistent(self) -> bool:

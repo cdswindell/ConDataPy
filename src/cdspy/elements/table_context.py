@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
+from threading import RLock
 from typing import Any, cast, Dict, Final, Iterator, Optional, Set, TYPE_CHECKING
 from weakref import WeakSet
 
@@ -71,6 +72,7 @@ class TableContext(
 ):
     def __init__(self, template: Optional[TableContext] = None) -> None:
         super().__init__()
+        self._lock = RLock()
 
         self._registered_nonpersistent_tables: WeakSet[Table] = WeakSet()
         self._registered_persistent_tables: Set[Table] = set()
@@ -85,7 +87,6 @@ class TableContext(
         if not template:
             self.label = "Default Table Context"
         self._set_initialized()
-        print(f"Created {self.label}")
 
     def __iter__(self) -> Iterator[T]:
         return iter(_BaseElementIterable(self.tables))
@@ -103,6 +104,10 @@ class TableContext(
     @property
     def tables(self) -> Collection[Table]:
         return tuple(sorted(self.__all_tables))
+
+    @property
+    def lock(self) -> RLock:
+        return self._lock
 
     @property
     def is_null(self) -> bool:

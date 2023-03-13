@@ -53,8 +53,9 @@ class Table(TableCellsElement):
         self._set_initialized()
 
     def __del__(self) -> None:
-        print(f"*** Deleting {self}")
-        self._delete(False)
+        print(f"*** Deleting {self}...")
+        if self.is_valid:
+            self._delete(False)
 
     def _delete(self, compress: Optional[bool] = True) -> None:
         with self.lock:

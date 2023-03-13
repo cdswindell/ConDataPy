@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Iterator, Optional, TYPE_CHECKING, Collection
 
+from threading import RLock
+
 from . import ElementType
 from .base_element import _BaseElementIterable
 from . import BaseElementState
@@ -19,14 +21,18 @@ class Cell(TableElement, Derivable):
         "_cell_offset",
         "_cell_value",
         "_col",
+        "_lock",
         "_state",
     )
 
+    # TODO: make class smaller
     def __init__(self, col: TableElement, cell_offset: int) -> None:
         super().__init__(col)
         self._col = col
         self._cell_offset = cell_offset if cell_offset is not None else -1
         self._cell_value = None
+        self._lock = RLock()
+        self._set_initialized()
 
     def __iter__(self) -> Iterator[T]:
         return iter(_BaseElementIterable(tuple(self)))
@@ -61,6 +67,11 @@ class Cell(TableElement, Derivable):
         # To minimize memory, effects are maintained in parent table
         if self.table:
             self.table._deregister_cell_affects(self, d)
+
+    @property
+    def lock(self) -> RLock:
+        # TODO: Move out of cell class
+        return self._lock
 
     @property
     def cell_value(self) -> Any:

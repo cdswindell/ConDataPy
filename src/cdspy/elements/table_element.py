@@ -77,9 +77,6 @@ class TableElement(BaseElement, ABC):
 
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__()
-        self._clear_property(Property.Label)
-        self._clear_property(Property.Description)
-        self.is_enforce_datatype = False
 
     def delete(self) -> None:
         self._delete(True)
