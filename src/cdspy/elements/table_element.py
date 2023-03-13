@@ -6,9 +6,9 @@ from typing import cast, Optional, TYPE_CHECKING
 
 from . import Property
 from . import BaseElement
+from . import Tag
 
 if TYPE_CHECKING:
-    from . import Tag
     from . import Table
     from . import TableContext
     from ..mixins import Derivable

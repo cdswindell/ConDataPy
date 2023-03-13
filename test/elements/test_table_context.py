@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import pytest
+
 from ..test_base import TestBase
 
 from cdspy.elements import ElementType
 from cdspy.elements import Property
+from cdspy.elements import Access
 from cdspy.elements import default_table_context
 from cdspy.elements import TableContext
 from cdspy.elements.table_context import _TABLE_CONTEXT_DEFAULTS
+
+from cdspy.exceptions import InvalidAccessException
 
 
 class TestTableContext(TestBase):
@@ -246,5 +251,73 @@ class TestTableContext(TestBase):
         assert t2.is_invalid
 
     def test_get_tables(self) -> None:
-        pass
-        # TODO
+        tc = TableContext()
+        assert tc
+        assert tc.is_null
+
+        # create several tables with different attributes
+        t1 = tc.create_table()
+        assert t1
+        t1.label = "table 1"
+        t1.set_property("my_key", "my_string")
+        t1.tag("ghi")
+        assert t1.has_any_tags("abc", "def", "ghi")
+
+        t2 = tc.create_table()
+        assert t2
+        t2.is_persistent = True
+        t2.tag("abc", "def", "ghi")
+        assert t2.has_all_tags("abc", "def", "ghi")
+        t2.description = "t2 Description"
+
+        t3 = tc.create_table(32, 4)
+        assert t3
+        assert t3.uuid
+        assert t2.ident
+        assert len(tc) == 3
+
+        # retrieve by label
+        assert tc.get_table(Access.ByLabel, "table 1") == t1
+        assert tc.get_table(Access.ByLabel, "table 1") != t2
+        assert tc.get_table(Access.ByLabel, "table 1") != t3
+
+        # retrieve string property
+        assert tc.get_table(Access.ByProperty, "my_key", "my_string") == t1
+        assert not tc.get_table(Access.ByProperty, "no_key", "my_string")
+
+        # retrieve by uuid
+        assert tc.get_table(Access.ByUUID, t3.uuid) == t3
+        assert tc.get_table(Access.ByUUID, t2.uuid) != t3
+
+        # retrieve by tags
+        assert tc.get_table(Access.ByTags, "abc") == t2
+        assert tc.get_table(Access.ByTags, "abc", "def", "ghi") == t2
+        assert tc.get_table(Access.ByTags, "ghi") in (t1, t2)
+        assert tc.get_table(Access.ByTags, "ghi") != t3
+        assert not tc.get_table(Access.ByTags, "xyz")
+
+        # retrieve by tags via Property
+        assert tc.get_table(Access.ByProperty, Property.Tags, "abc") == t2
+        assert tc.get_table(Access.ByProperty, Property.Tags, "abc", " dEf  ", "ghi") == t2
+        assert tc.get_table(Access.ByProperty, Property.Tags, "ghi") in (t1, t2)
+        assert tc.get_table(Access.ByProperty, Property.Tags, "GHI") != t3
+        assert not tc.get_table(Access.ByProperty, Property.Tags, "xyz")
+
+        # retrieve by reference
+        assert tc.get_table(Access.ByReference, t1) == t1
+        assert tc.get_table(Access.ByReference, t2) == t2
+        assert tc.get_table(Access.ByReference, t3) == t3
+
+        # retrieve by ident
+        assert tc.get_table(Access.ByIdent, t1.ident) == t1
+        assert tc.get_table(Access.ByIdent, t2.ident) == t2
+        assert tc.get_table(Access.ByIdent, t3.ident) == t3
+
+        # retrieve by description
+        assert tc.get_table(Access.ByDescription, "t2 Description") == t2
+        assert tc.get_table(Access.ByDescription, "t2 Description") != t1
+
+        # test that unsupported access methods raise exception
+        for access in [Access.First, Access.Last, Access.Next, Access.Previous, Access.Current, Access.ByIndex]:
+            with pytest.raises(InvalidAccessException, match=f"Invalid Get Request: {access.name} Child: Table"):
+                assert tc.get_table(access)

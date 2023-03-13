@@ -50,8 +50,8 @@ class TableCellsElement(TableElement, ABC):
     def __lt__(self, other: TableCellsElement) -> bool:
         if not isinstance(other, TableCellsElement):
             raise NotImplementedError
-        s = self.label if self.label else self.uuid
-        o = other.label if other.label else other.uuid
+        s = self.label if self.label else str(self.uuid)
+        o = other.label if other.label else str(other.uuid)
         return s < o
 
     def _delete(self, compress: Optional[bool] = True) -> None:
@@ -106,16 +106,21 @@ class TableCellsElement(TableElement, ABC):
         return cast(int, self.get_property(Property.Ident))
 
     @property
-    def uuid(self) -> str:
+    def uuid(self) -> uuid.UUID:
         with self.lock:
             value = self.get_property(Property.UUID)
             if value is None:
                 value = uuid.uuid4()
                 self._initialize_property(Property.UUID, value)
-            return str(value)
+            return cast(uuid.UUID, value)
 
     @uuid.setter
-    def uuid(self, value: str) -> None:
+    def uuid(self, value: uuid.UUID | str) -> None:
         with self.lock:
-            if not self.get_property(Property.UUID):
-                self._initialize_property(Property.UUID, uuid.UUID(value))
+            if self.get_property(Property.UUID):
+                pass
+            else:
+                if isinstance(value, str):
+                    self._initialize_property(Property.UUID, uuid.UUID(value))
+                elif isinstance(value, uuid.UUID):
+                    self._initialize_property(Property.UUID, value)
