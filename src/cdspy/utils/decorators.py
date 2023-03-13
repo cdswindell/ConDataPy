@@ -35,14 +35,12 @@ def singleton(cls):
 
     @functools.wraps(cls)
     def wrapper(*args, **kwargs):
-        if cls in previous_instances and previous_instances.get(cls, None).get('args') == (args, kwargs):
-            return previous_instances[cls].get('instance')
+        if cls in previous_instances and previous_instances.get(cls, None).get("args") == (args, kwargs):
+            return previous_instances[cls].get("instance")
         else:
-            previous_instances[cls] = {
-                'args': (args, kwargs),
-                'instance': cls(*args, **kwargs)
-            }
-            return previous_instances[cls].get('instance')
+            previous_instances[cls] = {"args": (args, kwargs), "instance": cls(*args, **kwargs)}
+            return previous_instances[cls].get("instance")
+
     return wrapper
 
 
@@ -65,11 +63,14 @@ def timer(func):
         Time taken by the function is [1.00103902817] sec
         >>>
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         from time import time
+
         start_time = time()
         func(*args, **kwargs)
         end_time = time()
-        logging.info('Time taken by the function is [{time}] sec'.format(func=func, time=end_time-start_time))
+        logging.info("Time taken by the function is [{time}] sec".format(func=func, time=end_time - start_time))
+
     return wrapper

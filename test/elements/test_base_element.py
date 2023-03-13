@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, cast, Dict, Optional, Collection, TYPE_CHECKING
+from typing import Any, cast, Dict, Collection, TYPE_CHECKING
 
 import pytest
 
 from cdspy.elements import ElementType
 from cdspy.elements import BaseElementState
 from cdspy.elements import Property
-
 
 from cdspy.elements.base_element import TABLE_PROPERTIES_KEY
 from cdspy.elements.base_element import BaseElement
@@ -22,9 +21,11 @@ if TYPE_CHECKING:
 
 # create test class from BaseElement
 class MockBaseElement(BaseElement):
-    def __init__(self, et: Optional[ElementType] = ElementType.Table) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__()
-        self._element_type = et
+        self._element_type = self._parse_args(ElementType, "et", 0, ElementType.Table, *args, **kwargs)
+        if self._parse_args(bool, "initialized", 1, True, *args, **kwargs):
+            self._set_initialized()
 
     @property
     def element_type(self) -> ElementType:
@@ -39,11 +40,20 @@ class MockBaseElement(BaseElement):
 
 
 def test_base_element_initial_state() -> None:
-    tc = MockBaseElement()
+    tc = MockBaseElement(initialized=False)
     assert tc
-    assert tc._state == BaseElementState.NO_FLAGS
+    assert tc._state == BaseElementState.IS_INITIALIZING_FLAG
+    assert tc.is_initializing
+    assert not tc.is_initialized
     assert vars(tc).get(TABLE_PROPERTIES_KEY) is None
     assert tc._element_properties() is None
+
+    # retest, but mark element as initialized
+    tc = MockBaseElement()
+    assert tc
+    assert tc._state == BaseElementState.NO_FLAGS_SET
+    assert not tc.is_initializing
+    assert tc.is_initialized
 
 
 def test_set_reset_element_properties() -> None:

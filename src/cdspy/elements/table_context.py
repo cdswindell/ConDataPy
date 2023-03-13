@@ -75,8 +75,7 @@ class TableContext(
         self._registered_nonpersistent_tables: WeakSet[Table] = WeakSet()
         self._registered_persistent_tables: Set[Table] = set()
 
-        is_default = False if template else True
-        self._mutate_state(BaseElementState.IS_DEFAULT_FLAG, is_default)
+        self._mutate_state(BaseElementState.IS_DEFAULT_FLAG, False if template else True)
 
         global _TABLE_CONTEXT_DEFAULTS
         for p in self.element_type.initializable_properties():
@@ -85,6 +84,7 @@ class TableContext(
 
         if not template:
             self.label = "Default Table Context"
+        self._set_initialized()
         print(f"Created {self.label}")
 
     def __iter__(self) -> Iterator[T]:
@@ -121,10 +121,11 @@ class TableContext(
         with self.lock:
             return len(self._registered_nonpersistent_tables) + len(self._registered_persistent_tables)
 
-    def create_table(self, *args, **kwargs) -> Table:
+    def create_table(self, *args: Any, **kwargs: Any) -> Table:
         from . import Table
-        num_rows = self._parse_args(int, 'num_rows', 0, self.row_capacity_incr, *args, **kwargs)
-        num_cols = self._parse_args(int, 'num_cols', 1, self.column_capacity_incr, *args, **kwargs)
+
+        num_rows = self._parse_args(int, "num_rows", 0, self.row_capacity_incr, *args, **kwargs)
+        num_cols = self._parse_args(int, "num_cols", 1, self.column_capacity_incr, *args, **kwargs)
         return Table(num_rows, num_cols, self)
 
     def clear(self) -> None:

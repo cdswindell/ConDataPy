@@ -10,9 +10,14 @@ from cdspy.elements.table_context import _TABLE_CONTEXT_DEFAULTS
 def test_default_table_context() -> None:
     dtc = default_table_context()
     assert dtc
+    assert dtc.is_initialized
 
     # creating a new instance of TableContext should return same object
     assert TableContext() == dtc
+
+    # object should be "Truthy"
+    assert bool(dtc)
+    assert dtc
 
     # check element_type
     assert dtc.element_type == ElementType.TableContext
@@ -80,6 +85,11 @@ def test_default_table_context_tags() -> None:
 
 def test_template_contexts() -> None:
     tc = TableContext(default_table_context())
+    assert tc
+    assert tc.is_initialized
+
+    # object should be "Truthy"
+    assert bool(tc)
     assert tc
 
     # assert the new context is not the default

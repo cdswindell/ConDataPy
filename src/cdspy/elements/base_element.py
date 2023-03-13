@@ -24,8 +24,7 @@ TABLE_PROPERTIES_KEY: Final = "_props"
 
 @verify(UNIQUE)
 class BaseElementState(Flag):
-    NO_FLAGS = 0x0
-
+    NO_FLAGS_SET = 0x0
     ENFORCE_DATATYPE_FLAG = 0x01
     READONLY_FLAG = 0x02
     SUPPORTS_NULL_FLAG = 0x04
@@ -57,6 +56,7 @@ class BaseElementState(Flag):
 
     IS_INVALID_FLAG = 0x10000000
     IS_PROCESSED_FLAG = 0x20000000
+    IS_INITIALIZING_FLAG = 0x40000000
 
 
 class BaseElement(ABC):
@@ -70,7 +70,7 @@ class BaseElement(ABC):
             raise DeletedElementException(be.element_type)
 
     @staticmethod
-    def _parse_args(arg_type: type, attrib: str, pos: int | None, default: Any, *args, **kwargs) -> Any:
+    def _parse_args(arg_type: type, attrib: str, pos: int | None, default: Any, *args: Any, **kwargs: Any) -> Any:
         # named args take priority
         if attrib and attrib in kwargs:
             return kwargs[attrib]
@@ -151,9 +151,9 @@ class BaseElement(ABC):
 
     def __init__(self) -> None:
         """
-        Constructs a base element, initializing the flags property to NO_FLAGS
+        Constructs a base element, initializing the flags property to IS_INITIALIZING_FLAG
         """
-        self._state = BaseElementState.NO_FLAGS
+        self._state = BaseElementState.IS_INITIALIZING_FLAG
         self._lock = RLock()
 
     def __getattribute__(self, name: str) -> Any:
@@ -222,7 +222,7 @@ class BaseElement(ABC):
         self._state &= ~state
 
     def _is_set(self, state: BaseElementState) -> bool:
-        return (self._state & state) != BaseElementState.NO_FLAGS
+        return (self._state & state) != BaseElementState.NO_FLAGS_SET
 
     def _invalidate(self) -> None:
         self._state |= BaseElementState.IS_INVALID_FLAG
@@ -429,6 +429,17 @@ class BaseElement(ABC):
     @is_enforce_datatype.setter
     def is_enforce_datatype(self, state: bool) -> None:
         self._mutate_state(BaseElementState.ENFORCE_DATATYPE_FLAG, state)
+
+    @property
+    def is_initializing(self) -> bool:
+        return self._is_set(BaseElementState.IS_INITIALIZING_FLAG)
+
+    @property
+    def is_initialized(self) -> bool:
+        return not self.is_initializing
+
+    def _set_initialized(self) -> None:
+        self._reset(BaseElementState.IS_INITIALIZING_FLAG)
 
     @property
     def label(self) -> str | None:
