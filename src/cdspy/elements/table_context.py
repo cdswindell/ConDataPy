@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from threading import RLock
 from typing import Any, cast, Dict, Final, Iterator, Optional, Set, TYPE_CHECKING
 from weakref import WeakSet
 
@@ -21,6 +20,8 @@ from ..mixins import DerivableThreadPool
 from ..mixins import DerivableThreadPoolConfig
 from ..mixins import EventProcessorThreadPool
 from ..mixins import EventsProcessorThreadPoolCreator
+
+from ..utils import singleton
 
 if TYPE_CHECKING:
     from . import T
@@ -60,6 +61,7 @@ _EVENTS_KEEP_ALIVE_TIMEOUT_SEC_DEFAULT: Final[int] = 30
 _EVENTS_ALLOW_CORE_THREAD_TIMEOUT_DEFAULT: Final[bool] = False
 
 
+@singleton
 class TableContext(
     BaseElement,
     DerivableThreadPool,
@@ -67,35 +69,13 @@ class TableContext(
     EventProcessorThreadPool,
     EventsProcessorThreadPoolCreator,
 ):
-    _default_table_context: Optional[TableContext] = None
-    _lock = RLock()
-
-    def __new__(cls, template_context: Optional[TableContext] = None) -> TableContext:
-        print("*** in TemplateContext.__new__...")
-        if template_context is not None:
-            print("*** from template")
-            return super().__new__(cls)
-        with cls._lock:
-            # Another thread could have created the instance
-            # before we acquired the lock. So check that the
-            # instance is still nonexistent.
-            if not cls._default_table_context:
-                cls._default_table_context = super().__new__(cls)
-                print("*** created defzault context")
-                cls._default_table_context.label = "Default Table Context"
-            return cls._default_table_context
-
-    @classmethod
-    def generate_default_table_context(cls) -> TableContext:
-        return cls()
-
     def __init__(self, template: Optional[TableContext] = None) -> None:
         super().__init__()
 
         self._registered_nonpersistent_tables: WeakSet[Table] = WeakSet()
         self._registered_persistent_tables: Set[Table] = set()
 
-        is_default = False if template and (template != TableContext()) else True
+        is_default = False if template else True
         self._mutate_state(BaseElementState.IS_DEFAULT_FLAG, is_default)
 
         global _TABLE_CONTEXT_DEFAULTS
@@ -103,11 +83,18 @@ class TableContext(
             v = template.get_property(p) if template else _TABLE_CONTEXT_DEFAULTS.get(p, None)
             self._initialize_property(p, v)
 
+        if not template:
+            self.label = "Default Table Context"
+        print(f"Created {self.label}")
+
     def __iter__(self) -> Iterator[T]:
         return iter(_BaseElementIterable(self.tables))
 
     def __len__(self) -> int:
         return self.num_tables
+
+    def __bool__(self) -> bool:
+        return True
 
     @property
     def __all_tables(self) -> Collection[Table]:
@@ -119,7 +106,7 @@ class TableContext(
 
     @property
     def is_null(self) -> bool:
-        return self.num_tables != 0
+        return self.num_tables == 0
 
     @property
     def element_type(self) -> ElementType:
@@ -133,6 +120,12 @@ class TableContext(
     def num_tables(self) -> int:
         with self.lock:
             return len(self._registered_nonpersistent_tables) + len(self._registered_persistent_tables)
+
+    def create_table(self, *args, **kwargs) -> Table:
+        from . import Table
+        num_rows = self._parse_args(int, 'num_rows', 0, self.row_capacity_incr, *args, **kwargs)
+        num_cols = self._parse_args(int, 'num_cols', 1, self.column_capacity_incr, *args, **kwargs)
+        return Table(num_rows, num_cols, self)
 
     def clear(self) -> None:
         with self.lock:
@@ -225,3 +218,11 @@ class TableContext(
                 self.vet_element(t)
                 return t
         raise InvalidAccessException(self, ElementType.Table, mode, False, args)
+
+
+def build_table_context(template: Optional[TableContext] = None) -> TableContext:
+    return TableContext(template)
+
+
+def default_table_context() -> TableContext:
+    return TableContext()

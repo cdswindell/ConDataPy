@@ -70,6 +70,17 @@ class BaseElement(ABC):
             raise DeletedElementException(be.element_type)
 
     @staticmethod
+    def _parse_args(arg_type: type, attrib: str, pos: int | None, default: Any, *args, **kwargs) -> Any:
+        # named args take priority
+        if attrib and attrib in kwargs:
+            return kwargs[attrib]
+        # then try positional args
+        if args and pos is not None and len(args) > pos and args[pos] is not None:
+            return args[pos]
+        # finally, just return default
+        return default
+
+    @staticmethod
     def _normalize(value: Any) -> Any:
         if value:
             if isinstance(value, str):

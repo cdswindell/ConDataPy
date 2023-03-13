@@ -16,6 +16,8 @@ from .table_element import TableElement as TableElement
 from .table_cells_element import TableCellsElement as TableCellsElement
 
 from .table_context import TableContext as TableContext
+from .table_context import default_table_context as default_table_context
+from .table_context import build_table_context as build_table_context
 from .table import Table as Table
 from .cell import Cell as Cell
 

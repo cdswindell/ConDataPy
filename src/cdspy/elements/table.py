@@ -18,14 +18,13 @@ if TYPE_CHECKING:
 
 
 class Table(TableCellsElement):
-    def __init__(
-        self,
-        num_rows: Optional[int] = TableContext().row_capacity_incr,
-        num_cols: Optional[int] = TableContext().column_capacity_incr,
-        table_context: Optional[TableContext] = None,
-        template_table: Optional[Table] = None,
-    ) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(None)
+
+        num_rows = self._parse_args(int, 'num_rows', 0, TableContext().row_capacity_incr, *args, **kwargs)
+        num_cols = self._parse_args(int, 'num_cols', 1, TableContext().column_capacity_incr, *args, **kwargs)
+        table_context = self._parse_args(TableContext, 'table_context', None, None, *args, **kwargs)
+        template_table = self._parse_args(Table, 'template_table', None, None, *args, **kwargs)
 
         # define Table with superclass
         self._set_table(self)
@@ -38,6 +37,12 @@ class Table(TableCellsElement):
         for p in ElementType.Table.initializable_properties():
             source = template_table if template_table else table_context
             self._initialize_property(p, source.get_property(p))
+
+        # if num_rows or num_cols were specified, apply now
+        if num_rows:
+            self.row_capacity_incr = num_rows
+        if num_cols:
+            self.column_capacity_incr = num_cols
 
         # finally, register table with context
         table_context._register(self)

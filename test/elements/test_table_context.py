@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from cdspy.elements import ElementType
 from cdspy.elements import Property
+from cdspy.elements import default_table_context
 from cdspy.elements import TableContext
 from cdspy.elements.table_context import _TABLE_CONTEXT_DEFAULTS
 
 
 def test_default_table_context() -> None:
-    dtc = TableContext.generate_default_table_context()
+    dtc = default_table_context()
     assert dtc
 
     # creating a new instance of TableContext should return same object
@@ -33,7 +34,7 @@ def test_default_table_context() -> None:
 
 
 def test_default_table_context_tags() -> None:
-    dtc = TableContext.generate_default_table_context()
+    dtc = default_table_context()
     assert dtc
 
     # verify there are no tags
@@ -78,16 +79,16 @@ def test_default_table_context_tags() -> None:
 
 
 def test_template_contexts() -> None:
-    tc = TableContext(TableContext.generate_default_table_context())
+    tc = TableContext(default_table_context())
     assert tc
 
     # assert the new context is not the default
     assert not tc.is_default
-    assert tc != TableContext.generate_default_table_context()
+    assert tc != default_table_context()
     assert tc != TableContext()
 
     # assert that if we create a second context from a template, it is different
-    assert TableContext(TableContext.generate_default_table_context()) != tc
+    assert TableContext(default_table_context()) != tc
 
     # assert all initializable properties are defined, and the same as the default context
     for p in ElementType.TableContext.initializable_properties():
