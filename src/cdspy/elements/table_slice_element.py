@@ -18,7 +18,7 @@ class TableSliceElement(TableCellsElement, ABC):
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
         self._remote_uuids: Set[UUID] = set()
-        self._groups = JustInTimeSet()
+        self._groups = JustInTimeSet[TableSliceElement]()
 
     @property
     def is_in_use(self) -> bool:
