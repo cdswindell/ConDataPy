@@ -180,7 +180,7 @@ class TestBasicJustInTimeSet(TestBase):
         jit.discard(MockObject(100))
         assert len(jit) == 2
 
-        # test the condition when the backing set hasn;t been created
+        # test the condition when the backing set hasn't been created
         jit = JustInTimeSet()
         assert not jit
 
@@ -214,7 +214,7 @@ class TestBasicJustInTimeSet(TestBase):
             jit.remove(MockObject(100))
         assert len(jit) == 2
 
-        # test the condition when the backing set hasn;t been created
+        # test the condition when the backing set hasn't been created
         jit = JustInTimeSet()
         assert not jit
 
