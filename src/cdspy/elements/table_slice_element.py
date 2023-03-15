@@ -37,7 +37,7 @@ class TableSliceElement(TableCellsElement, ABC):
         super().__init__(te)
         self._set_index(-1)
         self._set_is_in_use(False)
-        self._remote_uuids: Set[UUID] = set()
+        self.__remote_uuids: Set[UUID] = set()
         self._groups = JustInTimeSet[Group]()
 
     def __del__(self) -> None:
@@ -58,13 +58,20 @@ class TableSliceElement(TableCellsElement, ABC):
     def _set_is_in_use(self, value: bool) -> None:
         self._mutate_state(BaseElementState.IN_USE_FLAG, value)
 
+    @property
+    def _remote_uuids(self) -> Set[UUID]:
+        return self.__remote_uuids
+
     def register_remote_uuid(self, uuid: UUID | str) -> None:
         if uuid:
-            self._remote_uuids.add(self._normalize_uuid(uuid))
+            self.__remote_uuids.add(self._normalize_uuid(uuid))
 
     def deregister_remote_uuid(self, uuid: UUID | str) -> None:
         if uuid:
-            self._remote_uuids.discard(self._normalize_uuid(uuid))
+            self.__remote_uuids.discard(self._normalize_uuid(uuid))
+
+    def _clear_remote_uuids(self) -> None:
+        self.__remote_uuids.clear()
 
     @property
     def is_datatype_enforced(self) -> bool:

@@ -38,6 +38,12 @@ src/cdspy/elements/__pycache__/table_context.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_slice_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/tag.cpython-311.pyc
+src/cdspy/elements/filters/__init__.py
+src/cdspy/elements/filters/filtered_row.py
+src/cdspy/elements/filters/filtered_table.py
+src/cdspy/elements/filters/__pycache__/__init__.cpython-311.pyc
+src/cdspy/elements/filters/__pycache__/filtered_row.cpython-311.pyc
+src/cdspy/elements/filters/__pycache__/filtered_table.cpython-311.pyc
 src/cdspy/exceptions/__init__.py
 src/cdspy/exceptions/base_exceptions.py
 src/cdspy/exceptions/deleted_element_exception.py
@@ -47,6 +53,7 @@ src/cdspy/exceptions/invalid_parent_exception.py
 src/cdspy/exceptions/invalid_property_exception.py
 src/cdspy/exceptions/read_only_exception.py
 src/cdspy/exceptions/unimplemented_exception.py
+src/cdspy/exceptions/unsupported_exception.py
 src/cdspy/exceptions/__pycache__/__init__.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/base_exceptions.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/deleted_element_exception.cpython-311.pyc
@@ -56,6 +63,7 @@ src/cdspy/exceptions/__pycache__/invalid_parent_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/invalid_property_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/read_only_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/unimplemented_exception.cpython-311.pyc
+src/cdspy/exceptions/__pycache__/unsupported_exception.cpython-311.pyc
 src/cdspy/mixins/__init__.py
 src/cdspy/mixins/derivable.py
 src/cdspy/mixins/event_processor.py

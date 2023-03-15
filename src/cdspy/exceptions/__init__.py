@@ -6,4 +6,5 @@ from .invalid_access_exception import InvalidAccessException as InvalidAccessExc
 from .invalid_parent_exception import InvalidParentException as InvalidParentException
 from .invalid_property_exception import InvalidPropertyException as InvalidPropertyException
 from .unimplemented_exception import UnimplementedException as UnimplementedException
+from .unsupported_exception import UnsupportedException as UnsupportedException
 from .read_only_exception import ReadOnlyException as ReadOnlyException

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import cast, Optional
+from typing import cast, Optional, TYPE_CHECKING
 
 from ordered_set import OrderedSet
 
@@ -13,12 +13,14 @@ from . import Property
 from . import BaseElement
 from . import TableElement
 from . import TableCellsElement
-from . import Table
-from . import Row
-from . import Column
-from . import Cell
 
 from ..exceptions import InvalidParentException
+
+if TYPE_CHECKING:
+    from . import Table
+    from . import Row
+    from . import Column
+    from . import Cell
 
 
 class Group(TableCellsElement):
@@ -44,7 +46,7 @@ class Group(TableCellsElement):
                 if isinstance(x, Cell):
                     return x in self.__cells
                 if isinstance(x, Group):
-                    return x in self.__groupss
+                    return x in self.__groups
         return False
 
     def _delete(self, compress: Optional[bool] = True) -> None:

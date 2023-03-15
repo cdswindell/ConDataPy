@@ -4,16 +4,17 @@ from typing import Any, Iterator, Optional, TYPE_CHECKING, Collection
 
 from threading import RLock
 
+from . import TableContext
 from . import ElementType
 from .base_element import _BaseElementIterable
 from . import BaseElementState
 from . import TableElement
-from . import TableContext
-from . import Table
+
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
     from . import T
+    from . import Table
 
 
 class Cell(TableElement, Derivable):

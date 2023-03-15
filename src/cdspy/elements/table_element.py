@@ -6,11 +6,12 @@ from typing import cast, Optional, TYPE_CHECKING
 
 from . import Property
 from . import BaseElement
-from . import Tag
+from . import TableContext
 
 if TYPE_CHECKING:
+    from . import Tag
     from . import Table
-    from . import TableContext
+
     from ..mixins import Derivable
 
 
@@ -86,16 +87,20 @@ class TableElement(BaseElement, ABC):
         """
         Protected method to retrieve Tags collection from element properties
         """
+        from . import Tag
+
         return cast(set[Tag], self.get_property(Property.Tags))
 
     @property
     def tags(self) -> Collection[str]:
+        from . import Tag
+
         with self.lock:
             return Tag.as_labels(self._tags)
 
     @tags.setter
     def tags(self, *tags: str) -> None:
-        from . import TableContext
+        from . import Tag
 
         print(f"{tags} {tags[0]} {type(tags)} {type(tags[0])} {self._normalize(tags)}")
         with self.lock:
@@ -106,7 +111,7 @@ class TableElement(BaseElement, ABC):
                 self._clear_property(Property.Tags)
 
     def tag(self, *tags: str) -> bool:
-        from . import TableContext
+        from . import Tag
 
         if tags:
             tc = cast(TableContext, self.table_context)
@@ -124,7 +129,7 @@ class TableElement(BaseElement, ABC):
         return False
 
     def untag(self, *tags: str) -> bool:
-        from . import TableContext
+        from . import Tag
 
         with self.lock:
             cur_tags: set[Tag] = self._tags
@@ -137,7 +142,7 @@ class TableElement(BaseElement, ABC):
             return False
 
     def has_all_tags(self, *tags: str) -> bool:
-        from . import TableContext
+        from . import Tag
 
         if tags:
             with self.lock:
@@ -149,7 +154,7 @@ class TableElement(BaseElement, ABC):
         return False
 
     def has_any_tags(self, *tags: str) -> bool:
-        from . import TableContext
+        from . import Tag
 
         if tags:
             with self.lock:

@@ -16,9 +16,6 @@ class Column(TableSliceElement):
     def element_type(self) -> ElementType:
         return ElementType.Column
 
-    def fill(self, o: Optional[object]) -> None:
-        pass
-
     @property
     def num_cells(self) -> int:
         pass
