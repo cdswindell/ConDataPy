@@ -4,8 +4,8 @@ from collections.abc import Iterable, Iterator
 import pytest
 import re
 
-from ..test_base import MockObject
 from ..test_base import TestBase
+from ..test_base import MockObject
 
 from cdspy.utils import JustInTimeSet
 

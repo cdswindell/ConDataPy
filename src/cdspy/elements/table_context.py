@@ -86,7 +86,7 @@ class TableContext(
 
         if not template:
             self.label = "Default Table Context"
-        self._set_initialized()
+        self._mark_initialized()
 
     def __iter__(self) -> Iterator[T]:
         return iter(_BaseElementIterable(self.tables))

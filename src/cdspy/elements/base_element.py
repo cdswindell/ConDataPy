@@ -438,7 +438,7 @@ class BaseElement(ABC):
     def is_initialized(self) -> bool:
         return not self.is_initializing
 
-    def _set_initialized(self) -> None:
+    def _mark_initialized(self) -> None:
         self._reset(BaseElementState.IS_INITIALIZING_FLAG)
 
     @property

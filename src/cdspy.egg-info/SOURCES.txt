@@ -15,7 +15,10 @@ src/cdspy/computation/__pycache__/derivation.cpython-311.pyc
 src/cdspy/elements/__init__.py
 src/cdspy/elements/base_element.py
 src/cdspy/elements/cell.py
+src/cdspy/elements/column.py
 src/cdspy/elements/core_enums.py
+src/cdspy/elements/group.py
+src/cdspy/elements/row.py
 src/cdspy/elements/table.py
 src/cdspy/elements/table_cells_element.py
 src/cdspy/elements/table_context.py
@@ -25,11 +28,15 @@ src/cdspy/elements/tag.py
 src/cdspy/elements/__pycache__/__init__.cpython-311.pyc
 src/cdspy/elements/__pycache__/base_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/cell.cpython-311.pyc
+src/cdspy/elements/__pycache__/column.cpython-311.pyc
 src/cdspy/elements/__pycache__/core_enums.cpython-311.pyc
+src/cdspy/elements/__pycache__/group.cpython-311.pyc
+src/cdspy/elements/__pycache__/row.cpython-311.pyc
 src/cdspy/elements/__pycache__/table.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_cells_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_context.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_element.cpython-311.pyc
+src/cdspy/elements/__pycache__/table_slice_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/tag.cpython-311.pyc
 src/cdspy/exceptions/__init__.py
 src/cdspy/exceptions/base_exceptions.py

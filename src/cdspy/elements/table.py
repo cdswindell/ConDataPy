@@ -14,6 +14,8 @@ from ..computation import recalculate_affected
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
+    from . import Row
+    from . import Column
     from . import Cell
 
 
@@ -50,7 +52,7 @@ class Table(TableCellsElement):
         table_context._register(self)
 
         # and mark instance as initialized
-        self._set_initialized()
+        self._mark_initialized()
 
     def __del__(self) -> None:
         print(f"*** Deleting {self}...")
@@ -127,11 +129,11 @@ class Table(TableCellsElement):
     def are_cell_labels_indexed(self) -> bool:
         return False
 
-    def fill(self, o: Optional[object]) -> bool:
-        return True
+    def fill(self, o: Optional[object]) -> None:
+        pass
 
-    def clear(self) -> bool:
-        return True
+    def clear(self) -> None:
+        self.fill(None)
 
     @property
     def is_label_indexed(self) -> bool:
@@ -164,3 +166,11 @@ class Table(TableCellsElement):
         else:
             # delete the entire table
             self._delete(True)
+
+    @property
+    def _rows(self) -> Collection[Row]:
+        return list()
+
+    @property
+    def _columns(self) -> Collection[Column]:
+        return list()

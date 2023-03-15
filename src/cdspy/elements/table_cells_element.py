@@ -9,6 +9,7 @@ from weakref import ref
 
 from ordered_set import OrderedSet
 
+from ..exceptions import InvalidException
 from ..exceptions import InvalidParentException
 
 from . import Property
@@ -16,6 +17,7 @@ from . import TableElement
 from ..utils.atomic_integer import AtomicInteger
 
 if TYPE_CHECKING:
+    from . import BaseElement
     from . import Table
     from . import TableContext
     from ..mixins import Derivable
@@ -60,6 +62,15 @@ class TableCellsElement(TableElement, ABC):
         # clear label; this resets dependent indices
         self.label = None
         self._table_ref = None
+
+    def _get_template(self, te: Optional[TableElement] = None) -> BaseElement:
+        from . import default_table_context
+
+        if te:
+            return te
+        if self.table and self.table != self:
+            return self.table
+        return self.table_context if self.table_context else default_table_context()
 
     def _register_affects(self, elem: Derivable) -> None:
         with self.lock:
@@ -124,3 +135,13 @@ class TableCellsElement(TableElement, ABC):
                     self._initialize_property(Property.UUID, uuid.UUID(value))
                 elif isinstance(value, uuid.UUID):
                     self._initialize_property(Property.UUID, value)
+
+    def vet_components(self, te: TableElement) -> None:
+        self.vet_element()
+        if not self.table:
+            raise InvalidException(self, f"{self.element_type.name} Requires a Parent Table")
+        self.table.vet_element()
+        if te:
+            self.vet_element()
+            if self.table != te.table:
+                raise InvalidParentException(self, te)

@@ -32,7 +32,7 @@ class Cell(TableElement, Derivable):
         self._cell_offset = cell_offset if cell_offset is not None else -1
         self._cell_value = None
         self._lock = RLock()
-        self._set_initialized()
+        self._mark_initialized()
 
     def __iter__(self) -> Iterator[T]:
         return iter(_BaseElementIterable(tuple(self)))
@@ -113,11 +113,10 @@ class Cell(TableElement, Derivable):
         self.vet_element()
         return self.table._row_by_cell_offset(self.__cell_offset) if self.table else None
 
-    def fill(self, value: Any) -> bool:
+    def fill(self, value: Any) -> None:
         self.cell_value = value
-        return True
 
-    def clear(self) -> bool:
+    def clear(self) -> None:
         return self.fill(None)
 
     def delete(self) -> None:

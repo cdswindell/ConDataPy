@@ -30,11 +30,11 @@ class TableElement(BaseElement, ABC):
         pass
 
     @abstractmethod
-    def fill(self, o: Optional[object]) -> bool:
+    def fill(self, o: Optional[object]) -> None:
         pass
 
     @abstractmethod
-    def clear(self) -> bool:
+    def clear(self) -> None:
         pass
 
     @abstractmethod

@@ -29,7 +29,7 @@ class MockBaseElement(BaseElement):
             ElementType, self._parse_args(ElementType, "et", 0, ElementType.Table, *args, **kwargs)
         )
         if self._parse_args(bool, "initialized", 1, True, *args, **kwargs):
-            self._set_initialized()
+            self._mark_initialized()
 
     @property
     def element_type(self) -> ElementType:
