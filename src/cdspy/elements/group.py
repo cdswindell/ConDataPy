@@ -15,6 +15,7 @@ from . import TableElement
 from . import TableCellsElement
 
 from ..exceptions import InvalidParentException
+from ..events import BlockedRequestException
 
 if TYPE_CHECKING:
     from . import Table
@@ -36,10 +37,6 @@ class Group(TableCellsElement):
         # and mark instance as initialized
         self._mark_initialized()
 
-    def __del__(self) -> None:
-        if self.is_valid:
-            self._delete()
-
     def __contains__(self, x: TableElement | None) -> bool:
         if x and isinstance(x, TableElement):
             with self._lock:
@@ -49,12 +46,18 @@ class Group(TableCellsElement):
                     return x in self.__groups
         return False
 
+    def __del__(self) -> None:
+        if self.is_valid:
+            self._delete()
+
     def _delete(self, compress: Optional[bool] = True) -> None:
+        if self.is_invalid:
+            return
         try:
-            # TODO: support events
             super()._delete(compress)
-        except ValueError:
-            pass
+        except BlockedRequestException:
+            return
+        # TODO: delete elements
         self.invalidate()
 
     @property

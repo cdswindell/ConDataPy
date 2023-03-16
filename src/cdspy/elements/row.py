@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from typing import Collection, Optional, TYPE_CHECKING
+from collections.abc import Collection
+from typing import Optional, TYPE_CHECKING
 
+from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
+from ..events import BlockedRequestException
 
 from . import ElementType
 from . import TableSliceElement
@@ -17,8 +20,10 @@ if TYPE_CHECKING:
     from .filters import FilteredRow
 
 
+# noinspection DuplicatedCode
 class Row(TableSliceElement):
     def __init__(self, te: TableElement, parent_row: Optional[Row] = None) -> None:
+        from .filters import FilteredRow
         from .filters import FilteredTable
 
         # if parent row is specified, te must be a FilteredTable
@@ -27,8 +32,8 @@ class Row(TableSliceElement):
 
         super().__init__(te)
         self.__cell_offset = -1
-        self._proxy_row: Row | None = parent_row
-        self._filter_rows = JustInTimeSet[FilteredRow]()
+        self._proxy: Row | None = parent_row
+        self._filters = JustInTimeSet[FilteredRow]()
 
         # initialize properties
         for p in self.element_type.initializable_properties():
@@ -41,23 +46,24 @@ class Row(TableSliceElement):
         self._mark_initialized()
 
     def _delete(self, compress: Optional[bool] = True) -> None:
+        from .filters import FilteredRow
+
         try:
             super()._delete(compress)
-        except KeyError:
-            # TODO: event handler stuff
-            pass
+        except BlockedRequestException:
+            return
 
         # for filter rows, deregister from parent
-        if self._proxy_row and isinstance(self, FilteredRow):
-            self._proxy_row.deregister(self)
+        if self._proxy and isinstance(self, FilteredRow):
+            self._proxy.deregister(self)
 
         # delete all filter rows based on this (self)
-        while self._filter_rows:
-            fr = self._filter_rows.pop()
+        while self._filters:
+            fr = self._filters.pop()
             fr.delete()
 
         # for good measure
-        self._filter_rows.clear()
+        self._filters.clear()
 
         # clean up remote handlers
         if self._remote_uuids:
@@ -79,18 +85,18 @@ class Row(TableSliceElement):
 
     def _get_cell(
         self, col: Column, set_to_current: Optional[bool] = True, create_if_sparse: Optional[bool] = True
-    ) -> Cell:
+    ) -> Cell | None:
         self.vet_components(col)
-        return col._cell(col, set_to_current=True, create_if_sparse=True)
+        return col._get_cell(self, set_to_current=True, create_if_sparse=True)
 
-    def get_cell(self, col: Column) -> Cell:
+    def get_cell(self, col: Column) -> Cell | None:
         return self._get_cell(col, set_to_current=True, create_if_sparse=True)
 
-    def register_filter(self, filter_row: FilteredRow) -> None:
-        self._filter_rows.add(filter_row)
+    def register_filter(self, filtered: FilteredRow) -> None:
+        self._filters.add(filtered)
 
-    def deregister_filter(self, filter_row: FilteredRow) -> None:
-        self._filter_rows.discard(filter_row)
+    def deregister_filter(self, filtered: FilteredRow) -> None:
+        self._filters.discard(filtered)
 
     @property
     def element_type(self) -> ElementType:
@@ -110,7 +116,18 @@ class Row(TableSliceElement):
 
     @property
     def num_cells(self) -> int:
-        return 0
+        self.vet_element()
+        if self._cell_offset < 0:
+            return 0
+        if self.table is None:
+            raise InvalidException(self, "Row must belong to a Table")
+        num_cells = 0
+        if self.table._columns:
+            for col in self.table._columns:
+                if col and self._cell_offset < col._num_cells:
+                    if col._get_cell(self, set_to_current=False, create_if_sparse=False) is not None:
+                        num_cells += 1
+        return num_cells
 
     @property
     def is_null(self) -> bool:

@@ -88,6 +88,10 @@ class TableCellsElement(TableElement, ABC):
         with self.lock:
             self._pendings += 1
 
+    def _clear_affects(self) -> None:
+        for a in list(self.affects):
+            a.clear_derivation()
+
     @property
     def table(self) -> Table | None:
         return self._table_ref() if self._table_ref else None

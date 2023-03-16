@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 
 
 class Derivable(ABC):
-    pass
+    @abstractmethod
+    def clear_derivation(self) -> None:
+        pass
 
 
 class DerivableThreadPool(ABC):

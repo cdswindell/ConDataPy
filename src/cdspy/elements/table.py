@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Collection, TYPE_CHECKING
+import threading
+import weakref
+
+from typing import Any, Final, Optional, overload, Collection, TYPE_CHECKING
+
+from ..events import BlockedRequestException
 
 from . import BaseElementState
 from . import BaseElement
@@ -18,48 +23,97 @@ if TYPE_CHECKING:
     from . import Column
     from . import Cell
 
+CURRENT_CELL_KEY: Final = "_cr"
+
+
+class _CellReference:
+    def __init__(self, cr: _CellReference | None) -> None:
+        self._row = cr.current_row if cr else None
+        self._col = cr.current_column if cr else None
+
+    def set_current_cell_reference(self, table: Table) -> None:
+        cr = table._current_cell
+        cr.current_row = self.current_row
+        cr.current_column = self.current_column
+
+    @property
+    def current_row(self) -> Row | None:
+        return self._row
+
+    @current_row.setter
+    def current_row(self, row: Row) -> None:
+        if row:
+            row.vet_parent(row)
+        self._row = row
+
+    @property
+    def current_column(self) -> Column | None:
+        return self._col
+
+    @current_column.setter
+    def current_column(self, col: Column) -> None:
+        if col:
+            col.vet_parent(col)
+        self._col = col
+
 
 class Table(TableCellsElement):
+    # create thread local storage, but only once for the class
+    _THREAD_LOCAL_STORAGE = threading.local()
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(None)
 
         num_rows = self._parse_args(int, "num_rows", 0, TableContext().row_capacity_incr, *args, **kwargs)
         num_cols = self._parse_args(int, "num_cols", 1, TableContext().column_capacity_incr, *args, **kwargs)
-        table_context = self._parse_args(TableContext, "table_context", None, None, *args, **kwargs)
+        parent_context = self._parse_args(TableContext, "parent_context", None, None, *args, **kwargs)
         template_table = self._parse_args(Table, "template_table", None, None, *args, **kwargs)
 
         # define Table with superclass
         self._set_table(self)
 
         # we need a context for default property initialization purposes
-        table_context = (
-            table_context if table_context else template_table.table_context if template_table else TableContext()
+        parent_context = (
+            parent_context if parent_context else template_table.table_context if template_table else TableContext()
         )
-        self._context: TableContext | None = table_context
+        self._context: TableContext | None = parent_context
 
         # finally, with context set, initialize default properties
         for p in ElementType.Table.initializable_properties():
-            source = template_table if template_table else table_context
+            source = template_table if template_table else parent_context
             self._initialize_property(p, source.get_property(p))
 
-        # if num_rows or num_cols were specified, apply now
-        if num_rows:
-            self.row_capacity_incr = num_rows
-        if num_cols:
-            self.column_capacity_incr = num_cols
+        # Initialize other instance attributes
+        self.__rows = [None] * max(num_rows, self.row_capacity_incr)
+        self.__cols = [None] * max(num_cols, self.column_capacity_incr)
+
+        self._next_row_index = 0
+        self._next_column_index = 0
+
+        self._rows_capacity = self._calculate_rows_capacity(num_rows)
+        self._columns_capacity = self._calculate_columns_capacity(num_cols)
+
+        self.__table_creation_thread = weakref.ref(threading.current_thread())
 
         # finally, register table with context
-        table_context._register(self)
+        parent_context._register(self)
 
         # and mark instance as initialized
         self._mark_initialized()
 
     def __del__(self) -> None:
-        print(f"*** Deleting {self}...")
+        print(f"*** Deleting table...")
         if self.is_valid:
             self._delete(False)
 
     def _delete(self, compress: Optional[bool] = True) -> None:
+        if self.is_invalid:
+            return
+        try:
+            super()._delete(compress)
+        except BlockedRequestException:
+            return
+
         with self.lock:
             try:
                 if compress:
@@ -67,10 +121,61 @@ class Table(TableCellsElement):
                     self._reclaim_row_space()
                 super()._delete(compress)
             finally:
+                self._clear_current_cell()
                 self._invalidate()
                 if self.table_context:
                     self.table_context._deregister(self)
                     self._context = None
+
+    @property
+    def rows_capacity(self) -> int:
+        return self._rows_capacity
+
+    @property
+    def columns_capacity(self) -> int:
+        return self._columns_capacity
+
+    @property
+    def _current_cell(self) -> _CellReference:
+        """
+        Maintain a "current cell" independently in each thread that accesses this table
+        :return:
+        """
+        with self.lock:
+            try:
+                return Table._THREAD_LOCAL_STORAGE._current_cell
+            except AttributeError:
+                Table._THREAD_LOCAL_STORAGE._current_cell = _CellReference()
+                return Table._THREAD_LOCAL_STORAGE._current_cell
+
+    def _clear_current_cell(self):
+        with self.lock:
+            try:
+                del Table._THREAD_LOCAL_STORAGE._current_cell
+            except AttributeError:
+                pass
+
+    @property
+    def _rows(self) -> Collection[Row]:
+        return self.__rows
+
+    @property
+    def _columns(self) -> Collection[Column]:
+        return self.__cols
+
+    def _calculate_rows_capacity(self, num_required: int) -> int:
+        capacity = self.row_capacity_incr
+        if num_required > 0:
+            remainder = num_required % capacity
+            capacity = num_required + (capacity - remainder if remainder > 0 else 0)
+        return capacity
+
+    def _calculate_columns_capacity(self, num_required: int) -> int:
+        capacity = self.column_capacity_incr
+        if num_required > 0:
+            remainder = num_required % capacity
+            capacity = num_required + (capacity - remainder if remainder > 0 else 0)
+        return capacity
 
     def _reclaim_column_space(self) -> None:
         pass
@@ -107,11 +212,11 @@ class Table(TableCellsElement):
 
     @property
     def num_rows(self) -> int:
-        return 0
+        return self._next_row_index
 
     @property
     def num_columns(self) -> int:
-        return 0
+        return self._next_row_index
 
     @property
     def num_cells(self) -> int:
@@ -168,9 +273,41 @@ class Table(TableCellsElement):
             self._delete(True)
 
     @property
-    def _rows(self) -> Collection[Row]:
-        return list()
+    def current_row(self) -> Row | None:
+        self._current_cell.current_row
+
+    @current_row.setter
+    def current_row(self, row: Row | None) -> None:
+        self._current_cell.current_row = row
 
     @property
-    def _columns(self) -> Collection[Column]:
-        return list()
+    def current_column(self) -> Column | None:
+        self._current_cell.current_column
+
+    @current_column.setter
+    def current_column(self, col: Column | None) -> None:
+        self._current_cell.current_column = col
+
+    @overload
+    def mark_current(self, elem: Row) -> Row | None:
+        pass
+
+    @overload
+    def mark_current(self, elem: Column) -> Column | None:
+        pass
+
+    @overload
+    def mark_current(self, elem: Cell) -> Cell | None:
+        pass
+
+    def mark_current(self, new_current: Row | Column | Cell) -> Row | Column | Cell | None:
+        prev = None
+        if isinstance(new_current, Column):
+            prev = self._current_cell.current_column
+            self._current_cell.current_column = new_current
+        elif isinstance(new_current, Row):
+            prev = self._current_cell.current_row
+            self._current_cell.current_row = new_current
+
+
+        return prev

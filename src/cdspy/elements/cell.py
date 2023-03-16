@@ -22,7 +22,6 @@ class Cell(TableElement, Derivable):
         "_cell_offset",
         "_cell_value",
         "_col",
-        "_lock",
         "_state",
     )
 
@@ -32,11 +31,13 @@ class Cell(TableElement, Derivable):
         self._col = col
         self._cell_offset = cell_offset if cell_offset is not None else -1
         self._cell_value = None
-        self._lock = RLock()
         self._mark_initialized()
 
     def __iter__(self) -> Iterator[T]:
         return iter(_BaseElementIterable(tuple(self)))
+
+    def _delete(self, compress: Optional[bool] = True) -> None:
+        self._invalidate_cell()
 
     def __set_cell_value_internal(
         self, value: Any, type_safe_check: Optional[bool] = True, do_preprocess: Optional[bool] = False
@@ -50,9 +51,6 @@ class Cell(TableElement, Derivable):
     @property
     def __cell_offset(self) -> int:
         return self.__cell_offset
-
-    def _delete(self, compress: Optional[bool] = True) -> None:
-        self._invalidate_cell()
 
     def _invalidate_cell(self) -> None:
         pass
@@ -72,7 +70,7 @@ class Cell(TableElement, Derivable):
     @property
     def lock(self) -> RLock:
         # TODO: Move out of cell class
-        return self._lock
+        raise Exception("need to implement")
 
     @property
     def cell_value(self) -> Any:

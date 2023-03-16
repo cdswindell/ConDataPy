@@ -39,11 +39,17 @@ src/cdspy/elements/__pycache__/table_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_slice_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/tag.cpython-311.pyc
 src/cdspy/elements/filters/__init__.py
+src/cdspy/elements/filters/filtered_column.py
 src/cdspy/elements/filters/filtered_row.py
 src/cdspy/elements/filters/filtered_table.py
 src/cdspy/elements/filters/__pycache__/__init__.cpython-311.pyc
+src/cdspy/elements/filters/__pycache__/filtered_column.cpython-311.pyc
 src/cdspy/elements/filters/__pycache__/filtered_row.cpython-311.pyc
 src/cdspy/elements/filters/__pycache__/filtered_table.cpython-311.pyc
+src/cdspy/events/__init__.py
+src/cdspy/events/blocked_request_exception.py
+src/cdspy/events/__pycache__/__init__.cpython-311.pyc
+src/cdspy/events/__pycache__/blocked_request_exception.cpython-311.pyc
 src/cdspy/exceptions/__init__.py
 src/cdspy/exceptions/base_exceptions.py
 src/cdspy/exceptions/deleted_element_exception.py

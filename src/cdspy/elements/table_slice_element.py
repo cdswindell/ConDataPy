@@ -1,21 +1,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional, Set, TYPE_CHECKING
+from typing import Optional, Set
 from uuid import UUID
 
 from ..utils import JustInTimeSet
 
-from ..exceptions import InvalidException
-
-from .base_element import _BaseElementIterable
 from . import BaseElementState
 from . import ElementType
 from . import TableElement
 from . import TableCellsElement
-
-if TYPE_CHECKING:
-    from . import Group
+from . import Group
 
 
 class TableSliceElement(TableCellsElement, ABC):
@@ -43,6 +38,12 @@ class TableSliceElement(TableCellsElement, ABC):
     def __del__(self) -> None:
         if self.is_valid:
             self._delete()
+
+    def _clear_derivations(self) -> None:
+        pass
+
+    def _clear_timeseries(self) -> None:
+        pass
 
     @property
     def index(self) -> int:
