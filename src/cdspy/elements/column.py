@@ -166,7 +166,7 @@ class Column(TableSliceElement):
             if self.__cells is None:
                 self.__cells = [None] * req_capacity
             elif req_capacity > self._cells_capacity:
-                self.__cells.expand([None] * (req_capacity - self._cells_capacity))
+                self.__cells.extend([None] * (req_capacity - self._cells_capacity))
             self.__cells_capacity = req_capacity
         return self.__cells
 
