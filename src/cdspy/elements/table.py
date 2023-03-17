@@ -3,8 +3,9 @@ from __future__ import annotations
 import threading
 import weakref
 
-from typing import Any, Final, Optional, overload, Collection, TYPE_CHECKING
+from typing import Any, cast, Final, Optional, overload, Collection, TYPE_CHECKING
 
+from ..utils import ArrayList
 from ..events import BlockedRequestException
 
 from . import BaseElementState
@@ -27,7 +28,7 @@ CURRENT_CELL_KEY: Final = "_cr"
 
 
 class _CellReference:
-    def __init__(self, cr: _CellReference | None) -> None:
+    def __init__(self, cr: _CellReference | None = None) -> None:
         self._row = cr.current_row if cr else None
         self._col = cr.current_column if cr else None
 
@@ -84,8 +85,12 @@ class Table(TableCellsElement):
             self._initialize_property(p, source.get_property(p))
 
         # Initialize other instance attributes
-        self.__rows = [None] * max(num_rows, self.row_capacity_incr)
-        self.__cols = [None] * max(num_cols, self.column_capacity_incr)
+        self.__rows: Collection[Row] = ArrayList[Row](
+            initial_size=max(num_rows, self.row_capacity_incr), capacity_incr=self.row_capacity_incr
+        )
+        self.__cols: Collection[Column] = ArrayList[Column](
+            initial_size=max(num_cols, self.column_capacity_incr), capacity_incr=self.column_capacity_incr
+        )
 
         self._next_row_index = 0
         self._next_column_index = 0
@@ -143,12 +148,12 @@ class Table(TableCellsElement):
         """
         with self.lock:
             try:
-                return Table._THREAD_LOCAL_STORAGE._current_cell
+                return cast(_CellReference, Table._THREAD_LOCAL_STORAGE._current_cell)
             except AttributeError:
                 Table._THREAD_LOCAL_STORAGE._current_cell = _CellReference()
                 return Table._THREAD_LOCAL_STORAGE._current_cell
 
-    def _clear_current_cell(self):
+    def _clear_current_cell(self) -> None:
         with self.lock:
             try:
                 del Table._THREAD_LOCAL_STORAGE._current_cell
@@ -164,14 +169,14 @@ class Table(TableCellsElement):
         return self.__cols
 
     def _calculate_rows_capacity(self, num_required: int) -> int:
-        capacity = self.row_capacity_incr
+        capacity = cast(int, self.row_capacity_incr)
         if num_required > 0:
             remainder = num_required % capacity
             capacity = num_required + (capacity - remainder if remainder > 0 else 0)
         return capacity
 
     def _calculate_columns_capacity(self, num_required: int) -> int:
-        capacity = self.column_capacity_incr
+        capacity = cast(int, self.column_capacity_incr)
         if num_required > 0:
             remainder = num_required % capacity
             capacity = num_required + (capacity - remainder if remainder > 0 else 0)
@@ -274,7 +279,7 @@ class Table(TableCellsElement):
 
     @property
     def current_row(self) -> Row | None:
-        self._current_cell.current_row
+        return self._current_cell.current_row
 
     @current_row.setter
     def current_row(self, row: Row | None) -> None:
@@ -282,32 +287,30 @@ class Table(TableCellsElement):
 
     @property
     def current_column(self) -> Column | None:
-        self._current_cell.current_column
+        return self._current_cell.current_column
 
     @current_column.setter
     def current_column(self, col: Column | None) -> None:
         self._current_cell.current_column = col
 
     @overload
-    def mark_current(self, elem: Row) -> Row | None:
-        pass
+    def mark_current(self, new_current: Row) -> Row | None:
+        ...
 
     @overload
-    def mark_current(self, elem: Column) -> Column | None:
-        pass
+    def mark_current(self, new_current: Column) -> Column | None:
+        ...
 
     @overload
-    def mark_current(self, elem: Cell) -> Cell | None:
-        pass
+    def mark_current(self, new_current: Cell) -> Cell | None:
+        ...
 
-    def mark_current(self, new_current: Row | Column | Cell) -> Row | Column | Cell | None:
-        prev = None
+    def mark_current(self, new_current: Row | Column | Cell | None = None) -> Row | Column | Cell | None:
+        prev: Row | Column | Cell | None = None
         if isinstance(new_current, Column):
             prev = self._current_cell.current_column
             self._current_cell.current_column = new_current
         elif isinstance(new_current, Row):
             prev = self._current_cell.current_row
             self._current_cell.current_row = new_current
-
-
         return prev

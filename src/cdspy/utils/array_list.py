@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from sys import maxsize
-
 from collections.abc import MutableSequence
-from typing import Any, Generic, Optional, TypeVar, overload, Iterable, Iterator
+from typing import Any, cast, Generic, Optional, TypeVar, overload, Iterable, Iterator
 
 _T = TypeVar("_T")
 
@@ -11,21 +9,26 @@ _T = TypeVar("_T")
 class ArrayList(MutableSequence, Generic[_T]):
     __slots__ = ["_capacity_incr", "_list", "_len", "_iter_idx"]
 
-    def __init__(self, initial: Optional[int | Iterable[_T]] = 0, capacity_incr: Optional[int] = 8) -> None:
+    def __init__(
+        self,
+        source: Optional[MutableSequence[_T]] = None,
+        initial_size: int = 0,
+        capacity_incr: int = 256,
+    ) -> None:
         super().__init__()
-        self._capacity_incr = capacity_incr
+        self._capacity_incr = capacity_incr if capacity_incr else 256
         self._len = 0
         self._iter_idx = 0
-        if initial:
-            if isinstance(initial, int):
-                self._list = [None] * initial
-            elif isinstance(initial, Iterable):
-                self._list = list(initial)
+        if source:
+            if isinstance(source, Iterable):
+                self._list: MutableSequence[_T] = cast(MutableSequence[_T], list(source))
                 self._len = len(self._list)
             else:
-                raise NotImplementedError(f"Can not create ArrayList from {type(initial)}")
+                raise NotImplementedError(f"Can not create ArrayList from {type(source)}")
+        elif isinstance(initial_size, int) and initial_size >= 0:
+            self._list: MutableSequence[_T] = cast(MutableSequence[_T], [None] * initial_size)
         else:
-            self._list = [None] * capacity_incr
+            self._list = cast(MutableSequence[_T], [None] * self.capacity_increment)
 
     def __repr__(self) -> str:
         return f"[{', '.join([str(x) for x in self._list[0:self._len]])}]"
@@ -76,11 +79,11 @@ class ArrayList(MutableSequence, Generic[_T]):
             if self._len == 0 or index > self._len or index < -self._len:
                 raise IndexError("ArrayList assignment index out of range")
             else:
-                self._list[index] = value
+                self._list[index] = cast(_T, value)
         elif isinstance(index, slice):
             capacity = self.capacity
             new_list = list(self)
-            new_list[index] = value
+            new_list[index] = cast(Iterable[_T], value)
             self._len = len(new_list)
             self._list = new_list
             self.ensure_capacity(capacity)
@@ -107,8 +110,6 @@ class ArrayList(MutableSequence, Generic[_T]):
             if self._list:
                 new_list = list(self)
                 new_list.__delitem__(index)
-                if new_list is None:
-                    new_list = list()
                 self._len = len(new_list)
                 self._list = new_list
         else:
@@ -129,9 +130,9 @@ class ArrayList(MutableSequence, Generic[_T]):
             raise ValueError("Increment must be >= 0")
         self._capacity_incr = increment
 
-    def index(self, value: _T, start: Optional[int] = 0, stop: Optional[int] = maxsize, /) -> int:
+    def index(self, value: _T, start: int = 0, stop: Optional[int] = None, /) -> int:
         try:
-            return self._list.index(value, start, stop)
+            return self._list.index(value, start, stop if stop else self._len)
         except ValueError:
             raise ValueError(f"{value} is not in the ArrayList")
 
@@ -177,7 +178,7 @@ class ArrayList(MutableSequence, Generic[_T]):
 
     def reverse(self) -> None:
         if self._list:
-            self._list[0:self._len] = self._list[0:self._len][::-1]
+            self._list[0 : self._len] = self._list[0 : self._len][::-1]
 
     def append(self, value: _T) -> None:
         self.ensure_capacity(self._len + 1)
@@ -199,4 +200,4 @@ class ArrayList(MutableSequence, Generic[_T]):
                 # needed elements to keep it a multiple of capacity_incr
                 rounding = max(capacity, self.capacity) % self._capacity_incr
                 needed_elements += self._capacity_incr - rounding if rounding else 0
-            self._list.extend([None] * needed_elements)
+            self._list.extend(cast(MutableSequence[_T], [None] * needed_elements))

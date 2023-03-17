@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
+
+from ..utils import ArrayList
 
 from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
@@ -31,8 +33,6 @@ class Column(TableSliceElement):
             raise UnsupportedException(self, "FilteredTable Required")
 
         super().__init__(te)
-        self.__cells = None
-        self.__cells_capacity = 0
         self._datatype = None
         self._proxy: Column | None = proxy
         self._filters = JustInTimeSet[FilteredColumn]()
@@ -40,6 +40,8 @@ class Column(TableSliceElement):
         for p in self.element_type.initializable_properties():
             value = self._get_template(te).get_property(p)
             self._initialize_property(p, value)
+
+        self.__cells = ArrayList[Cell]()
 
         if proxy and isinstance(self, FilteredColumn):
             proxy.register_filter(self)
@@ -107,16 +109,15 @@ class Column(TableSliceElement):
                 if bool(compress):
                     table._reclaim_column_space()
 
-        self.__cells_capacity = 0
         self._set_index(-1)
         self._set_is_in_use(False)
 
-        self.__cells = None
+        self.__cells.clear()
         self.invalidate()
 
     @property
     def _cells_capacity(self) -> int:
-        return self.__cells_capacity
+        return self.__cells.capacity
 
     @property
     def _num_cells(self) -> int:
@@ -125,7 +126,7 @@ class Column(TableSliceElement):
         Returns 0 if self.__cells has not been created
         :return:
         """
-        return len(self.__cells) if self.__cells else 0
+        return len(self.__cells)
 
     def _reclaim_cell_space(self, rows: Collection[Row], num_rows: int) -> None:
         if num_rows > 0 and self._num_cells:
@@ -139,13 +140,11 @@ class Column(TableSliceElement):
                         idx += 1
                 self.__cells = cells
                 num_cells = self._num_cells
-            elif self.__cells_capacity > num_cells:
+            elif self.__cells.capacity > num_cells:
                 # trim unused space
-                self.__cells = self.__cells[0:num_cells]
-            self.__cells_capacity = num_cells
+                self.__cells[:] = self.__cells[0:num_cells]
         else:
-            self.__cells = None
-            self.__cells_capacity = 0
+            self.__cells = ArrayList[Cell]()
 
     @property
     def _cells(self) -> Collection[Cell] | None:
@@ -160,14 +159,13 @@ class Column(TableSliceElement):
             if cell:
                 cell._invalidate_cell()
 
-    def _ensure_cell_capacity(self, num_required: int) -> List[Any] | None:
+    def _ensure_cell_capacity(self, num_required: int) -> ArrayList[Cell]:
         if self.table.num_rows > 0:
             req_capacity = self.table._calculate_rows_capacity(num_required)
             if self.__cells is None:
-                self.__cells = [None] * req_capacity
-            elif req_capacity > self._cells_capacity:
-                self.__cells.extend([None] * (req_capacity - self._cells_capacity))
-            self.__cells_capacity = req_capacity
+                self.__cells = ArrayList[Cell](initial_size=req_capacity)
+            elif req_capacity > self.__cells.capacity:
+                self.__cells.ensure_capacity(req_capacity)
         return self.__cells
 
     def _get_cell(
@@ -204,10 +202,6 @@ class Column(TableSliceElement):
 
                     # ensure capacity
                     self._ensure_cell_capacity(cell_offset + 1)
-
-                    # and expand the cell array
-                    self.__cells.expand([None] * (cell_offset - num_cells))
-                    num_cells = cell_offset
 
                     c = self._create_new_cell(row)
                     self.__cells[cell_offset] = c

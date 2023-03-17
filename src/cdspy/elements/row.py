@@ -110,7 +110,7 @@ class Row(TableSliceElement):
     def slices_type(self) -> ElementType:
         return ElementType.Column
 
-    def mark_current(self) -> Row:
+    def mark_current(self) -> Row | None:
         self.vet_element()
         return self.table.mark_current(self) if self.table else None
 
@@ -139,4 +139,4 @@ class Row(TableSliceElement):
 
     @property
     def derived_elements(self) -> Collection[Derivable]:
-        pass
+        return []

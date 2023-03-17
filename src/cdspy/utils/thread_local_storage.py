@@ -7,10 +7,10 @@ from typing import Any
 
 # Singleton CLass
 class ThreadLocalStorage:
-    __instance = None
-    __thread_local = None
+    __instance: ThreadLocalStorage | None = None
+    __thread_local = None  # type: ignore
 
-    def __new__(cls, *args: Any, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> ThreadLocalStorage:
         if cls.__instance is None:
             cls.__instance = super(ThreadLocalStorage, cls).__new__(cls)
             cls.__thread_local = threading.local()
@@ -25,6 +25,4 @@ class ThreadLocalStorage:
         return cls.__thread_local.__getattribute__(key)
 
     def __contains__(self, key: str) -> bool:
-        return key in ThreadLocalStorage.__thread_local
-
-
+        return key in ThreadLocalStorage.__thread_local  # type: ignore
