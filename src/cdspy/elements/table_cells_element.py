@@ -45,7 +45,7 @@ class TableCellsElement(TableElement, ABC):
                     # make sure elem belongs to table
                     if not e.table:
                         # if not set, set now; parent could be null...
-                        e._set_table(cast(Table, self.table))
+                        e._set_table(self.table)
                     elif e.table != self.table:
                         raise InvalidParentException(e, self)
 
@@ -93,15 +93,15 @@ class TableCellsElement(TableElement, ABC):
             a.clear_derivation()
 
     @property
-    def table(self) -> Table | None:
-        return self._table_ref() if self._table_ref else None
+    def table(self) -> Table:
+        return cast(Table, self._table_ref() if self._table_ref else None)
 
     def _set_table(self, table: Table) -> None:
         self._table_ref = ref(table) if table else None
 
     @property
-    def table_context(self) -> TableContext | None:
-        return self.table.table_context if self.table else None
+    def table_context(self) -> TableContext:
+        return self.table.table_context if self.table else cast(TableContext, None)
 
     @property
     def lock(self) -> RLock:

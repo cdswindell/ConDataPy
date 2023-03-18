@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Iterator, Optional, TYPE_CHECKING, Collection
+from typing import Any, cast, Iterator, Optional, TYPE_CHECKING, Collection
 
 from threading import RLock
 
@@ -15,6 +15,8 @@ from ..mixins import Derivable
 if TYPE_CHECKING:
     from . import T
     from . import Table
+    from . import Row
+    from . import Column
 
 
 class Cell(TableElement, Derivable):
@@ -26,7 +28,7 @@ class Cell(TableElement, Derivable):
     )
 
     # TODO: make class smaller
-    def __init__(self, col: TableElement, cell_offset: int) -> None:
+    def __init__(self, col: Column, cell_offset: int) -> None:
         super().__init__(col)
         self._col = col
         self._cell_offset = cell_offset if cell_offset is not None else -1
@@ -94,23 +96,23 @@ class Cell(TableElement, Derivable):
         return 1
 
     @property
-    def table(self) -> Table | None:
-        return self._col.table if self._col else None
+    def table(self) -> Table:
+        return cast(Table, self._col.table if self._col else None)
 
     @property
-    def table_context(self) -> TableContext | None:
+    def table_context(self) -> TableContext:
         self.vet_element()
-        return self.table.table_context if self.table else None
+        return cast(TableContext, self.table.table_context if self.table else None)
 
     @property
-    def column(self) -> TableElement | None:
+    def column(self) -> Column:
         self.vet_element()
         return self._col
 
     @property
-    def row(self) -> TableElement | None:
+    def row(self) -> Row:
         self.vet_element()
-        return self.table._row_by_cell_offset(self.__cell_offset) if self.table else None
+        return cast(Row, self.table._row_by_cell_offset(self.__cell_offset) if self.table else None)
 
     def fill(self, value: Any) -> None:
         self.cell_value = value
@@ -152,3 +154,6 @@ class Cell(TableElement, Derivable):
     def derived_elements(self) -> Collection[Derivable]:
         self.vet_element()
         return tuple([self]) if self.is_derived else tuple()
+
+    def clear_derivation(self) -> None:
+        pass

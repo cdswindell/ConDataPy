@@ -18,12 +18,12 @@ if TYPE_CHECKING:
 class TableElement(BaseElement, ABC):
     @property
     @abstractmethod
-    def table(self) -> Table | None:
+    def table(self) -> Table:
         pass
 
     @property
     @abstractmethod
-    def table_context(self) -> TableContext | None:
+    def table_context(self) -> TableContext:
         pass
 
     @abstractmethod
@@ -105,7 +105,7 @@ class TableElement(BaseElement, ABC):
         print(f"{tags} {tags[0]} {type(tags)} {type(tags[0])} {self._normalize(tags)}")
         with self.lock:
             if tags:
-                new_tags = Tag.as_tags(self._normalize(tags), cast(TableContext, self.table_context))
+                new_tags = Tag.as_tags(self._normalize(tags), self.table_context)
                 self._initialize_property(Property.Tags, new_tags)
             else:
                 self._clear_property(Property.Tags)
@@ -114,7 +114,7 @@ class TableElement(BaseElement, ABC):
         from . import Tag
 
         if tags:
-            tc = cast(TableContext, self.table_context)
+            tc = self.table_context
             with self.lock:
                 new_tags: set[Tag] = Tag.as_tags(tags, tc)
                 if new_tags:
@@ -134,8 +134,7 @@ class TableElement(BaseElement, ABC):
         with self.lock:
             cur_tags: set[Tag] = self._tags
             if tags and cur_tags:
-                tc = cast(TableContext, self.table_context)
-                un_tags: set[Tag] = Tag.as_tags(tags, tc, False)
+                un_tags: set[Tag] = Tag.as_tags(tags, self.table_context, False)
                 if un_tags and cur_tags & un_tags:
                     self._initialize_property(Property.Tags, cur_tags - un_tags)
                     return True
@@ -148,7 +147,7 @@ class TableElement(BaseElement, ABC):
             with self.lock:
                 cur_tags = self._tags if self.table else set()
                 if cur_tags:
-                    query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
+                    query_tags = Tag.as_tags(tags, self.table_context, False)
                     # return True if query_tags is a proper subset of current tags
                     return bool(query_tags) and cur_tags >= query_tags
         return False
@@ -160,7 +159,7 @@ class TableElement(BaseElement, ABC):
             with self.lock:
                 cur_tags = self._tags if self.table else set()
                 if cur_tags:
-                    query_tags = Tag.as_tags(tags, cast(TableContext, self.table_context), False)
+                    query_tags = Tag.as_tags(tags, self.table_context, False)
                     # return True if query_tags is a proper subset of current tags
                     return bool(cur_tags & query_tags)
         return False

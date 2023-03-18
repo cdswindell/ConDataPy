@@ -14,8 +14,11 @@ class TestArrayList(TestBase):
         assert al is not None
         assert not al
         assert len(al) == 0
-        assert al.capacity_increment == al.capacity
+        assert al.capacity == 0
 
         # operations on empty ArrayList
         al.clear()
         assert al is not None
+        assert al == iter(al)
+        with pytest.raises(StopIteration):
+            assert next(al)

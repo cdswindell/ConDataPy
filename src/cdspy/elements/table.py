@@ -63,6 +63,9 @@ class Table(TableCellsElement):
     _THREAD_LOCAL_STORAGE = threading.local()
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        from . import Row
+        from . import Column
+
         super().__init__(None)
 
         num_rows = self._parse_args(int, "num_rows", 0, TableContext().row_capacity_incr, *args, **kwargs)
@@ -77,7 +80,7 @@ class Table(TableCellsElement):
         parent_context = (
             parent_context if parent_context else template_table.table_context if template_table else TableContext()
         )
-        self._context: TableContext | None = parent_context
+        self._context: TableContext = parent_context
 
         # finally, with context set, initialize default properties
         for p in ElementType.Table.initializable_properties():
@@ -86,10 +89,10 @@ class Table(TableCellsElement):
 
         # Initialize other instance attributes
         self.__rows: Collection[Row] = ArrayList[Row](
-            initial_size=max(num_rows, self.row_capacity_incr), capacity_incr=self.row_capacity_incr
+            initial_capacity=max(num_rows, self.row_capacity_incr), capacity_incr=self.row_capacity_incr
         )
         self.__cols: Collection[Column] = ArrayList[Column](
-            initial_size=max(num_cols, self.column_capacity_incr), capacity_incr=self.column_capacity_incr
+            initial_capacity=max(num_cols, self.column_capacity_incr), capacity_incr=self.column_capacity_incr
         )
 
         self._next_row_index = 0
@@ -130,7 +133,7 @@ class Table(TableCellsElement):
                 self._invalidate()
                 if self.table_context:
                     self.table_context._deregister(self)
-                    self._context = None
+                    self._context = cast(TableContext, None)
 
     @property
     def rows_capacity(self) -> int:
@@ -196,7 +199,7 @@ class Table(TableCellsElement):
         return self
 
     @property
-    def table_context(self) -> TableContext | None:
+    def table_context(self) -> TableContext:
         return self._context
 
     @property
