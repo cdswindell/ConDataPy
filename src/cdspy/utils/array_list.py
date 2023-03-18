@@ -1,20 +1,21 @@
 from __future__ import annotations
 
 from collections.abc import MutableSequence
+from threading import RLock
 from typing import Any, cast, Final, Generic, Optional, TypeVar, overload, Iterable, Iterator
 
-DEFAULT_CAPACITY: Final = 16
+_DEFAULT_CAPACITY: Final = 16
 _T = TypeVar("_T")
 
 
 class ArrayList(MutableSequence, Generic[_T]):
-    __slots__ = ["_capacity_incr", "_list", "_len", "_iter_idx"]
+    __slots__ = ["_capacity_incr", "_list", "_len", "_iter_idx", "_lock"]
 
     def __init__(
         self,
         source: Optional[MutableSequence[_T]] = None,
         initial_capacity: int = 0,
-        capacity_incr: int = DEFAULT_CAPACITY,
+        capacity_incr: int = _DEFAULT_CAPACITY,
     ) -> None:
         super().__init__()
         if initial_capacity is not None and int(initial_capacity) < 0:
@@ -23,7 +24,7 @@ class ArrayList(MutableSequence, Generic[_T]):
             raise ValueError("Capacity Increment must be >= 0")
 
         initial_capacity = initial_capacity if initial_capacity is not None else 0
-        self._capacity_incr = capacity_incr if capacity_incr else 256
+        self._capacity_incr = capacity_incr if capacity_incr is not None else 256
         self._len = 0
         self._iter_idx = 0
         if source:
@@ -34,6 +35,7 @@ class ArrayList(MutableSequence, Generic[_T]):
                 raise NotImplementedError(f"Can not create ArrayList from {type(source)}")
         elif isinstance(initial_capacity, int):
             self._list: MutableSequence[_T] = cast(MutableSequence[_T], [None] * initial_capacity)
+        self._lock = RLock()
 
     def __repr__(self) -> str:
         return f"[{', '.join([str(x) for x in self._list[0:self._len]])}]"
@@ -120,6 +122,10 @@ class ArrayList(MutableSequence, Generic[_T]):
         else:
             raise TypeError(f"ArrayList indices must be integers or slices, not {type(index)}")
         self.ensure_capacity(capacity)
+
+    @property
+    def lock(self) -> RLock:
+        return self._lock
 
     @property
     def capacity(self) -> int:
