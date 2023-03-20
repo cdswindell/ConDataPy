@@ -249,5 +249,3 @@ class TestArrayList(TestBase):
         assert al.capacity == 20
         al.trim_to_capacity()
         assert al.capacity == 10
-
-
