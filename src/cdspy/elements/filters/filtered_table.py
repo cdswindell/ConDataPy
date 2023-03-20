@@ -5,6 +5,7 @@ from ...elements import Table
 
 class FilteredTable(Table):
     def __init__(self, parent: Table) -> None:
+        super().__init__(parent)
         self._parent = parent
 
     @property

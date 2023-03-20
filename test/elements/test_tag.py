@@ -7,6 +7,7 @@ from ..test_base import TestBase
 from cdspy.elements import Tag
 
 
+# noinspection PyPropertyAccess,PyDunderSlots
 class TestTag(TestBase):
     def test_tag(self) -> None:
         t = Tag("TheTag")

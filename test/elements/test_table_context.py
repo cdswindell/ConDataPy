@@ -14,6 +14,7 @@ from cdspy.elements.table_context import _TABLE_CONTEXT_DEFAULTS
 from cdspy.exceptions import InvalidAccessException
 
 
+# noinspection PyMethodMayBeStatic
 class TestTableContext(TestBase):
     # ---------------------------
     # Method level setup/teardown
