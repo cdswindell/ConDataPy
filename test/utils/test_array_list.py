@@ -9,6 +9,7 @@ from cdspy.utils import ArrayList
 from cdspy.utils.array_list import _DEFAULT_CAPACITY_INCREMENT
 
 
+# noinspection PyTypeChecker
 class TestArrayList(TestBase):
     def test_creation(self) -> None:
         # basic state
