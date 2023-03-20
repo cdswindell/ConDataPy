@@ -89,10 +89,10 @@ class Table(TableCellsElement):
 
         # Initialize other instance attributes
         self.__rows: Collection[Row] = ArrayList[Row](
-            initial_capacity=max(num_rows, self.row_capacity_incr), capacity_incr=self.row_capacity_incr
+            initial_capacity=max(num_rows, self.row_capacity_incr), capacity_increment=self.row_capacity_incr
         )
         self.__cols: Collection[Column] = ArrayList[Column](
-            initial_capacity=max(num_cols, self.column_capacity_incr), capacity_incr=self.column_capacity_incr
+            initial_capacity=max(num_cols, self.column_capacity_incr), capacity_increment=self.column_capacity_incr
         )
 
         self._next_row_index = 0

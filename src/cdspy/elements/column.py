@@ -136,7 +136,7 @@ class Column(TableSliceElement):
                     cells.append(self.__cells[row._cell_offset])
             self.__cells = cells
         elif self.__cells.capacity > self._num_cells:
-            self.__cells.trim_to_size()
+            self.__cells.trim()
         else:
             self.__cells = ArrayList[Cell]()
 

@@ -4,7 +4,7 @@ from collections.abc import MutableSequence
 from threading import RLock
 from typing import Any, cast, Final, Generic, Optional, TypeVar, overload, Iterable, Iterator
 
-_DEFAULT_CAPACITY: Final = 16
+_DEFAULT_CAPACITY_INCREMENT: Final = 16
 _T = TypeVar("_T")
 
 
@@ -15,16 +15,16 @@ class ArrayList(MutableSequence, Generic[_T]):
         self,
         source: Optional[MutableSequence[_T]] = None,
         initial_capacity: int = 0,
-        capacity_incr: int = _DEFAULT_CAPACITY,
+        capacity_increment: int = _DEFAULT_CAPACITY_INCREMENT,
     ) -> None:
         super().__init__()
-        if initial_capacity is not None and int(initial_capacity) < 0:
-            raise ValueError("Initial Capacity must be >= 0")
-        if capacity_incr is not None and int(capacity_incr) < 0:
-            raise ValueError("Capacity Increment must be >= 0")
+        if initial_capacity is not None and (not isinstance(initial_capacity, int) or int(initial_capacity) < 0):
+            raise ValueError("initial_capacity must be >= 0")
+        if capacity_increment is not None and (not isinstance(capacity_increment, int) or int(capacity_increment) < 0):
+            raise ValueError("capacity_increment must be >= 0")
 
         initial_capacity = initial_capacity if initial_capacity is not None else 0
-        self._capacity_incr = capacity_incr if capacity_incr is not None else 256
+        self._capacity_incr = capacity_increment if capacity_increment is not None else _DEFAULT_CAPACITY_INCREMENT
         self._len = 0
         self._iter_idx = 0
         if source:
@@ -32,7 +32,7 @@ class ArrayList(MutableSequence, Generic[_T]):
                 self._list: MutableSequence[_T] = cast(MutableSequence[_T], list(source))
                 self._len = len(self._list)
             else:
-                raise NotImplementedError(f"Can not create ArrayList from {type(source).__name__}")
+                raise NotImplementedError(f"Can not create ArrayList from '{type(source).__name__}'")
         elif isinstance(initial_capacity, int):
             self._list: MutableSequence[_T] = cast(MutableSequence[_T], [None] * initial_capacity)
         self._lock = RLock()
@@ -235,10 +235,10 @@ class ArrayList(MutableSequence, Generic[_T]):
                 needed_elements += self._capacity_incr - rounding if rounding else 0
             self._list.extend(cast(MutableSequence[_T], [None] * needed_elements))
 
-    def trim_to_size(self) -> None:
+    def trim(self) -> None:
         if self._len < self.capacity:
             del self._list[self._len :]
 
     def trim_to_capacity(self) -> None:
-        self.trim_to_size()
+        self.trim()
         self.ensure_capacity()
