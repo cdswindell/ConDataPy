@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from ..exceptions import InvalidException
+from ..exceptions import InvalidParentException
+
 from abc import ABC, abstractmethod
 from collections.abc import Collection
 from typing import cast, Optional, TYPE_CHECKING
@@ -27,7 +30,7 @@ class TableElement(BaseElement, ABC):
         pass
 
     @abstractmethod
-    def _delete(self, compress: Optional[bool] = True) -> None:
+    def _delete(self, compress: bool = True) -> None:
         pass
 
     @abstractmethod
@@ -163,3 +166,13 @@ class TableElement(BaseElement, ABC):
                     # return True if query_tags is a proper subset of current tags
                     return bool(cur_tags & query_tags)
         return False
+
+    def vet_components(self, te: TableElement) -> None:
+        self.vet_element()
+        if not self.table:
+            raise InvalidException(self, f"{self.element_type.name} Requires a Parent Table")
+        self.table.vet_element()
+        if te:
+            self.vet_element()
+            if self.table != te.table:
+                raise InvalidParentException(self, te)

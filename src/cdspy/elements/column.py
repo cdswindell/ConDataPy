@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Collection
-from typing import Optional, TYPE_CHECKING
+from collections.abc import Collection, Iterator
+from typing import cast, Optional, TYPE_CHECKING
 
 from ..utils import ArrayList
 
@@ -11,6 +11,7 @@ from ..events import BlockedRequestException
 
 from . import ElementType
 from . import TableSliceElement
+from .base_element import _BaseElementIterable
 
 from ..utils import JustInTimeSet
 
@@ -46,11 +47,15 @@ class Column(TableSliceElement):
         if proxy and isinstance(self, FilteredColumn):
             proxy.register_filter(self)
 
-        self._mark_initialized()
+    @property
+    def _cells(self) -> ArrayList[Cell]:
+        return self.__cells
 
-    def _delete(self, compress: Optional[bool] = True) -> None:
+    def _delete(self, compress: bool = True) -> None:
         from .filters import FilteredColumn
 
+        if self.is_invalid:
+            return
         try:
             super()._delete(compress)
         except BlockedRequestException:
@@ -73,16 +78,14 @@ class Column(TableSliceElement):
             self._clear_remote_uuids()
 
         # remove column from parent table
-        table = self.table
-        if table:
-            with table.lock:
+        if self.table:
+            with self.table.lock:
                 # sanity checks
-                cols = table._cols
-                if cols is None:
+                if self.table._cols is None:
                     raise InvalidException(self, "Parent table has no columns...")
-                idx = self.index - 1
-                if idx < 0 or idx >= len(cols):
-                    raise InvalidException(self, f"Column index outside of parent Table bounds: {idx}")
+                index = self.index - 1
+                if index < 0 or index >= self.table._num_cols:
+                    raise InvalidException(self, f"Column index outside of parent Table bounds: {index}")
                 # remove this column from any groups it's in
                 self._remove_from_all_groups()
                 # clear the derivation from this column and any elements that reference self
@@ -95,19 +98,19 @@ class Column(TableSliceElement):
                         cell._invalidate_cell()
 
                 # remove the column from the cols array and move all others up
-                del cols[idx]
+                self.table._cols.__delitem__(index)
 
                 # and reindex remaining columns
-                if idx < table.num_columns:
-                    for c in cols[idx:]:
+                if index < self.table._num_columns:
+                    for c in self.table._cols[index:]:
                         if c is not None:
                             c._set_index(c.index - 1)
 
                 # clear element from current cell stack
-                table.purge_current_stack(self)
+                self.table._purge_current_stack(self)
 
                 if bool(compress):
-                    table._reclaim_column_space()
+                    self.table._reclaim_column_space()
 
         self._set_index(-1)
         self._set_is_in_use(False)
@@ -115,20 +118,13 @@ class Column(TableSliceElement):
         self.__cells.clear()
         self.invalidate()
 
-    @property
-    def _cells_capacity(self) -> int:
-        return self.__cells.capacity
+    def register_filter(self, filter_col: FilteredColumn) -> None:
+        self._filters.add(filter_col)
 
-    @property
-    def _num_cells(self) -> int:
-        """
-        Returns the size of self.__cells, including null cells
-        Returns 0 if self.__cells has not been created
-        :return:
-        """
-        return len(self.__cells)
+    def deregister_filter(self, filter_col: FilteredColumn) -> None:
+        self._filters.discard(filter_col)
 
-    def _reclaim_cell_space(self, rows: Collection[Row], num_rows: int) -> None:
+    def _reclaim_cell_space(self, rows: ArrayList[Row], num_rows: int) -> None:
         if 0 < num_rows < self._num_cells and self._num_cells:
             cells = ArrayList[Cell](initial_capacity=num_rows)
             for row in rows:
@@ -141,108 +137,8 @@ class Column(TableSliceElement):
             self.__cells = ArrayList[Cell]()
 
     @property
-    def _cells(self) -> Collection[Cell] | None:
-        return self.__cells
-
-    def _create_new_cell(self, row: Row) -> Cell:
-        return Cell(self, row._cell_offset)
-
-    def _invalidate_cell(self, cell_offset: int) -> None:
-        if self._num_cells and cell_offset < self._num_cells:
-            cell = self.__cells[cell_offset]
-            if cell:
-                cell._invalidate_cell()
-
-    def _ensure_cell_capacity(self, num_required: int) -> ArrayList[Cell]:
-        if self.table.num_rows > 0:
-            req_capacity = self.table._calculate_rows_capacity(num_required)
-            if req_capacity > self.__cells.capacity:
-                self.__cells.ensure_capacity(req_capacity)
-        return self.__cells
-
-    def _get_cell(
-        self, row: Row, set_to_current: Optional[bool] = True, create_if_sparse: Optional[bool] = True
-    ) -> Cell | None:
-        self.vet_components(row)
-        c = None
-        with self.lock:  # lock this column
-            num_cells = self._num_cells
-            cell_offset = row._cell_offset
-            if cell_offset < 0:
-                if bool(create_if_sparse):
-                    with self.table.lock:
-                        cell_offset = self.table._calculate_next_available_cell_offset()
-                        if cell_offset < 0:
-                            raise InvalidException(self, f"Invalid cell offset returned: {cell_offset}")
-                        row._set_cell_offset(cell_offset)
-                else:
-                    return None
-
-            # if the offset is equal or greater than num_cells,
-            # we have to create the new cell and add it to the cell list,
-            if cell_offset < num_cells:
-                if self.__cells[cell_offset] is None and bool(create_if_sparse):
-                    c = self._create_new_cell(row)
-                    self.__cells[cell_offset] = self._create_new_cell(row)
-            else:
-                if bool(create_if_sparse):
-                    # if cell_offset is equal to or > num_cells, this should be a new slot
-                    # in which case, cell_offset should equal num_cells
-                    if num_cells < cell_offset:
-                        raise InvalidException(self, f"Invalid cell offset: {cell_offset} ({num_cells})")
-
-                    # ensure capacity
-                    self._ensure_cell_capacity(cell_offset + 1)
-                    c = self._create_new_cell(row)
-                    self.__cells[cell_offset] = c
-        if c is not None:
-            if bool(set_to_current):
-                self.mark_current()
-                row.mark_current()
-            self._set_is_in_use(True)
-            row._set_is_in_use(True)
-        return c
-
-    def get_cell(self, row: Row) -> Cell | None:
-        return self._get_cell(row, set_to_current=True, create_if_sparse=True)
-
-    def register_filter(self, filter_col: FilteredColumn) -> None:
-        self._filters.add(filter_col)
-
-    def deregister_filter(self, filter_col: FilteredColumn) -> None:
-        self._filters.discard(filter_col)
-
-    @property
     def element_type(self) -> ElementType:
         return ElementType.Column
-
-    @property
-    def datatype(self) -> type | None:
-        return self._datatype
-
-    @datatype.setter
-    def datatype(self, datatype: type | None) -> None:
-        self._datatype = type
-
-    @property
-    def num_cells(self) -> int:
-        """
-        Returns the number of non-null cells in the column
-        :return:
-        """
-        return sum(1 for c in self._cells if c is not None) if self._cells else 0
-
-    @property
-    def is_null(self) -> bool:
-        return self.num_cells == 0
-
-    @property
-    def is_label_indexed(self) -> bool:
-        return bool(self.table.is_column_labels_indexed) if self.table else False
-
-    @property
-    def derived_elements(self) -> Collection[Derivable]:
-        return list()
 
     @property
     def num_slices(self) -> int:
@@ -252,6 +148,128 @@ class Column(TableSliceElement):
     def slices_type(self) -> ElementType:
         return ElementType.Row
 
+    @property
+    def _cells_capacity(self) -> int:
+        return self.__cells.capacity
+
+    @property
+    def datatype(self) -> type | None:
+        return self._datatype
+
+    @datatype.setter
+    def datatype(self, datatype: type | None) -> None:
+        self._datatype = type
+
+    def get_cell(self, row: Row) -> Cell | None:
+        return self._get_cell(row, set_to_current=True, create_if_sparse=True)
+
+    def _get_cell(self, row: Row, set_to_current: bool = True, create_if_sparse: bool = True) -> Cell | None:
+        self.vet_components(row)
+        c = None
+        if self.table:
+            with self.lock:  # lock this column
+                num_cells = self._num_cells
+                cell_offset = row._cell_offset
+                if cell_offset < 0:
+                    if bool(create_if_sparse):
+                        with self.table.lock:
+                            cell_offset = self.table._calculate_next_available_cell_offset()
+                            if cell_offset < 0:
+                                raise InvalidException(self, f"Invalid cell offset returned: {cell_offset}")
+                            row._set_cell_offset(cell_offset)
+                    else:
+                        return None
+                # if the offset is equal or greater than num_cells,
+                # we have to create the new cell and add it to the cell list
+                if cell_offset < num_cells:
+                    c = self.__cells[cell_offset]
+                    if c is None and bool(create_if_sparse):  # type: ignore[unreachable]
+                        c = self._create_new_cell(row)  # type: ignore[unreachable]
+                        self.__cells[cell_offset] = c  # type: ignore[unreachable]
+                else:
+                    if bool(create_if_sparse):
+                        # if cell_offset is equal to or > num_cells, this should be a new slot
+                        # in which case, cell_offset should equal num_cells
+                        if num_cells > cell_offset:
+                            raise InvalidException(self, f"Invalid cell offset: {cell_offset} ({num_cells})")
+                        # ensure capacity
+                        self._cells.ensure_capacity(cell_offset + 1)
+                        c = self._create_new_cell(row)
+                        self.__cells[cell_offset] = c
+        if c is not None:
+            if bool(set_to_current):
+                self.mark_current()
+                row.mark_current()
+            self._set_is_in_use(True)
+            row._set_is_in_use(True)
+        return c
+
+    def _create_new_cell(self, row: Row) -> Cell:
+        return Cell(self, row._cell_offset)
+
+    @property
+    def _num_cells(self) -> int:
+        """
+        Returns the size of self.__cells, including null cells
+        Returns 0 if self.__cells has not been created
+        :return:
+        """
+        return len(self.__cells)
+
+    def _invalidate_cell(self, cell_offset: int) -> None:
+        if self.__cells is not None and cell_offset < self._num_cells:
+            cell = self.__cells[cell_offset]
+            if cell:
+                cell._invalidate_cell()
+            else:
+                self.__cells[cell_offset] = cast(Cell, None)
+
+    @property
+    def is_label_indexed(self) -> bool:
+        return bool(self.table.is_column_labels_indexed) if self.table else False
+
+    def _insert_slice(self, index: int) -> Column:
+        self.vet_element(allow_uninitialized=True)
+        if index < 0:
+            raise InvalidException(self, "Column insertion index must be >= 0")
+        if self.table is None:
+            raise UnsupportedException(self, "Column must belong to a Table")
+
+        self._set_index(index + 1)
+        # index is the position in the cols array where this new col will be inserted,
+        # if index is beyond the current last col, we need to extend the Cols array
+        if index > self.table._num_columns:
+            self.table._columns.ensure_capacity(index + 1)
+            self.table._columns[index] = self
+        else:  # insert the new column into the cols array and reindex those pushed forward
+            self.table._columns.index(self, index)
+            for c in self.table._columns[index + 1 :]:
+                c._set_index(c.index + 1)
+
+        self._mark_initialized()
+        self.mark_current()
+        return self
+
+    @property
+    def num_cells(self) -> int:
+        """
+        Returns the number of non-null cells in the column
+        :return:
+        """
+        return sum(1 for c in self._cells if c is not None) if self._cells else 0
+
     def mark_current(self) -> Column | None:
         self.vet_element()
         return self.table.mark_current(self) if self.table else None
+
+    @property
+    def cells(self) -> Iterator[Cell]:
+        return _BaseElementIterable[Cell](self.__cells)
+
+    @property
+    def is_null(self) -> bool:
+        return self.num_cells == 0
+
+    @property
+    def derived_elements(self) -> Collection[Derivable]:
+        return list()

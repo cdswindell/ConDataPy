@@ -88,10 +88,10 @@ class Table(TableCellsElement):
             self._initialize_property(p, source.get_property(p))
 
         # Initialize other instance attributes
-        self.__rows: Collection[Row] = ArrayList[Row](
+        self.__rows = ArrayList[Row](
             initial_capacity=max(num_rows, self.row_capacity_incr), capacity_increment=self.row_capacity_incr
         )
-        self.__cols: Collection[Column] = ArrayList[Column](
+        self.__cols = ArrayList[Column](
             initial_capacity=max(num_cols, self.column_capacity_incr), capacity_increment=self.column_capacity_incr
         )
 
@@ -114,7 +114,7 @@ class Table(TableCellsElement):
         if self.is_valid:
             self._delete(False)
 
-    def _delete(self, compress: Optional[bool] = True) -> None:
+    def _delete(self, compress: bool = True) -> None:
         if self.is_invalid:
             return
         try:
@@ -164,11 +164,11 @@ class Table(TableCellsElement):
                 pass
 
     @property
-    def _rows(self) -> Collection[Row]:
+    def _rows(self) -> ArrayList[Row]:
         return self.__rows
 
     @property
-    def _columns(self) -> Collection[Column]:
+    def _columns(self) -> ArrayList[Column]:
         return self.__cols
 
     def _calculate_rows_capacity(self, num_required: int) -> int:
@@ -193,6 +193,19 @@ class Table(TableCellsElement):
 
     def _get_cell_affects(self, cell: Cell, include_indirects: Optional[bool] = True) -> Collection[Derivable]:
         return []
+
+    @property
+    def _num_rows(self) -> int:
+        return len(self.__rows)
+
+    @property
+    def _num_columns(self) -> int:
+        return len(self.__cols)
+
+    @property
+    def _num_cells(self) -> int:
+        # todo: implement
+        return 0
 
     @property
     def table(self) -> Table:
@@ -224,7 +237,7 @@ class Table(TableCellsElement):
 
     @property
     def num_columns(self) -> int:
-        return self._next_row_index
+        return self._next_column_index
 
     @property
     def num_cells(self) -> int:

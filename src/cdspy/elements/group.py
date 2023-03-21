@@ -50,7 +50,7 @@ class Group(TableCellsElement):
         if self.is_valid:
             self._delete()
 
-    def _delete(self, compress: Optional[bool] = True) -> None:
+    def _delete(self, compress: bool = True) -> None:
         if self.is_invalid:
             return
         try:

@@ -36,9 +36,9 @@ class Cell(TableElement, Derivable):
         self._mark_initialized()
 
     def __iter__(self) -> Iterator[T]:
-        return iter(_BaseElementIterable(tuple(self)))
+        return _BaseElementIterable[Cell](tuple(self))
 
-    def _delete(self, compress: Optional[bool] = True) -> None:
+    def _delete(self, compress: bool = True) -> None:
         self._invalidate_cell()
 
     def __set_cell_value_internal(

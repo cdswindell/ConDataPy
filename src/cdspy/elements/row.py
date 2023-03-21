@@ -43,9 +43,9 @@ class Row(TableSliceElement):
         if parent_row and isinstance(self, FilteredRow):
             parent_row.register_filter(self)
 
-        self._mark_initialized()
+        # don't mark as intialized; Rows should only be created by methods in Table
 
-    def _delete(self, compress: Optional[bool] = True) -> None:
+    def _delete(self, compress: bool = True) -> None:
         from .filters import FilteredRow
 
         try:
@@ -60,7 +60,8 @@ class Row(TableSliceElement):
         # delete all filter rows based on this (self)
         while self._filters:
             fr = self._filters.pop()
-            fr.delete()
+            if fr:
+                fr.delete()
 
         # for good measure
         self._filters.clear()
@@ -69,10 +70,58 @@ class Row(TableSliceElement):
         if self._remote_uuids:
             self._clear_remote_uuids()
 
+        # remove row from parent table
+        if self.table:
+            with self.table.lock:
+                index = self.index - 1
+                if index < 0 or index >= self.table.num_rows:
+                    raise InvalidException(self, f"Row index {index+1} outside of parent table")
+                self._remove_from_all_groups()
+                # clear the derivation from this column and any elements that reference self
+                self._clear_derivation()
+                self._clear_affects()
+                # remove the row from the table
+                if self.table._rows[index] != self:
+                    raise InvalidException(self, "Invalid state: removed row doesn't equal itself")
+                self.table._rows.__delitem__(index)
+                # reindex the rows after the one removed
+                if index < self.table.num_rows:
+                    for r in self.table._rows[index:]:
+                        r._set_index(r.index + 1)
+                # cache the cell offset so that it can be reused
+                self._cache_cell_offset(self._cell_offset)
+                # clear this element from the current cell stack
+                self.table._purge_current_stack(self)
+                # clear current row if this one
+                if self.table.current_row == self:
+                    self.table.current_row = None
+                if bool(compress):
+                    self.table._reclaim_row_space()
         self._set_cell_offset(-1)
         self._set_index(-1)
         self._set_is_in_use(False)
         self.invalidate()
+
+    def _insert_slice(self, index: int) -> Row:
+        self.vet_element(allow_uninitialized=True)
+        if index < 0:
+            raise InvalidException(self, "Row insertion index must be >= 0")
+        if self.table is None:
+            raise UnsupportedException(self, "Row must belong to a Table")
+
+        # prepare for insertion
+        self._set_index(index + 1)
+        self.table._rows.ensure_capacity(index + 1)
+        if index > self.table.num_rows:
+            self.table._rows[index] = self
+        else:
+            self.table._rows.insert(index, self)
+            for r in self.table._rows[index + 1 :]:
+                r._set_index(r.index + 1)
+
+        self._mark_initialized()
+        self.mark_current()
+        return self
 
     @property
     def _cell_offset(self) -> int:
@@ -83,11 +132,9 @@ class Row(TableSliceElement):
         if offset > 0 and self.table:
             self.table._map_cell_offset_to_row(self, offset)
 
-    def _get_cell(
-        self, col: Column, set_to_current: Optional[bool] = True, create_if_sparse: Optional[bool] = True
-    ) -> Cell | None:
+    def _get_cell(self, col: Column, set_to_current: bool = True, create_if_sparse: bool = True) -> Cell | None:
         self.vet_components(col)
-        return col._get_cell(self, set_to_current=True, create_if_sparse=True)
+        return col._get_cell(self, set_to_current, create_if_sparse)
 
     def get_cell(self, col: Column) -> Cell | None:
         return self._get_cell(col, set_to_current=True, create_if_sparse=True)
@@ -125,9 +172,13 @@ class Row(TableSliceElement):
         if self.table._columns:
             for col in self.table._columns:
                 if col and self._cell_offset < col._num_cells:
-                    if col._get_cell(self, set_to_current=False, create_if_sparse=False) is not None:
+                    if col._get_cell(self, False, False) is not None:
                         num_cells += 1
         return num_cells
+
+    @property
+    def _num_cells(self) -> int:
+        return self.table._num_cells if self.table else 0
 
     @property
     def is_null(self) -> bool:

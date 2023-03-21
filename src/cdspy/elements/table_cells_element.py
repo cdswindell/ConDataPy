@@ -9,7 +9,6 @@ from weakref import ref
 
 from ordered_set import OrderedSet
 
-from ..exceptions import InvalidException
 from ..exceptions import InvalidParentException
 
 from . import Property
@@ -56,7 +55,7 @@ class TableCellsElement(TableElement, ABC):
         o = other.label if other.label else str(other.uuid)
         return s < o
 
-    def _delete(self, compress: Optional[bool] = True) -> None:
+    def _delete(self, compress: bool = True) -> None:
         # TODO: Fire events
 
         # clear label; this resets dependent indices
@@ -139,13 +138,3 @@ class TableCellsElement(TableElement, ABC):
                     self._initialize_property(Property.UUID, uuid.UUID(value))
                 elif isinstance(value, uuid.UUID):
                     self._initialize_property(Property.UUID, value)
-
-    def vet_components(self, te: TableElement) -> None:
-        self.vet_element()
-        if not self.table:
-            raise InvalidException(self, f"{self.element_type.name} Requires a Parent Table")
-        self.table.vet_element()
-        if te:
-            self.vet_element()
-            if self.table != te.table:
-                raise InvalidParentException(self, te)

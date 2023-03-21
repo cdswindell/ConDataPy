@@ -89,7 +89,7 @@ class TableContext(
         self._mark_initialized()
 
     def __iter__(self) -> Iterator[T]:
-        return iter(_BaseElementIterable(self.tables))
+        return _BaseElementIterable[Table](self.tables)
 
     def __len__(self) -> int:
         return self.num_tables

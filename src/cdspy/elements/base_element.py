@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection
 from enum import verify, UNIQUE, Flag
 from threading import RLock
-from typing import Any, Final, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, Union
+from typing import Any, Final, Generic, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, TypeVar, Union
 from uuid import UUID
 
 from . import ElementType
@@ -14,6 +14,7 @@ from ..exceptions import InvalidException
 from ..exceptions import InvalidPropertyException
 from ..exceptions import ReadOnlyException
 from ..exceptions import UnimplementedException
+from ..exceptions import UnsupportedException
 
 if TYPE_CHECKING:
     from . import T
@@ -232,8 +233,12 @@ class BaseElement(ABC):
         self._state |= BaseElementState.IS_INVALID_FLAG
         self._reset_element_properties()
 
-    def vet_element(self, be: Optional[BaseElement] = None) -> None:
+    def vet_element(self, be: Optional[BaseElement] = None, allow_uninitialized: bool = False) -> None:
         if be is None:
+            if not self.is_initialized and not bool(allow_uninitialized):
+                raise UnsupportedException(
+                    self, f"{self.element_type.name} not initialized; did you create via a Table object?"
+                )
             if self.is_invalid:
                 raise DeletedElementException(self.element_type)
         else:
@@ -458,13 +463,23 @@ class BaseElement(ABC):
         self._set_property(Property.Description, value)
 
 
-class _BaseElementIterable:
-    __slots__ = ["_elems"]
+_T = TypeVar("_T")
 
-    def __init__(self, elems: Collection[T]) -> None:
+
+class _BaseElementIterable(Iterator, Generic[_T]):
+    __slots__ = ["_elems", "_index"]
+
+    def __init__(self, elems: Collection[_T]) -> None:
         self._elems = tuple(elems)
+        self._index = 0
 
-    def __iter__(self) -> Iterator[T]:
-        for elem in self._elems:
-            if elem and elem.is_valid:
-                yield elem
+    def __iter__(self) -> Iterator[_T]:
+        self._index = 0
+        return self
+
+    def __next__(self) -> _T:
+        if self._index >= len(self._elems):
+            raise StopIteration
+        else:
+            self._index += 1
+            return self._elems.__getitem__(self._index - 1)
