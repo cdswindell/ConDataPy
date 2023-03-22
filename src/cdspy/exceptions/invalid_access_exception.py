@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from . import InvalidException
 
@@ -16,7 +16,7 @@ class InvalidAccessException(InvalidException):
         parent: BaseElement,
         child: BaseElement | ElementType,
         access: Access,
-        is_insert: Optional[bool] = False,
+        is_insert: bool = False,
         *args: object,
     ) -> None:
         from ..elements import BaseElement
@@ -25,7 +25,7 @@ class InvalidAccessException(InvalidException):
         self._child = child if isinstance(child, BaseElement) else None
         self._child_type = child.element_type if isinstance(child, BaseElement) else child
         self._access = access
-        self._is_insert = False if is_insert is None else is_insert
+        self._is_insert = False if is_insert is None else bool(is_insert)
         self._metadata = args if args else None
         message = f"Invalid {'Insert' if is_insert else 'Get'} Request: {access.name} Child: {self._child_type.name}"
         super().__init__(parent.element_type, message)

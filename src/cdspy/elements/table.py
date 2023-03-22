@@ -4,11 +4,15 @@ from collections import deque
 import threading
 import weakref
 
-from typing import Any, cast, Optional, overload, Collection, TYPE_CHECKING
+from typing import Any, cast, Dict, Optional, overload, Collection, TYPE_CHECKING
 
 from ..utils import ArrayList
 from ..events import BlockedRequestException
+from ..exceptions import InvalidException
+from ..exceptions import UnsupportedException
+from ..exceptions import InvalidAccessException
 
+from . import Access
 from . import BaseElementState
 from . import BaseElement
 from . import ElementType
@@ -25,6 +29,7 @@ if TYPE_CHECKING:
     from . import Row
     from . import Column
     from . import Cell
+    from . import Group
 
 # create thread local storage, but only once for the module
 _THREAD_LOCAL_TABLE_STORAGE = threading.local()
@@ -104,11 +109,17 @@ class Table(TableCellsElement):
         self._next_row_index = 0
         self._next_column_index = 0
 
+        self._cell_offset_row_map: Dict[int, Row] = {}
         self._unused_cell_offsets = deque[int]()
         self.__next_cell_offset = 0
 
         self._rows_capacity = self._calculate_rows_capacity(num_rows)
         self._columns_capacity = self._calculate_columns_capacity(num_cols)
+
+        self._row_label_index: Dict[str, Row] = {}
+        self._col_label_index: Dict[str, Column] = {}
+        self._cell_label_index: Dict[str, Cell] = {}
+        self._Group_label_index: Dict[str, Group] = {}
 
         self.__table_creation_thread = weakref.ref(threading.current_thread())
 
@@ -148,7 +159,7 @@ class Table(TableCellsElement):
         if offset >= 0:
             with self.lock:
                 self._unused_cell_offsets.append(offset)
-                for c in self._cols:
+                for c in self._columns:
                     if c:
                         c._invalidate_cell(offset)
 
@@ -162,6 +173,16 @@ class Table(TableCellsElement):
                     pass  # this shouldn't happen because of lock
             self.__next_cell_offset += 1
             return self.__next_cell_offset - 1
+
+    def _map_cell_offset_to_row(self, row: Row) -> None:
+        if row and row._cell_offset >= 0:
+            self._cell_offset_row_map[row._cell_offset] = row
+
+    def _row_by_cell_offset(self, offset: int) -> Row:
+        try:
+            return self._cell_offset_row_map[offset]
+        except KeyError:
+            return cast(Row, None)
 
     @property
     def rows_capacity(self) -> int:
@@ -194,10 +215,86 @@ class Table(TableCellsElement):
         return capacity
 
     def _reclaim_column_space(self) -> None:
-        pass
+        if len(self.__cols) == 0:
+            self._cell_offset_row_map.clear()
+            self._unused_cell_offsets.clear()
+            if self.__next_cell_offset > 0:
+                for r in self._rows:
+                    r._set_cell_offset(-1)
+            self.__next_cell_offset = 0
+
+        if self.free_space_threshold > 0:
+            free_cols = self._columns.capacity - len(self._columns)
+            incr = self.column_capacity_incr
+            ratio = float(free_cols) / incr
+
+            if ratio > self.free_space_threshold or len(self._columns) == 0:
+                self._columns.trim()
+                self._columns.capacity_increment = incr
 
     def _reclaim_row_space(self) -> None:
-        pass
+        if len(self.__rows) == 0:
+            self._cell_offset_row_map.clear()
+            self._unused_cell_offsets.clear()
+            if self.__next_cell_offset > 0:
+                for c in self._columns:
+                    c._reclaim_cell_space(self._rows, 0)
+            self.__next_cell_offset = 0
+
+        if self.free_space_threshold > 0:
+            free_rows = self._rows.capacity - len(self._rows)
+            incr = self.row_capacity_incr
+            ratio = float(free_rows) / incr
+
+            if ratio > self.free_space_threshold or len(self._rows) == 0:
+                self._rows.trim()
+                self._rows.capacity_increment = incr
+
+    def _reclaim_cell_space(self, num_rows: int) -> None:
+        num_cols = len(self._columns)
+        if num_cols > 0:
+            for c in self._columns:
+                c._reclaim_cell_space(self._rows, num_rows)
+            if self.__next_cell_offset > 0:
+                self._cell_offset_row_map.clear()
+                cell_offset = 0
+                if num_rows > 0:
+                    for r in self._rows:
+                        if r and r._cell_offset >= 0:
+                            r._set_cell_offset(cell_offset if num_cols else -1)
+                            cell_offset += 1
+                self._unused_cell_offsets.clear()
+                self.__next_cell_offset = cell_offset
+
+    def get_cell(self, row: Row, col: Column) -> Cell:
+        return self._get_cell(row, col, True)  # type: ignore[return-value]
+
+    def is_cell(self, row: Row, col: Column) -> bool:
+        return self._get_cell(row, col, False) is not None
+
+    def get_cell_value(self, row: Row, col: Column, do_format: bool = False) -> Any:
+        cell = self._get_cell(row, col, False)
+        if cell:
+            if bool(do_format):
+                return cell.formatted_cell_value
+            else:
+                return cell.cell_value
+        else:
+            return None
+
+    def get_formatted_cell_value(self, row: Row, col: Column) -> Any:
+        cell = self._get_cell(row, col, False)
+        if cell:
+            return cell.formatted_cell_value
+        else:
+            return None
+
+    def _get_cell(self, row: Row, col: Column, create_if_sparse: bool = True) -> Cell | None:
+        if (row is None) or (col is None):
+            return None  # type: ignore[unreachable]
+        self.vet_parent(row, col)
+        with self.lock:
+            return col._get_cell(row, create_if_sparse=create_if_sparse, set_to_current=True)
 
     def _get_cell_affects(self, cell: Cell, include_indirects: Optional[bool] = True) -> Collection[Derivable]:
         return []
@@ -241,11 +338,11 @@ class Table(TableCellsElement):
 
     @property
     def num_rows(self) -> int:
-        return self._next_row_index
+        return len(self._rows)
 
     @property
     def num_columns(self) -> int:
-        return self._next_column_index
+        return len(self._columns)
 
     @property
     def num_cells(self) -> int:
@@ -280,9 +377,10 @@ class Table(TableCellsElement):
     # override to
     @BaseElement.is_persistent.setter  # type: ignore
     def is_persistent(self, state: bool) -> None:
-        self._mutate_state(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)  # type: ignore
-        if self.is_initialized and self.table_context:
-            self.table_context._register(self)
+        with self.lock:
+            self._mutate_state(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)  # type: ignore
+            if self.is_initialized and self.table_context:
+                self.table_context._register(self)
 
     def delete(self, *elems: TableElement) -> None:
         if elems:
@@ -400,3 +498,104 @@ class Table(TableCellsElement):
 
     def _purge_current_stack(self, sl: TableSliceElement) -> None:
         pass
+
+    @overload
+    def add_row(self) -> Row: ...
+
+    @overload
+    def add_row(self, index: int) -> Row: ...
+
+    @overload
+    def add_row(self, access: Access, *args: object) -> Row: ...
+
+    def add_row(self, a1: Optional[int, Access] = None, *args: object) -> Row:
+        if a1 is None:
+            return self._add_row(Access.Last, False, True, True)
+        elif isinstance(a1, int):
+            return self._add_row(Access.ByIndex, False, True, True, int(a1))
+        elif isinstance(a1, Access):
+            return self._add_row(a1, self.is_row_labels_indexed, True, True, *args)
+        else:
+            raise UnsupportedException(self, "Cannot insert Row into Table with these arguments")
+
+    def _add_row(self, access: Access, return_existing: bool = False, create_if_sparse: bool = False, set_to_current: bool = False, *mda: object) -> Row:
+        from . import Row
+        insert_mode = access
+        if access in [Access.ByLabel, Access.ByUUID, Access.ByDescription]:
+            existing = self._get_row(access, )
+
+        # for modes that may enforce uniqueness, do some checks
+        if access in [Access.ByLabel, Access.ByUUID, Access.ByDescription]:
+            existing_row = self._get_row(access, create_if_sparse=create_if_sparse, set_to_current=set_to_current, *mda)
+            if existing_row is not None:
+                if bool(return_existing):
+                    return existing_row
+            # allow dups? specified in mda[1]
+            allow_dups = bool(mda[1]) if access != Access.ByUUID and mda and len(mda) > 1 and isinstance(mda[1], bool) else False
+            if not allow_dups:
+                raise InvalidException(self, f"Row with {access.name} {mda[0]} exists")
+            insert_mode = Access.Last # add new row at end
+
+        # create a new row object and insert it into tables rows
+        with self.lock:
+            row = self.__add(Row(self), insert_mode, set_to_current=True, fire_events=True, *mda)
+            # do post_processing
+            if row and mda:
+                if access == Access.ByLabel:
+                    row.label = mda[0]
+                elif access == Access.ByUUID:
+                    row.uuid = mda[0]
+                elif access == Access.ByDescription:
+                    row.description = mda[0]
+            return row
+
+    def __add(self, te: Row | Column, access: Access, set_to_current: bool = True, fire_events: bool = True, *mda: object) -> None | Row | Column:
+        self.vet_element()
+        with self.lock:
+            try:
+                if bool(fire_events):
+                    pass
+            except BlockedRequestException:
+                return None
+            successfully_created = False
+            try:
+                index = self._calculate_index(te.element_type, True, access, *mda)
+                if index <= -1:
+                    raise InvalidAccessException(self, te, access, True, *mda)
+                if te._insert_slice(self._rows, index) is not None and bool(set_to_current):
+                    te.mark_current()
+                successfully_created = True
+                return te
+            finally:
+                if successfully_created and bool(fire_events):
+                    pass
+                    # TODO: fire onCreate event
+
+    def _calculate_index(self, et: ElementType, is_adding: bool, access: Access, *mda: object) -> int:
+        num_slices = -1
+        cur_slice = None
+        slices = None
+        index = -1
+
+        if et == ElementType.Row:
+            cur_slice = self.current_row
+            num_slices = self.num_rows
+            slices = self._rows
+        elif et == ElementType.Column:
+            cur_slice = self.current_column
+            num_slices = self.num_columns
+            slices = self._columns
+
+        # if we are doing a get (not adding), and num_slices is 0, we're done
+        if not bool(is_adding) and num_slices == 0:
+            return -1
+
+        if access == Access.First:
+            return 0
+        elif access == Access.Last:
+            if bool(is_adding):
+                return num_slices
+            else:
+                return num_slices if num_slices else -1
+
+        return index

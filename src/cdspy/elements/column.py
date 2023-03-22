@@ -48,11 +48,8 @@ class Column(TableSliceElement):
             proxy.register_filter(self)
 
     def __del__(self) -> None:
+        print("Deleting column...")
         super().__del__()
-
-    @property
-    def _cells(self) -> ArrayList[Cell]:
-        return self.__cells
 
     def _delete(self, compress: bool = True) -> None:
         from .filters import FilteredColumn
@@ -81,44 +78,56 @@ class Column(TableSliceElement):
             self._clear_remote_uuids()
 
         # remove column from parent table
-        if self.table:
-            with self.table.lock:
-                # sanity checks
-                if self.table._cols is None:
-                    raise InvalidException(self, "Parent table has no columns...")
-                index = self.index - 1
-                if index < 0 or index >= self.table._num_cols:
-                    raise InvalidException(self, f"Column index outside of parent Table bounds: {index}")
-                # remove this column from any groups it's in
-                self._remove_from_all_groups()
-                # clear the derivation from this column and any elements that reference self
-                self.clear_derivation()
-                self._clear_affects()
+        try:
+            if self.table:
+                with self.table.lock:
+                    # sanity checks
+                    if self.table._cols is None:
+                        raise InvalidException(self, "Parent table has no columns...")
+                    index = self.index - 1
+                    if index < 0 or index >= self.table._num_cols:
+                        raise InvalidException(self, f"Column index outside of parent Table bounds: {index}")
 
-                # invalidate cells
-                if self.__cells:
-                    for cell in self.__cells:
-                        cell._invalidate_cell()
+                    # remove this column from any groups it's in
+                    self._remove_from_all_groups()
 
-                # remove the column from the cols array and move all others up
-                self.table._cols.__delitem__(index)
+                    # clear the derivation from this column and any elements that reference self
+                    self.clear_derivation()
+                    self.clear_time_series()
+                    self._clear_affects()
 
-                # and reindex remaining columns
-                if index < self.table._num_columns:
-                    for c in self.table._cols[index:]:
-                        if c is not None:
-                            c._set_index(c.index - 1)
+                    # invalidate cells
+                    if self.__cells:
+                        for cell in self.__cells:
+                            cell._invalidate_cell()
 
-                # clear element from current cell stack
-                self.table._purge_current_stack(self)
+                    # remove the column from the cols array and move all others up
+                    self.table._cols.__delitem__(index)
 
-                if bool(compress):
-                    self.table._reclaim_column_space()
+                    # and reindex remaining columns
+                    if index < self.table._num_columns:
+                        for c in self.table._cols[index:]:
+                            if c is not None:
+                                c._set_index(c.index - 1)
 
-        self._set_index(-1)
-        self._set_is_in_use(False)
-        self.__cells.clear()
-        self._invalidate()
+                    # clear element from current cell stack
+                    self.table._purge_current_stack(self)
+
+                    # clear current column if this one
+                    if self.table.current_column == self:
+                        self.table.current_column = None
+
+                    if bool(compress):
+                        self.table._reclaim_column_space()
+        finally:
+            self._set_index(-1)
+            self._set_is_in_use(False)
+            self.__cells.clear()
+            self._invalidate()
+
+    @property
+    def _cells(self) -> ArrayList[Cell]:
+        return self.__cells
 
     def register_filter(self, filter_col: FilteredColumn) -> None:
         self._filters.add(filter_col)

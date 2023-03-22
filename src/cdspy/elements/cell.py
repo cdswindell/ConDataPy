@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, cast, Iterator, Optional, TYPE_CHECKING, Collection
+from typing import Any, Iterator, Optional, TYPE_CHECKING, Collection
 
 from threading import RLock
 
@@ -52,10 +52,6 @@ class Cell(TableElement, Derivable):
             values_differ = True
         return values_differ
 
-    @property
-    def __cell_offset(self) -> int:
-        return self.__cell_offset
-
     def _invalidate_cell(self) -> None:
         pass
 
@@ -86,6 +82,11 @@ class Cell(TableElement, Derivable):
         self.__set_cell_value_internal(value)
 
     @property
+    def formatted_cell_value(self) -> Any:
+        # TODO: apply format
+        return self._cell_value
+
+    @property
     def element_type(self) -> ElementType:
         return ElementType.Cell
 
@@ -99,12 +100,12 @@ class Cell(TableElement, Derivable):
 
     @property
     def table(self) -> Table:
-        return cast(Table, self._col.table if self._col else None)
+        return self._col.table if self._col else None  # type: ignore[return-value]
 
     @property
     def table_context(self) -> TableContext:
         self.vet_element()
-        return cast(TableContext, self.table.table_context if self.table else None)
+        return self.table.table_context if self.table else None  # type: ignore[return-value]
 
     @property
     def column(self) -> Column:
@@ -114,7 +115,7 @@ class Cell(TableElement, Derivable):
     @property
     def row(self) -> Row:
         self.vet_element()
-        return cast(Row, self.table._row_by_cell_offset(self.__cell_offset) if self.table else None)
+        return self.table._row_by_cell_offset(self._cell_offset) if self.table else None  # type: ignore[return-value]
 
     def fill(self, value: Any) -> None:
         self.cell_value = value

@@ -147,3 +147,6 @@ class TableSliceElement(TableCellsElement, Derivable, ABC):
 
     def clear_derivation(self) -> None:
         pass
+
+    def clear_time_series(self) -> None:
+        pass
