@@ -24,6 +24,7 @@ class Cell(TableElement, Derivable):
         "_cell_offset",
         "_cell_value",
         "_col",
+        "_lock",
         "_state",
     )
 
@@ -33,6 +34,7 @@ class Cell(TableElement, Derivable):
         self._col = col
         self._cell_offset = cell_offset if cell_offset is not None else -1
         self._cell_value = None
+        self._lock = RLock()  # TODO: move to table
         self._mark_initialized()
 
     def __iter__(self) -> Iterator[T]:
@@ -72,7 +74,7 @@ class Cell(TableElement, Derivable):
     @property
     def lock(self) -> RLock:
         # TODO: Move out of cell class
-        raise Exception("need to implement")
+        return self._lock
 
     @property
     def cell_value(self) -> Any:

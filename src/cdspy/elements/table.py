@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections import deque
 import threading
 import weakref
 
-from typing import Any, cast, Final, Optional, overload, Collection, TYPE_CHECKING
+from typing import Any, cast, Optional, overload, Collection, TYPE_CHECKING
 
 from ..utils import ArrayList
 from ..events import BlockedRequestException
@@ -20,11 +21,13 @@ from ..computation import recalculate_affected
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
+    from . import TableSliceElement
     from . import Row
     from . import Column
     from . import Cell
 
-CURRENT_CELL_KEY: Final = "_cr"
+# create thread local storage, but only once for the module
+_THREAD_LOCAL_TABLE_STORAGE = threading.local()
 
 
 class _CellReference:
@@ -59,8 +62,11 @@ class _CellReference:
 
 
 class Table(TableCellsElement):
-    # create thread local storage, but only once for the class
-    _THREAD_LOCAL_STORAGE = threading.local()
+    _table_class_lock = threading.RLock()
+
+    @classmethod
+    def table_class_lock(cls) -> threading.RLock:
+        return cls._table_class_lock
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         from . import Row
@@ -97,6 +103,9 @@ class Table(TableCellsElement):
 
         self._next_row_index = 0
         self._next_column_index = 0
+
+        self._unused_cell_offsets = deque[int]()
+        self.__next_cell_offset = 0
 
         self._rows_capacity = self._calculate_rows_capacity(num_rows)
         self._columns_capacity = self._calculate_columns_capacity(num_cols)
@@ -135,6 +144,25 @@ class Table(TableCellsElement):
                     self.table_context._deregister(self)
                     self._context = cast(TableContext, None)
 
+    def _cache_cell_offset(self, offset: int) -> None:
+        if offset >= 0:
+            with self.lock:
+                self._unused_cell_offsets.append(offset)
+                for c in self._cols:
+                    if c:
+                        c._invalidate_cell(offset)
+
+    @property
+    def _next_cell_offset(self) -> int:
+        with self.lock:
+            if self._unused_cell_offsets:
+                try:
+                    return self._unused_cell_offsets.popleft()
+                except IndexError:
+                    pass  # this shouldn't happen because of lock
+            self.__next_cell_offset += 1
+            return self.__next_cell_offset - 1
+
     @property
     def rows_capacity(self) -> int:
         return self._rows_capacity
@@ -142,26 +170,6 @@ class Table(TableCellsElement):
     @property
     def columns_capacity(self) -> int:
         return self._columns_capacity
-
-    @property
-    def _current_cell(self) -> _CellReference:
-        """
-        Maintain a "current cell" independently in each thread that accesses this table
-        :return:
-        """
-        with self.lock:
-            try:
-                return cast(_CellReference, Table._THREAD_LOCAL_STORAGE._current_cell)
-            except AttributeError:
-                Table._THREAD_LOCAL_STORAGE._current_cell = _CellReference()
-                return Table._THREAD_LOCAL_STORAGE._current_cell
-
-    def _clear_current_cell(self) -> None:
-        with self.lock:
-            try:
-                del Table._THREAD_LOCAL_STORAGE._current_cell
-            except AttributeError:
-                pass
 
     @property
     def _rows(self) -> ArrayList[Row]:
@@ -286,12 +294,41 @@ class Table(TableCellsElement):
                     deleted_any = True
 
             if deleted_any:
-                self._reclaim_column_space()
                 self._reclaim_row_space()
+                self._reclaim_column_space()
                 recalculate_affected(self)
         else:
             # delete the entire table
             self._delete(True)
+
+    @property
+    def _current_cell(self) -> _CellReference:
+        """
+        Maintain a "current cell" independently in each thread that accesses this table
+        :return:
+        """
+        global _THREAD_LOCAL_TABLE_STORAGE
+        with self.lock:
+            try:
+                return cast(_CellReference, _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self])
+            except AttributeError:
+                with Table.table_class_lock():
+                    _THREAD_LOCAL_TABLE_STORAGE._current_cell_map = weakref.WeakKeyDictionary[Table, _CellReference]()
+                _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self] = _CellReference()
+                return _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self]
+            except KeyError:
+                _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self] = _CellReference()
+                return cast(_CellReference, _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self])
+
+    def _clear_current_cell(self) -> None:
+        global _THREAD_LOCAL_TABLE_STORAGE
+        with self.lock:
+            try:
+                del _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self]
+            except AttributeError:
+                pass
+            except KeyError:
+                pass
 
     @property
     def current_row(self) -> Row | None:
@@ -322,6 +359,9 @@ class Table(TableCellsElement):
         ...
 
     def mark_current(self, new_current: Row | Column | Cell | None = None) -> Row | Column | Cell | None:
+        from . import Row
+        from . import Column
+
         prev: Row | Column | Cell | None = None
         if isinstance(new_current, Column):
             prev = self._current_cell.current_column
@@ -330,3 +370,33 @@ class Table(TableCellsElement):
             prev = self._current_cell.current_row
             self._current_cell.current_row = new_current
         return prev
+
+    @property
+    def _current_cell_stack(self) -> deque[_CellReference]:
+        global _THREAD_LOCAL_TABLE_STORAGE
+        stack_map = None
+        with self.lock:
+            try:
+                return cast(deque[_CellReference], _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self])
+            except AttributeError:
+                with Table.table_class_lock():
+                    _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack = weakref.WeakKeyDictionary[
+                        Table, deque[_CellReference]
+                    ]()
+                _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self] = deque[_CellReference]()
+                return _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self]
+            except KeyError:
+                _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self] = deque[_CellReference]()
+                return cast(deque[_CellReference], _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self])
+
+    def pop_current_cell(self) -> None:
+        cr = self._current_cell_stack.popleft() if self._current_cell_stack else None
+        if cr:
+            cr.set_current_cell_reference(self)
+
+    def push_current_cell(self) -> None:
+        self.vet_element()
+        self._current_cell_stack.appendleft(_CellReference(self._current_cell))
+
+    def _purge_current_stack(self, sl: TableSliceElement) -> None:
+        pass

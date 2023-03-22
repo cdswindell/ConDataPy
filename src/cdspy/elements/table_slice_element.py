@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Set
 from uuid import UUID
 
+from ..utils import ArrayList
 from ..utils import JustInTimeSet
 
 from . import BaseElementState
@@ -12,8 +13,13 @@ from . import TableElement
 from . import TableCellsElement
 from . import Group
 
+from ..mixins import Derivable
 
-class TableSliceElement(TableCellsElement, ABC):
+from ..exceptions import InvalidException
+from ..exceptions import UnsupportedException
+
+
+class TableSliceElement(TableCellsElement, Derivable, ABC):
     @abstractmethod
     def mark_current(self) -> TableSliceElement | None:
         pass
@@ -36,8 +42,40 @@ class TableSliceElement(TableCellsElement, ABC):
         self._groups = JustInTimeSet[Group]()
 
     def __del__(self) -> None:
-        if self.is_valid:
-            self._delete()
+        super().__del__()
+
+    def __lt__(self, other: TableCellsElement) -> bool:
+        if isinstance(other, TableSliceElement):
+            return self.index < other.index
+        else:
+            return super().__lt__(other)
+
+    def _remove_from_all_groups(self) -> None:
+        while self._groups:
+            g = self._groups.pop()
+            g.remove(self)
+
+    def _insert_slice(self, elems: ArrayList[TableSliceElement], index: int) -> TableSliceElement:
+        self.vet_element(allow_uninitialized=True)
+        if index < 0:
+            raise InvalidException(self, f"{self.element_type.name} insertion index must be >= 0")
+        if self.table is None:
+            raise UnsupportedException(self, f"{self.element_type.name} must belong to a Table")
+
+        self._set_index(index + 1)
+        # index is the position in the elems array where this new elem will be inserted,
+        # if index is beyond the current last col, we need to extend the Cols array
+        if index > self.table._num_columns:
+            elems.ensure_capacity(index + 1)
+            elems[index] = self
+        else:  # insert the new column into the cols array and reindex those pushed forward
+            elems.insert(index, self)
+            for e in elems[index + 1 :]:
+                e._set_index(e.index + 1)
+
+        self._mark_initialized()
+        self.mark_current()
+        return self
 
     def _clear_derivations(self) -> None:
         pass
@@ -106,3 +144,6 @@ class TableSliceElement(TableCellsElement, ABC):
 
     def clear(self) -> None:
         self.fill(None)
+
+    def clear_derivation(self) -> None:
+        pass

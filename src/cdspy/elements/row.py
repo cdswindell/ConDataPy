@@ -14,7 +14,7 @@ from ..utils import JustInTimeSet
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
-    from . import TableElement
+    from . import Table
     from . import Column
     from . import Cell
     from .filters import FilteredRow
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 # noinspection DuplicatedCode
 class Row(TableSliceElement):
-    def __init__(self, te: TableElement, parent_row: Optional[Row] = None) -> None:
+    def __init__(self, te: Table, parent_row: Optional[Row] = None) -> None:
         from .filters import FilteredRow
         from .filters import FilteredTable
 
@@ -44,6 +44,10 @@ class Row(TableSliceElement):
             parent_row.register_filter(self)
 
         # don't mark as intialized; Rows should only be created by methods in Table
+
+    def __del__(self) -> None:
+        print("Deleting row...")
+        super().__del__()
 
     def _delete(self, compress: bool = True) -> None:
         from .filters import FilteredRow
@@ -74,11 +78,11 @@ class Row(TableSliceElement):
         if self.table:
             with self.table.lock:
                 index = self.index - 1
-                if index < 0 or index >= self.table.num_rows:
+                if index < 0 or index >= self.table._num_rows:
                     raise InvalidException(self, f"Row index {index+1} outside of parent table")
                 self._remove_from_all_groups()
                 # clear the derivation from this column and any elements that reference self
-                self._clear_derivation()
+                self.clear_derivation()
                 self._clear_affects()
                 # remove the row from the table
                 if self.table._rows[index] != self:
@@ -89,7 +93,7 @@ class Row(TableSliceElement):
                     for r in self.table._rows[index:]:
                         r._set_index(r.index + 1)
                 # cache the cell offset so that it can be reused
-                self._cache_cell_offset(self._cell_offset)
+                self.table._cache_cell_offset(self._cell_offset)
                 # clear this element from the current cell stack
                 self.table._purge_current_stack(self)
                 # clear current row if this one
@@ -100,28 +104,7 @@ class Row(TableSliceElement):
         self._set_cell_offset(-1)
         self._set_index(-1)
         self._set_is_in_use(False)
-        self.invalidate()
-
-    def _insert_slice(self, index: int) -> Row:
-        self.vet_element(allow_uninitialized=True)
-        if index < 0:
-            raise InvalidException(self, "Row insertion index must be >= 0")
-        if self.table is None:
-            raise UnsupportedException(self, "Row must belong to a Table")
-
-        # prepare for insertion
-        self._set_index(index + 1)
-        self.table._rows.ensure_capacity(index + 1)
-        if index > self.table.num_rows:
-            self.table._rows[index] = self
-        else:
-            self.table._rows.insert(index, self)
-            for r in self.table._rows[index + 1 :]:
-                r._set_index(r.index + 1)
-
-        self._mark_initialized()
-        self.mark_current()
-        return self
+        self._invalidate()
 
     @property
     def _cell_offset(self) -> int:
@@ -178,7 +161,7 @@ class Row(TableSliceElement):
 
     @property
     def _num_cells(self) -> int:
-        return self.table._num_cells if self.table else 0
+        return self.table._num_columns if self.table else 0
 
     @property
     def is_null(self) -> bool:

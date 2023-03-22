@@ -11,21 +11,21 @@ from ..events import BlockedRequestException
 
 from . import ElementType
 from . import TableSliceElement
+from . import Cell
 from .base_element import _BaseElementIterable
 
 from ..utils import JustInTimeSet
 
 if TYPE_CHECKING:
     from .filters import FilteredColumn
-    from . import TableElement
-    from . import Cell
+    from . import Table
     from . import Row
     from ..mixins import Derivable
 
 
 # noinspection DuplicatedCode
 class Column(TableSliceElement):
-    def __init__(self, te: TableElement, proxy: Optional[Column] = None) -> None:
+    def __init__(self, te: Table, proxy: Optional[Column] = None) -> None:
         from .filters import FilteredColumn
         from .filters import FilteredTable
 
@@ -42,10 +42,13 @@ class Column(TableSliceElement):
             value = self._get_template(te).get_property(p)
             self._initialize_property(p, value)
 
-        self.__cells = ArrayList[Cell]()
+        self.__cells = ArrayList[Cell](capacity_increment=te.row_capacity_incr if te else None)
 
         if proxy and isinstance(self, FilteredColumn):
             proxy.register_filter(self)
+
+    def __del__(self) -> None:
+        super().__del__()
 
     @property
     def _cells(self) -> ArrayList[Cell]:
@@ -89,7 +92,7 @@ class Column(TableSliceElement):
                 # remove this column from any groups it's in
                 self._remove_from_all_groups()
                 # clear the derivation from this column and any elements that reference self
-                self._clear_derivation()
+                self.clear_derivation()
                 self._clear_affects()
 
                 # invalidate cells
@@ -114,9 +117,8 @@ class Column(TableSliceElement):
 
         self._set_index(-1)
         self._set_is_in_use(False)
-
         self.__cells.clear()
-        self.invalidate()
+        self._invalidate()
 
     def register_filter(self, filter_col: FilteredColumn) -> None:
         self._filters.add(filter_col)
@@ -126,7 +128,9 @@ class Column(TableSliceElement):
 
     def _reclaim_cell_space(self, rows: ArrayList[Row], num_rows: int) -> None:
         if 0 < num_rows < self._num_cells and self._num_cells:
-            cells = ArrayList[Cell](initial_capacity=num_rows)
+            cells = ArrayList[Cell](
+                initial_capacity=num_rows, capacity_increment=self.table.row_capacity_incr if self.table else None
+            )
             for row in rows:
                 if row and row._cell_offset >= 0:
                     cells.append(self.__cells[row._cell_offset])
@@ -134,7 +138,7 @@ class Column(TableSliceElement):
         elif self.__cells.capacity > self._num_cells:
             self.__cells.trim()
         else:
-            self.__cells = ArrayList[Cell]()
+            self.__cells = ArrayList[Cell](capacity_increment=self.table.row_capacity_incr if self.table else None)
 
     @property
     def element_type(self) -> ElementType:
@@ -173,7 +177,7 @@ class Column(TableSliceElement):
                 if cell_offset < 0:
                     if bool(create_if_sparse):
                         with self.table.lock:
-                            cell_offset = self.table._calculate_next_available_cell_offset()
+                            cell_offset = self.table._next_cell_offset
                             if cell_offset < 0:
                                 raise InvalidException(self, f"Invalid cell offset returned: {cell_offset}")
                             row._set_cell_offset(cell_offset)
@@ -221,34 +225,11 @@ class Column(TableSliceElement):
             cell = self.__cells[cell_offset]
             if cell:
                 cell._invalidate_cell()
-            else:
-                self.__cells[cell_offset] = cast(Cell, None)
+            self.__cells[cell_offset] = cast(Cell, None)
 
     @property
     def is_label_indexed(self) -> bool:
         return bool(self.table.is_column_labels_indexed) if self.table else False
-
-    def _insert_slice(self, index: int) -> Column:
-        self.vet_element(allow_uninitialized=True)
-        if index < 0:
-            raise InvalidException(self, "Column insertion index must be >= 0")
-        if self.table is None:
-            raise UnsupportedException(self, "Column must belong to a Table")
-
-        self._set_index(index + 1)
-        # index is the position in the cols array where this new col will be inserted,
-        # if index is beyond the current last col, we need to extend the Cols array
-        if index > self.table._num_columns:
-            self.table._columns.ensure_capacity(index + 1)
-            self.table._columns[index] = self
-        else:  # insert the new column into the cols array and reindex those pushed forward
-            self.table._columns.index(self, index)
-            for c in self.table._columns[index + 1 :]:
-                c._set_index(c.index + 1)
-
-        self._mark_initialized()
-        self.mark_current()
-        return self
 
     @property
     def num_cells(self) -> int:

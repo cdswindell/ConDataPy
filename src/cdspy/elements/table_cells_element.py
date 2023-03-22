@@ -13,13 +13,15 @@ from ..exceptions import InvalidParentException
 
 from . import Property
 from . import TableElement
+
 from ..utils.atomic_integer import AtomicInteger
 
+
 if TYPE_CHECKING:
+    from ..mixins import Derivable
     from . import BaseElement
     from . import Table
     from . import TableContext
-    from ..mixins import Derivable
 
 
 class TableCellsElement(TableElement, ABC):
@@ -33,20 +35,9 @@ class TableCellsElement(TableElement, ABC):
         self._affects = OrderedSet()
         self._initialize_property(Property.Ident, TableCellsElement._ELEMENT_IDENT_GENERATOR.inc())
 
-    def _vet_parent(self, *elems: TableCellsElement) -> None:
-        if elems:
-            for e in elems:
-                if e == self or not e:
-                    continue
-                with e.lock:
-                    # make sure element is valid
-                    self.vet_element()
-                    # make sure elem belongs to table
-                    if not e.table:
-                        # if not set, set now; parent could be null...
-                        e._set_table(self.table)
-                    elif e.table != self.table:
-                        raise InvalidParentException(e, self)
+    def __del__(self) -> None:
+        if self.is_valid:
+            self._delete()
 
     def __lt__(self, other: TableCellsElement) -> bool:
         if not isinstance(other, TableCellsElement):
@@ -60,6 +51,9 @@ class TableCellsElement(TableElement, ABC):
 
         # clear label; this resets dependent indices
         self.label = None
+
+    def _invalidate(self) -> None:
+        super()._invalidate()
         self._table_ref = None
 
     def _get_template(self, te: Optional[TableElement] = None) -> BaseElement:
@@ -93,6 +87,8 @@ class TableCellsElement(TableElement, ABC):
 
     @property
     def table(self) -> Table:
+        from . import Table
+
         return cast(Table, self._table_ref() if self._table_ref else None)
 
     def _set_table(self, table: Table) -> None:
@@ -138,3 +134,18 @@ class TableCellsElement(TableElement, ABC):
                     self._initialize_property(Property.UUID, uuid.UUID(value))
                 elif isinstance(value, uuid.UUID):
                     self._initialize_property(Property.UUID, value)
+
+    def vet_parent(self, *elems: TableCellsElement) -> None:
+        if elems:
+            for e in elems:
+                if e == self or not e:
+                    continue
+                with e.lock:
+                    # make sure element is valid
+                    self.vet_element()
+                    # make sure elem belongs to table
+                    if not e.table:
+                        # if not set, set now; parent could be null...
+                        e._set_table(self.table)
+                    elif e.table != self.table:
+                        raise InvalidParentException(e, self)

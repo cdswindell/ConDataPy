@@ -230,8 +230,8 @@ class BaseElement(ABC):
         return (self._state & state) != BaseElementState.NO_FLAGS_SET
 
     def _invalidate(self) -> None:
-        self._state |= BaseElementState.IS_INVALID_FLAG
         self._reset_element_properties()
+        self._set(BaseElementState.IS_INVALID_FLAG)
 
     def vet_element(self, be: Optional[BaseElement] = None, allow_uninitialized: bool = False) -> None:
         if be is None:

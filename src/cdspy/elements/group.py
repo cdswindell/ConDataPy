@@ -18,6 +18,7 @@ from ..exceptions import InvalidParentException
 from ..events import BlockedRequestException
 
 if TYPE_CHECKING:
+    from . import TableSliceElement
     from . import Table
     from . import Row
     from . import Column
@@ -47,8 +48,7 @@ class Group(TableCellsElement):
         return False
 
     def __del__(self) -> None:
-        if self.is_valid:
-            self._delete()
+        super().__del__()
 
     def _delete(self, compress: bool = True) -> None:
         if self.is_invalid:
@@ -58,7 +58,7 @@ class Group(TableCellsElement):
         except BlockedRequestException:
             return
         # TODO: delete elements
-        self.invalidate()
+        self._invalidate()
 
     @property
     def element_type(self) -> ElementType:
@@ -126,7 +126,7 @@ class Group(TableCellsElement):
 
     @property
     def _columns(self) -> Collection[Column]:
-        if self.__rows:
+        if self.__cols:
             return list(self.__cols)
         else:
             return list()
@@ -148,6 +148,11 @@ class Group(TableCellsElement):
         return tuple(self._groups)
 
     def add(self, *elems: TableElement) -> bool:
+        from . import Row
+        from . import Column
+        from . import Group
+        from . import Cell
+
         added_any = False
         if elems:
             for elem in elems:
@@ -184,6 +189,22 @@ class Group(TableCellsElement):
 
     def clear(self) -> None:
         self.fill(None)
+
+    def remove(self, te: TableSliceElement | Cell) -> None:
+        from . import Row
+        from . import Column
+        from . import Group
+        from . import Cell
+
+        with self.lock:
+            if isinstance(te, Row):
+                self.__rows.discard(te)
+            elif isinstance(te, Column):
+                self.__cols.discard(te)
+            elif isinstance(te, Group):
+                self.__groups.discard(te)
+            elif isinstance(te, Cell):
+                self.__cells.discard(te)
 
     @property
     def derived_elements(self) -> Collection[Derivable]:
