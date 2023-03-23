@@ -526,7 +526,7 @@ class Table(TableCellsElement):
 
         # for modes that may enforce uniqueness, do some checks
         if access in [Access.ByLabel, Access.ByUUID, Access.ByDescription]:
-            existing_row = self._get_row(access, create_if_sparse=create_if_sparse, set_to_current=set_to_current, *mda)
+            existing_row = self._get_row(access, create_if_sparse, set_to_current, *mda)
             if existing_row is not None:
                 if bool(return_existing):
                     return existing_row
@@ -538,7 +538,7 @@ class Table(TableCellsElement):
 
         # create a new row object and insert it into tables rows
         with self.lock:
-            row = self.__add(Row(self), insert_mode, set_to_current=True, fire_events=True, *mda)
+            row = self.__add(Row(self), insert_mode, set_to_current, True, *mda)
             # do post_processing
             if row and mda:
                 if access == Access.ByLabel:
@@ -576,6 +576,7 @@ class Table(TableCellsElement):
         cur_slice = None
         slices = None
         index = -1
+        is_adding = bool(is_adding)
 
         if et == ElementType.Row:
             cur_slice = self.current_row
@@ -587,15 +588,60 @@ class Table(TableCellsElement):
             slices = self._columns
 
         # if we are doing a get (not adding), and num_slices is 0, we're done
-        if not bool(is_adding) and num_slices == 0:
+        if not is_adding and num_slices == 0:
             return -1
 
         if access == Access.First:
             return 0
         elif access == Access.Last:
-            if bool(is_adding):
+            if is_adding:
                 return num_slices
             else:
                 return num_slices if num_slices else -1
+        elif access == Access.Previous:
+            # special case for adding to an empty table
+            if is_adding and num_slices == 0:
+                return 0
+            # if no current row/col, we can't honor request
+            if cur_slice is None:
+                return -1
+            # if adding, insert slice before current
+            # if retrieving, return previous
+            index = cur_slice.index - 1
+            if is_adding:
+                return index
+            # if we're at the first slice, there is no previous
+            return index - 1 if index > 0 else -1
+        elif access == Access.Current:
+            # special case for adding to an empty table
+            if is_adding and num_slices == 0:
+                return 0
+            return cur_slice.index - 1 if cur_slice is not None else -1
+        elif access == Access.Next:
+            # special case for adding to an empty table
+            if is_adding and num_slices == 0:
+                return 0
+            # if no current row/col, we can't honor request
+            if cur_slice is None:
+                return -1
+
+            index = cur_slice.index
+            if index < num_slices:
+                return index
+            elif is_adding and index == num_slices:
+                return index
+            else:
+                return -1
+        elif access == Access.ByIndex:
+            md = mda[0] if mda else None
+            if md is None or not isinstance(md, int):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            index = int(md) - 1
+            if index < 0:
+                return -1
+            elif is_adding or index < num_slices:
+                return index
+            else:
+                return -1
 
         return index

@@ -65,7 +65,7 @@ class TableSliceElement(TableCellsElement, Derivable, ABC):
         self._set_index(index + 1)
         # index is the position in the elems array where this new elem will be inserted,
         # if index is beyond the current last col, we need to extend the Cols array
-        if index > self.table._num_columns:
+        if index > len(elems):
             elems.ensure_capacity(index + 1)
             elems[index] = self
         else:  # insert the new column into the cols array and reindex those pushed forward
