@@ -71,7 +71,8 @@ class TableSliceElement(TableCellsElement, Derivable, ABC):
         else:  # insert the new column into the cols array and reindex those pushed forward
             elems.insert(index, self)
             for e in elems[index + 1 :]:
-                e._set_index(e.index + 1)
+                if e:
+                    e._set_index(e.index + 1)
 
         self._mark_initialized()
         self.mark_current()

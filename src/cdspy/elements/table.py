@@ -16,6 +16,7 @@ from . import Access
 from . import BaseElementState
 from . import BaseElement
 from . import ElementType
+from . import Property
 from . import TableElement
 from . import TableCellsElement
 from . import TableContext
@@ -591,6 +592,7 @@ class Table(TableCellsElement):
         if not is_adding and num_slices == 0:
             return -1
 
+        md = mda[0] if mda else None
         if access == Access.First:
             return 0
         elif access == Access.Last:
@@ -633,7 +635,6 @@ class Table(TableCellsElement):
             else:
                 return -1
         elif access == Access.ByIndex:
-            md = mda[0] if mda else None
             if md is None or not isinstance(md, int):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
             index = int(md) - 1
@@ -643,5 +644,13 @@ class Table(TableCellsElement):
                 return index
             else:
                 return -1
-
+        elif access == Access.ByIdent:
+            if is_adding or md is None or not isinstance(md, int):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            target = self._find(slices, Property.Ident, int(md))
+            return target.index - 1 if target else -1
+        elif access == Access.ByReference:
+            if is_adding or md is None or not isinstance(md, TableSliceElement) or md.element_type != et:
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            return md.index - 1
         return index
