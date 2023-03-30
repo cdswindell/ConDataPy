@@ -105,7 +105,7 @@ class Column(TableSliceElement):
                     self.table._cols.__delitem__(index)
 
                     # and reindex remaining columns
-                    if index < self.table._num_columns:
+                    if index < self.table.num_columns:
                         for c in self.table._cols[index:]:
                             if c is not None:
                                 c._set_index(c.index - 1)

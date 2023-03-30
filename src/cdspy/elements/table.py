@@ -217,6 +217,7 @@ class Table(TableCellsElement):
             capacity = num_required + (capacity - remainder if remainder > 0 else 0)
         return capacity
 
+    # noinspection DuplicatedCode
     def _reclaim_column_space(self) -> None:
         if len(self.__cols) == 0:
             self._cell_offset_row_map.clear()
@@ -303,14 +304,6 @@ class Table(TableCellsElement):
         return []
 
     @property
-    def _num_rows(self) -> int:
-        return len(self.__rows)
-
-    @property
-    def _num_columns(self) -> int:
-        return len(self.__cols)
-
-    @property
     def _num_cells(self) -> int:
         # todo: implement
         return 0
@@ -349,11 +342,15 @@ class Table(TableCellsElement):
 
     @property
     def num_cells(self) -> int:
-        return 0
+        self.vet_element()
+        num_cells = 0
+        for c in self._columns:
+            num_cells += c.num_cells if c else 0
+        return num_cells
 
     @property
     def is_null(self) -> bool:
-        return not self.num_rows and not self.num_columns and not self.num_cells
+        return self.num_rows == 0 or self.num_columns == 0 or self.num_cells == 0
 
     @property
     def num_groups(self) -> int:
@@ -502,84 +499,6 @@ class Table(TableCellsElement):
     def _purge_current_stack(self, sl: TableSliceElement) -> None:
         pass
 
-    def add_row(self, a1: int | Access | None = None, *args: object) -> Row:
-        if a1 is None:
-            return self._add_row(Access.Last, False, True, True)  # type: ignore[return-value]
-        elif isinstance(a1, int):
-            return self._add_row(Access.ByIndex, False, True, True, int(a1))  # type: ignore[return-value]
-        elif isinstance(a1, Access):
-            return self._add_row(a1, self.is_row_labels_indexed, True, True, *args)  # type: ignore[return-value]
-        else:
-            raise UnsupportedException(self, "Cannot insert Row into Table with these arguments")
-
-    def _add_row(
-        self,
-        access: Access,
-        return_existing: bool = False,
-        create_if_sparse: bool = False,
-        set_to_current: bool = False,
-        *mda: object,
-    ) -> Row | None:
-        from . import Row
-
-        insert_mode = access
-
-        # for modes that may enforce uniqueness, do some checks
-        if access in [Access.ByLabel, Access.ByUUID, Access.ByDescription]:
-            existing_row = self._get_row(access, create_if_sparse, set_to_current, *mda)
-            if existing_row is not None:
-                if bool(return_existing):
-                    return existing_row
-            # allow dups? specified in mda[1]
-            allow_dups = (
-                bool(mda[1]) if access != Access.ByUUID and mda and len(mda) > 1 and isinstance(mda[1], bool) else False
-            )
-            if not allow_dups:
-                raise InvalidException(self, f"Row with {access.name} {mda[0]} exists")
-            insert_mode = Access.Last  # add new row at end
-
-        # create a new row object and insert it into tables rows
-        with self.lock:
-            row = self.__add(Row(self), insert_mode, set_to_current, True, *mda)
-            # do post_processing
-            if row and mda:
-                if access == Access.ByLabel:
-                    row.label = str(mda[0])
-                elif access == Access.ByUUID:
-                    row.uuid = mda[0] if isinstance(mda[0], uuid.UUID) else uuid.UUID(str(mda[0]))
-                elif access == Access.ByDescription:
-                    row.description = str(mda[0])
-            return row  # type: ignore[return-value]
-
-    def __add(
-        self, te: Row | Column, access: Access, set_to_current: bool = True, fire_events: bool = True, *mda: object
-    ) -> None | Row | Column:
-        self.vet_element()
-        with self.lock:
-            try:
-                if bool(fire_events):
-                    pass
-            except BlockedRequestException:
-                return None
-            successfully_created = False
-            try:
-                index = self._calculate_index(te.element_type, True, access, *mda)
-                if index <= -1:
-                    raise InvalidAccessException(self, te, access, True, *mda)
-                if te._insert_slice(self._rows, index) is not None and bool(set_to_current):
-                    te.mark_current()
-                successfully_created = True
-                return te
-            finally:
-                if successfully_created and bool(fire_events):
-                    pass
-                    # TODO: fire onCreate event
-
-    def _get_row(
-        self, access: Access, create_if_sparse: bool = True, set_to_current: bool = True, *mda: object
-    ) -> Row | None:
-        return None
-
     def _calculate_index(self, et: ElementType, is_adding: bool, access: Access, *mda: object) -> int:
         is_adding = bool(is_adding)
 
@@ -661,7 +580,7 @@ class Table(TableCellsElement):
         elif access in [Access.ByLabel, Access.ByDescription]:
             if is_adding or md is None or not isinstance(md, str):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            target = self._find(slices, access.associated_property, int(md))
+            target = self._find(slices, access.associated_property, str(md))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByUUID:
             if is_adding or md is None or not isinstance(md, str) or not isinstance(md, uuid.UUID):  # type: ignore[unreachable]
@@ -683,3 +602,129 @@ class Table(TableCellsElement):
             return int(target.index) - 1 if target else -1
 
         return -1
+
+    def _add_slice_dispatch(
+        self, et: ElementType, a1: int | Access | None = None, *args: object
+    ) -> Row | Column | None:
+        if a1 is None:
+            return self._add_slice(et, Access.Last, False, True, True)  # type: ignore[return-value]
+        elif isinstance(a1, int):
+            return self._add_slice(et, Access.ByIndex, False, True, True, int(a1))  # type: ignore[return-value]
+        elif isinstance(a1, Access):
+            return self._add_slice(et, a1, self.is_row_labels_indexed, True, True, *args)  # type: ignore[return-value]
+        else:
+            raise UnsupportedException(self, "Cannot insert Row into Table with these arguments")
+
+    def _add_slice(
+        self,
+        slice_type: ElementType,
+        access: Access,
+        return_existing: bool = False,
+        create_if_sparse: bool = False,
+        set_to_current: bool = False,
+        *mda: object,
+    ) -> Row | Column | None:
+        from . import Row
+        from . import Column
+
+        insert_mode = access
+
+        # for modes that may enforce uniqueness, do some checks
+        if access in [Access.ByLabel, Access.ByUUID, Access.ByDescription]:
+            slices: ArrayList[Row] | ArrayList[Column] = self._rows if slice_type == ElementType.Row else self._columns
+            existing_slice = self._get_slice(slice_type, slices, access, create_if_sparse, set_to_current, *mda)
+            if existing_slice is not None:
+                if bool(return_existing):
+                    return existing_slice
+                # allow dups? specified in mda[1]
+                allow_dups = (
+                    bool(mda[1]) if access != Access.ByUUID and mda and len(mda) > 1 and isinstance(mda[1], bool) else False
+                )
+                if not allow_dups:
+                    raise InvalidException(self, f"{slice_type.name} with {access.name} {mda[0]} exists")
+            insert_mode = Access.Last  # add new slice as last
+
+        # create a new row/column object and insert it into table
+        with self.lock:
+            raw_te: Row | Column = Row(self) if slice_type == ElementType.Row else Column(self)
+            te = self.__add(raw_te, insert_mode, set_to_current, True, *mda)
+            # do post_processing
+            if te and mda:
+                if access == Access.ByLabel:
+                    te.label = str(mda[0])
+                elif access == Access.ByUUID:
+                    te.uuid = mda[0] if isinstance(mda[0], uuid.UUID) else uuid.UUID(str(mda[0]))
+                elif access == Access.ByDescription:
+                    te.description = str(mda[0])
+            return te  # type: ignore[return-value]
+
+    def __add(
+        self, te: Row | Column, access: Access, set_to_current: bool = True, fire_events: bool = True, *mda: object
+    ) -> None | Row | Column:
+        self.vet_element()
+        with self.lock:
+            try:
+                if bool(fire_events):
+                    pass
+            except BlockedRequestException:
+                return None
+            successfully_created = False
+            try:
+                index = self._calculate_index(te.element_type, True, access, *mda)
+                if index <= -1:
+                    raise InvalidAccessException(self, te, access, True, *mda)
+                slices: ArrayList[Row] | ArrayList[Column] = (
+                    self._rows if te.element_type == ElementType.Row else self._columns
+                )
+                if te._insert_slice(slices, index) is not None and bool(set_to_current):
+                    te.mark_current()
+                successfully_created = True
+                return te
+            finally:
+                if successfully_created and bool(fire_events):
+                    pass
+                    # TODO: fire onCreate event
+
+    def add_row(self, a1: int | Access | None = None, *args: object) -> Row:
+        return self._add_slice_dispatch(ElementType.Row, a1, *args)  # type: ignore[return-value]
+
+    def add_column(self, a1: int | Access | None = None, *args: object) -> Column:
+        return self._add_slice_dispatch(ElementType.Column, a1, *args)  # type: ignore[return-value]
+
+    def _get_slice_dispatch(
+        self, et: ElementType, slices: ArrayList[Row] | ArrayList[Column], a1: int | Access | None = None, *args: object
+    ) -> Row | Column | None:
+        if a1 is None:
+            return self._get_slice(et, slices, Access.Current, True, True)  # type: ignore[return-value]
+        elif isinstance(a1, int):
+            return self._get_slice(et, slices, Access.ByIndex, True, True, int(a1))  # type: ignore[return-value]
+        elif isinstance(a1, Access):
+            return self._get_slice(et, slices, a1, True, True, *args)  # type: ignore[return-value]
+        else:
+            raise UnsupportedException(self, "Cannot get Row/Column from Table with these arguments")
+
+    def _get_slice(
+        self,
+        et: ElementType,
+        slices: ArrayList[Row] | ArrayList[Column],
+        access: Access,
+        create_if_sparse: bool = True,
+        set_to_current: bool = True,
+        *mda: object,
+    ) -> Row | Column | None:
+        slice_index = self._calculate_index(et, False, access, *mda)
+        if slice_index < 0:
+            return None
+        # get the requested slice
+        te = slices.__getitem__(slice_index)
+        if te is None and create_if_sparse:
+            te = Row(self) if et == ElementType.Row else Column(self)
+            te.index = slice_index + 1
+            slices.__setitem__(slice_index, te)
+        return te
+
+    def get_row(self, a1: int | Access | None = None, *args: object) -> Row:
+        return self._get_slice_dispatch(ElementType.Row, self._rows, a1, *args)  # type: ignore[return-value]
+
+    def get_column(self, a1: int | Access | None = None, *args: object) -> Column:
+        return self._get_slice_dispatch(ElementType.Column, self._columns, a1, *args)  # type: ignore[return-value]

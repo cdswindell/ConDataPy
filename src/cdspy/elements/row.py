@@ -79,7 +79,7 @@ class Row(TableSliceElement):
             if self.table:
                 with self.table.lock:
                     index = self.index - 1
-                    if index < 0 or index >= self.table._num_rows:
+                    if index < 0 or index >= self.table.num_rows:
                         raise InvalidException(self, f"Row index {index+1} outside of parent table")
                     self._remove_from_all_groups()
 
@@ -171,7 +171,7 @@ class Row(TableSliceElement):
 
     @property
     def _num_cells(self) -> int:
-        return self.table._num_columns if self.table else 0
+        return self.table.num_columns if self.table else 0
 
     @property
     def is_null(self) -> bool:
