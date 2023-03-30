@@ -4,7 +4,8 @@ from collections import deque
 import threading
 import weakref
 
-from typing import Any, cast, Dict, Optional, overload, Collection, TYPE_CHECKING, Union
+from typing import Any, cast, Dict, Optional, overload, Collection, TYPE_CHECKING, Tuple
+
 import uuid
 
 from ..utils import ArrayList
@@ -501,19 +502,7 @@ class Table(TableCellsElement):
     def _purge_current_stack(self, sl: TableSliceElement) -> None:
         pass
 
-    @overload
-    def add_row(self) -> Row:
-        ...
-
-    @overload
-    def add_row(self, index: int) -> Row:
-        ...
-
-    @overload
-    def add_row(self, access: Access, *args: object) -> Row:
-        ...
-
-    def add_row(self, a1: Union[int, Access, None] = None, *args: object) -> Row:
+    def add_row(self, a1: int | Access | None = None, *args: object) -> Row:
         if a1 is None:
             return self._add_row(Access.Last, False, True, True)  # type: ignore[return-value]
         elif isinstance(a1, int):
@@ -586,23 +575,24 @@ class Table(TableCellsElement):
                     pass
                     # TODO: fire onCreate event
 
-    def _get_row(self, access: Access, create_if_sparse: bool = True, set_to_current=True, *mda: object) -> Row | None:
+    def _get_row(
+        self, access: Access, create_if_sparse: bool = True, set_to_current: bool = True, *mda: object
+    ) -> Row | None:
         return None
 
     def _calculate_index(self, et: ElementType, is_adding: bool, access: Access, *mda: object) -> int:
-        num_slices = -1
-        cur_slice = None
-        slices = None
         is_adding = bool(is_adding)
 
         if et == ElementType.Row:
-            cur_slice = self.current_row
-            num_slices = self.num_rows
-            slices = self._rows
+            cur_slice: TableSliceElement | None = self.current_row
+            num_slices: int = self.num_rows
+            slices: ArrayList[Row] = self._rows
         elif et == ElementType.Column:
-            cur_slice = self.current_column
-            num_slices = self.num_columns
-            slices = self._columns
+            cur_slice: TableSliceElement | None = self.current_column
+            num_slices: int = self.num_columns
+            slices: ArrayList[Column] = self._columns
+        else:
+            raise InvalidException(self, f"{et.name} not supported")
 
         # if we are doing a get (not adding), and num_slices is 0, we're done
         if not is_adding and num_slices == 0:
@@ -674,18 +664,18 @@ class Table(TableCellsElement):
             target = self._find(slices, access.associated_property, int(md))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByUUID:
-            if is_adding or md is None or not isinstance(md, str) or not isinstance(md, uuid.UUID):
+            if is_adding or md is None or not isinstance(md, str) or not isinstance(md, uuid.UUID):  # type: ignore[unreachable]
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))
-            target = self._find(slices, Property.UUID, int(md))
+            md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
+            target = self._find(slices, Property.UUID, md)
             return int(target.index) - 1 if target else -1
         elif access == Access.ByTags:
             if is_adding or not mda or any(not isinstance(item, str) for item in mda):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {mda}")
-            target = self._find_tagged(slices, *mda)
+            target = self._find_tagged(slices, *cast(Tuple[str], mda))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByProperty:
-            key: Property | str = md
+            key: Property | str = md  # type: ignore[assignment]
             value = mda[1] if mda and len(mda) > 1 else None
             if is_adding or key is None or value is None:
                 raise InvalidException(self, f"Invalid {et.name} {access.name} key: {key}")

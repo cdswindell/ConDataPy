@@ -434,8 +434,8 @@ class Access(Enum):
         return self.value._associated_property is not None
 
     @property
-    def associated_property(self) -> Property | None:
-        return self.value._associated_property
+    def associated_property(self) -> Property:
+        return self.value._associated_property  # type: ignore[return-value]
 
 
 class _EventTypeInfo:

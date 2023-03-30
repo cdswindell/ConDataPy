@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional, Set
+from typing import cast, Optional, Set, TypeVar, Generic
 from uuid import UUID
 
 from ..utils import ArrayList
@@ -18,10 +18,12 @@ from ..mixins import Derivable
 from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
 
+T = TypeVar("T", bound="TableSliceElement")
 
-class TableSliceElement(TableCellsElement, Derivable, ABC):
+
+class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
     @abstractmethod
-    def mark_current(self) -> TableSliceElement | None:
+    def mark_current(self) -> T | None:
         pass
 
     @property
@@ -55,7 +57,7 @@ class TableSliceElement(TableCellsElement, Derivable, ABC):
             g = self._groups.pop()
             g.remove(self)
 
-    def _insert_slice(self, elems: ArrayList[TableSliceElement], index: int) -> TableSliceElement:
+    def _insert_slice(self, elems: ArrayList[T], index: int) -> T:
         self.vet_element(allow_uninitialized=True)
         if index < 0:
             raise InvalidException(self, f"{self.element_type.name} insertion index must be >= 0")
@@ -67,16 +69,16 @@ class TableSliceElement(TableCellsElement, Derivable, ABC):
         # if index is beyond the current last col, we need to extend the Cols array
         if index > len(elems):
             elems.ensure_capacity(index + 1)
-            elems[index] = self
+            elems[index] = cast(T, self)
         else:  # insert the new column into the cols array and reindex those pushed forward
-            elems.insert(index, self)
+            elems.insert(index, cast(T, self))
             for e in elems[index + 1 :]:
                 if e:
                     e._set_index(e.index + 1)
 
         self._mark_initialized()
         self.mark_current()
-        return self
+        return cast(T, self)
 
     def _clear_derivations(self) -> None:
         pass

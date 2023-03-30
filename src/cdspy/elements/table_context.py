@@ -206,7 +206,7 @@ class TableContext(
 
         if mode.has_associated_property:
             if args:
-                return BaseElement._find(self.tables, cast(Property, mode.associated_property), args[0])
+                return BaseElement._find(self.tables, mode.associated_property, args[0])
             raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
         elif mode == Access.ByTags:
             if args and str in {type(t) for t in args}:
