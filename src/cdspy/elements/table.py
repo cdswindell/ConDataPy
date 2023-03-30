@@ -583,7 +583,7 @@ class Table(TableCellsElement):
             target = self._find(slices, access.associated_property, str(md))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByUUID:
-            if is_adding or md is None or not isinstance(md, str) or not isinstance(md, uuid.UUID):  # type: ignore[unreachable]
+            if is_adding or md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
             md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
             target = self._find(slices, Property.UUID, md)
