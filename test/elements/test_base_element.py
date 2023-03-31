@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from threading import RLock
-from typing import Any, cast, Dict, Collection, TYPE_CHECKING
+from typing import Any, cast, Dict
 
 import pytest
 
@@ -15,9 +15,6 @@ from cdspy.elements.base_element import BaseElement
 from cdspy.exceptions import InvalidPropertyException
 from cdspy.exceptions import ReadOnlyException
 from cdspy.exceptions import UnimplementedException
-
-if TYPE_CHECKING:
-    from cdspy.elements import T
 
 
 # create test class from BaseElement

@@ -762,7 +762,7 @@ class Table(TableCellsElement):
     def _ensure_columns_exist(self) -> None:
         for index in range(0, self.num_columns):
             if self.__cols[index] is None:
-                self._get_slice(ElementType.Column, self._columns, Access.ByIndex, True, False, index)
+                self._get_slice(ElementType.Column, self._columns, Access.ByIndex, True, False, index + 1)
 
     @property
     def columns(self) -> Iterator[T]:

@@ -1,38 +1,17 @@
 from __future__ import annotations
 
-from typing import Final
-
 from ...test_base import TestBase
+from ...test_base import PROPERTY_ABC
+from ...test_base import PROPERTY_DEF
 
 from cdspy.elements import Access
 from cdspy.elements import ElementType
 from cdspy.elements import TableContext
 from cdspy.elements import Table
 
-PROPERTY_ABC: Final = "Property ABC"
-PROPERTY_DEF: Final = "Property DEF"
-
 
 # noinspection PyMethodMayBeStatic
 class TestCalculateIndex(TestBase):
-    @staticmethod
-    def add_test_rows(t: Table) -> None:
-        for x in range(1, 21):
-            r = t.add_row()
-            r.label = f"Row {x} Label"
-            r.description = f"Row {x} Description"
-            r.set_property(PROPERTY_ABC, f"Row {x} {PROPERTY_ABC}")
-            r.set_property(PROPERTY_DEF, f"Row {x} {PROPERTY_DEF}")
-
-    @staticmethod
-    def add_test_columns(t: Table) -> None:
-        for x in range(1, 21):
-            c = t.add_column()
-            c.label = f"Column {x} Label"
-            c.description = f"Column {x} Description"
-            c.set_property(PROPERTY_ABC, f"Column {x} {PROPERTY_ABC}")
-            c.set_property(PROPERTY_DEF, f"Column {x} {PROPERTY_DEF}")
-
     # ---------------------------
     # Method level setup/teardown
     # ---------------------------
