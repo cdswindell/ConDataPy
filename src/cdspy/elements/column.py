@@ -47,10 +47,6 @@ class Column(TableSliceElement):
         if proxy and isinstance(self, FilteredColumn):
             proxy.register_filter(self)
 
-    def __del__(self) -> None:
-        print("Deleting column...")
-        super().__del__()
-
     def _delete(self, compress: bool = True) -> None:
         from .filters import FilteredColumn
 
@@ -82,10 +78,10 @@ class Column(TableSliceElement):
             if self.table:
                 with self.table.lock:
                     # sanity checks
-                    if self.table._cols is None:
+                    if self.table._columns is None:
                         raise InvalidException(self, "Parent table has no columns...")
                     index = self.index - 1
-                    if index < 0 or index >= self.table._num_cols:
+                    if index < 0 or index >= self.table.num_columns:
                         raise InvalidException(self, f"Column index outside of parent Table bounds: {index}")
 
                     # remove this column from any groups it's in
@@ -102,11 +98,11 @@ class Column(TableSliceElement):
                             cell._invalidate_cell()
 
                     # remove the column from the cols array and move all others up
-                    self.table._cols.__delitem__(index)
+                    self.table._columns.__delitem__(index)
 
                     # and reindex remaining columns
                     if index < self.table.num_columns:
-                        for c in self.table._cols[index:]:
+                        for c in self.table._columns[index:]:
                             if c is not None:
                                 c._set_index(c.index - 1)
 

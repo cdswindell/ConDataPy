@@ -17,7 +17,6 @@ from ..exceptions import UnimplementedException
 from ..exceptions import UnsupportedException
 
 if TYPE_CHECKING:
-    from . import T
     from . import TableElement
 
 TABLE_PROPERTIES_KEY: Final = "_props"
@@ -198,10 +197,6 @@ class BaseElement(ABC):
         else:
             label = ": " + self.label if self.label else ""
             return f"[{self.element_type.name}{label}]"
-
-    def __iter__(self) -> Iterator[T]:
-        for te in cast(Collection[T], self._iter_objs()):
-            yield te
 
     def _implements(self, p: Optional[Property]) -> bool:
         """

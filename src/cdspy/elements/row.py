@@ -42,16 +42,13 @@ class Row(TableSliceElement):
 
         if parent_row and isinstance(self, FilteredRow):
             parent_row.register_filter(self)
-
         # don't mark as intialized; Rows should only be created by methods in Table
-
-    def __del__(self) -> None:
-        print("Deleting row...")
-        super().__del__()
 
     def _delete(self, compress: bool = True) -> None:
         from .filters import FilteredRow
 
+        if self.is_invalid:
+            return
         try:
             super()._delete(compress)
         except BlockedRequestException:
@@ -96,7 +93,8 @@ class Row(TableSliceElement):
                     # reindex the rows after the one removed
                     if index < self.table.num_rows:
                         for r in self.table._rows[index:]:
-                            r._set_index(r.index + 1)
+                            if r is not None:
+                                r._set_index(r.index - 1)
 
                     # cache the cell offset so that it can be reused
                     self.table._cache_cell_offset(self._cell_offset)

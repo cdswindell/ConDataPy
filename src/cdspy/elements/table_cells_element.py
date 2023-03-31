@@ -36,8 +36,10 @@ class TableCellsElement(TableElement, ABC):
         self._initialize_property(Property.Ident, TableCellsElement._ELEMENT_IDENT_GENERATOR.inc())
 
     def __del__(self) -> None:
+        print(f"Deleting {self.element_type.name}...")
         if self.is_valid:
             self._delete()
+            print(f"Deleted {self.element_type.name} (via __del__)...")
 
     def __lt__(self, other: TableCellsElement) -> bool:
         if not isinstance(other, TableCellsElement):

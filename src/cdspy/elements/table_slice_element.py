@@ -43,8 +43,12 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
         self.__remote_uuids: Set[UUID] = set()
         self._groups = JustInTimeSet[Group]()
 
-    def __del__(self) -> None:
-        super().__del__()
+    def __repr__(self) -> str:
+        if self.is_invalid:
+            return super().__repr__()
+        else:
+            label = ": " + self.label if self.label else f" {self.index}"
+            return f"[{self.element_type.name}{label}]"
 
     def __lt__(self, other: TableCellsElement) -> bool:
         if isinstance(other, TableSliceElement):

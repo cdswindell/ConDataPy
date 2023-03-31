@@ -43,9 +43,6 @@ class MockBaseElement(BaseElement):
     def lock(self) -> RLock:
         return self._lock
 
-    def _iter_objs(self) -> Collection[T]:
-        return cast(Collection[T], [self])
-
 
 def test_base_element_initial_state() -> None:
     tc = MockBaseElement(initialized=False)

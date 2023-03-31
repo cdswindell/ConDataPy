@@ -4,7 +4,7 @@ from collections import deque
 import threading
 import weakref
 
-from typing import Any, cast, Dict, Optional, overload, Collection, TYPE_CHECKING, Tuple
+from typing import Any, cast, Dict, Iterator, Optional, overload, Collection, TYPE_CHECKING, Tuple
 
 import uuid
 
@@ -23,11 +23,14 @@ from . import TableElement
 from . import TableCellsElement
 from . import TableContext
 
+from .base_element import _BaseElementIterable
+
 from ..computation import recalculate_affected
 
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
+    from . import T
     from . import TableSliceElement
     from . import Row
     from . import Column
@@ -132,10 +135,22 @@ class Table(TableCellsElement):
         # and mark instance as initialized
         self._mark_initialized()
 
-    def __del__(self) -> None:
-        print(f"*** Deleting table...")
-        if self.is_valid:
-            self._delete(False)
+    def delete(self, *elems: TableElement) -> None:
+        if elems:
+            deleted_any = False
+            for elem in elems:
+                if elem and elem.is_valid and elem.table == self:
+                    elem._delete(False)
+                    del elem
+                    deleted_any = True
+
+            if deleted_any:
+                self._reclaim_row_space()
+                self._reclaim_column_space()
+                recalculate_affected(self)
+        else:
+            # delete the entire table
+            self._delete(True)
 
     def _delete(self, compress: bool = True) -> None:
         if self.is_invalid:
@@ -147,6 +162,16 @@ class Table(TableCellsElement):
 
         with self.lock:
             try:
+                for index in range(self.num_columns, 0, -1):
+                    c = self._columns[index - 1]
+                    if c is not None:
+                        c._delete()
+
+                for index in range(self.num_rows, 0, -1):
+                    r = self._rows[index - 1]
+                    if r is not None:
+                        r._delete()
+
                 if compress:
                     self._reclaim_column_space()
                     self._reclaim_row_space()
@@ -382,23 +407,6 @@ class Table(TableCellsElement):
             if self.is_initialized and self.table_context:
                 self.table_context._register(self)
 
-    def delete(self, *elems: TableElement) -> None:
-        if elems:
-            deleted_any = False
-            for elem in elems:
-                if elem and elem.is_valid and elem.table == self:
-                    elem._delete(False)
-                    del elem
-                    deleted_any = True
-
-            if deleted_any:
-                self._reclaim_row_space()
-                self._reclaim_column_space()
-                recalculate_affected(self)
-        else:
-            # delete the entire table
-            self._delete(True)
-
     @property
     def _current_cell(self) -> _CellReference:
         """
@@ -500,6 +508,8 @@ class Table(TableCellsElement):
         pass
 
     def _calculate_index(self, et: ElementType, is_adding: bool, access: Access, *mda: object) -> int:
+        from . import TableSliceElement
+
         is_adding = bool(is_adding)
 
         if et == ElementType.Row:
@@ -524,7 +534,7 @@ class Table(TableCellsElement):
             if is_adding:
                 return num_slices
             else:
-                return num_slices if num_slices else -1
+                return num_slices - 1 if num_slices else -1
         elif access == Access.Previous:
             # special case for adding to an empty table
             if is_adding and num_slices == 0:
@@ -638,7 +648,9 @@ class Table(TableCellsElement):
                     return existing_slice
                 # allow dups? specified in mda[1]
                 allow_dups = (
-                    bool(mda[1]) if access != Access.ByUUID and mda and len(mda) > 1 and isinstance(mda[1], bool) else False
+                    bool(mda[1])
+                    if access != Access.ByUUID and mda and len(mda) > 1 and isinstance(mda[1], bool)
+                    else False
                 )
                 if not allow_dups:
                     raise InvalidException(self, f"{slice_type.name} with {access.name} {mda[0]} exists")
@@ -712,19 +724,49 @@ class Table(TableCellsElement):
         set_to_current: bool = True,
         *mda: object,
     ) -> Row | Column | None:
-        slice_index = self._calculate_index(et, False, access, *mda)
-        if slice_index < 0:
-            return None
-        # get the requested slice
-        te = slices.__getitem__(slice_index)
-        if te is None and create_if_sparse:
-            te = Row(self) if et == ElementType.Row else Column(self)
-            te.index = slice_index + 1
-            slices.__setitem__(slice_index, te)
-        return te
+        from . import Row, Column
+
+        with self.lock:
+            slice_index = self._calculate_index(et, False, access, *mda)
+            if slice_index < 0:
+                return None
+            # get the requested slice
+            te = slices.__getitem__(slice_index)  # te can be None here
+            if te is None and bool(create_if_sparse):  # type: ignore[unreachable]
+                te = Row(self) if et == ElementType.Row else Column(self)  # type: ignore[unreachable]
+                te._set_index(slice_index + 1)
+                slices.__setitem__(slice_index, te)  # type: ignore[assignment]
+                te._mark_initialized()
+            if te is not None and bool(set_to_current):
+                te.mark_current()
+            return te
 
     def get_row(self, a1: int | Access | None = None, *args: object) -> Row:
         return self._get_slice_dispatch(ElementType.Row, self._rows, a1, *args)  # type: ignore[return-value]
 
     def get_column(self, a1: int | Access | None = None, *args: object) -> Column:
         return self._get_slice_dispatch(ElementType.Column, self._columns, a1, *args)  # type: ignore[return-value]
+
+    def _ensure_rows_exist(self) -> None:
+        for index in range(0, self.num_rows):
+            if self.__rows[index] is None:
+                self._get_slice(ElementType.Row, self._rows, Access.ByIndex, True, False, index + 1)
+
+    @property
+    def rows(self) -> Iterator[T]:
+        from . import Row
+
+        self._ensure_rows_exist()
+        return _BaseElementIterable[Row](self.__rows)
+
+    def _ensure_columns_exist(self) -> None:
+        for index in range(0, self.num_columns):
+            if self.__cols[index] is None:
+                self._get_slice(ElementType.Column, self._columns, Access.ByIndex, True, False, index)
+
+    @property
+    def columns(self) -> Iterator[T]:
+        from . import Column
+
+        self._ensure_columns_exist()
+        return _BaseElementIterable[Column](self.__cols)
