@@ -1,11 +1,30 @@
 from __future__ import annotations
 
+import sys
+
 from collections.abc import MutableSequence
 from threading import RLock
-from typing import Any, cast, Final, Generic, Optional, TypeVar, overload, Iterable, Iterator
+from typing import Any, cast, Final, Generic, List, Optional, TypeVar, overload, Iterable, Iterator
 
 _DEFAULT_CAPACITY_INCREMENT: Final = 16
 _T = TypeVar("_T")
+
+
+class KeyCompare(Generic[_T]):
+    def __init__(self, source: _T | None) -> None:
+        super().__init__()
+        self._key_source = source
+        if source is None:
+            n = sys.maxsize
+            s = ""
+        else:
+            s = str(source).lower() if source else ""
+            n = source if isinstance(source, int) else source if isinstance(source, float) else sys.maxsize - 1
+        self._key = (n, s)
+
+    @property
+    def key(self) -> Any:
+        return self._key
 
 
 class ArrayList(MutableSequence, Generic[_T]):
@@ -27,14 +46,15 @@ class ArrayList(MutableSequence, Generic[_T]):
         self._capacity_incr = capacity_increment if capacity_increment is not None else _DEFAULT_CAPACITY_INCREMENT
         self._len = 0
         self._iter_idx = 0
+        self._list: List[_T] = []
         if source:
             if isinstance(source, Iterable):
-                self._list: MutableSequence[_T] = cast(MutableSequence[_T], list(source))
+                self._list.extend(source)
                 self._len = len(self._list)
             else:
                 raise NotImplementedError(f"Can not create ArrayList from '{type(source).__name__}'")
         elif isinstance(initial_capacity, int):
-            self._list: MutableSequence[_T] = cast(MutableSequence[_T], [None] * initial_capacity)
+            self._list.extend(cast(List[_T], [None] * initial_capacity))
         self._lock = RLock()
 
     def __repr__(self) -> str:
@@ -53,15 +73,6 @@ class ArrayList(MutableSequence, Generic[_T]):
         else:
             self._iter_idx += 1
             return self._list[self._iter_idx - 1]
-
-    def _get_effective_index(self, index: int, max_value: Optional[int] = None) -> int:
-        if not isinstance(index, int):
-            raise TypeError(f"'{type(index).__name__} object cannot be interpreted as an integer")
-        index = index if index >= 0 else index - self.capacity + self._len
-        if max_value is not None and int(max_value) >= 0:
-            if index > max_value:
-                index = max_value
-        return index
 
     @overload
     def __getitem__(self, index: int) -> _T:
@@ -139,6 +150,42 @@ class ArrayList(MutableSequence, Generic[_T]):
             raise TypeError(f"ArrayList indices must be integers or slices, not {type(index).__name__}")
         self.ensure_capacity(capacity)
 
+    def __eq__(self, o: object) -> bool:
+        if o is None or not isinstance(o, ArrayList):
+            return False
+        return self._list == cast(ArrayList[_T], o)._list
+
+    def __add__(self, other: _T | Iterable[_T]) -> ArrayList[_T]:
+        if isinstance(other, Iterable):
+            self.extend(other)
+        else:
+            self.append(other)
+        return self
+
+    def __iadd__(self, other: _T | Iterable[_T]) -> ArrayList[_T]:
+        return self.__add__(other)
+
+    def __mul__(self, n: int) -> ArrayList[_T]:
+        if self._list:
+            self._list = self._list[0 : self._len] * n
+            self._len = len(self._list)
+            self.ensure_capacity()
+        return self
+
+    __rmul__ = __mul__
+
+    def __copy__(self) -> ArrayList[_T]:
+        return ArrayList[_T](self, self.capacity, self.capacity_increment)
+
+    def _get_effective_index(self, index: int, max_value: Optional[int] = None) -> int:
+        if not isinstance(index, int):
+            raise TypeError(f"'{type(index).__name__} object cannot be interpreted as an integer")
+        index = index if index >= 0 else index - self.capacity + self._len
+        if max_value is not None and int(max_value) >= 0:
+            if index > max_value:
+                index = max_value
+        return index
+
     @property
     def lock(self) -> RLock:
         return self._lock
@@ -157,6 +204,15 @@ class ArrayList(MutableSequence, Generic[_T]):
             raise ValueError("Increment must be >= 0")
         self._capacity_incr = increment
 
+    def append(self, value: _T) -> None:
+        self.ensure_capacity(self._len + 1)
+        self._list.__setitem__(self._len, value)
+        self._len += 1
+
+    def extend(self, values: Iterable[_T]) -> None:
+        for v in values:
+            self.append(v)
+
     def index(self, value: _T, start: int = 0, stop: Optional[int] = None, /) -> int:
         try:
             return self._list.index(value, self._get_effective_index(start), stop if stop else self._len)
@@ -171,10 +227,6 @@ class ArrayList(MutableSequence, Generic[_T]):
         self._list.insert(index, value)
         self._len += 1
         self.trim_to_capacity()
-
-    def extend(self, values: Iterable[_T]) -> None:
-        for v in values:
-            self.append(v)
 
     def clear(self) -> None:
         self._list.clear()
@@ -213,13 +265,15 @@ class ArrayList(MutableSequence, Generic[_T]):
         if self._list:
             self._list[0 : self._len] = self._list[0 : self._len][::-1]
 
-    def append(self, value: _T) -> None:
-        self.ensure_capacity(self._len + 1)
-        self._list.__setitem__(self._len, value)
-        self._len += 1
-
     def count(self, value: Any) -> int:
         return self._list.count(value)
+
+    def copy(self) -> ArrayList[_T]:
+        return self.__class__(self)
+
+    def sort(self, /, *args: Any, **kwargs: Any) -> None:
+        if self._list:
+            self._list[0 : self._len] = sorted(self._list[0 : self._len], *args, **kwargs)
 
     def ensure_capacity(self, capacity: Optional[int] = None) -> None:
         capacity = capacity if capacity else self.capacity_increment

@@ -756,6 +756,7 @@ class Table(TableCellsElement):
     def rows(self) -> Iterator[T]:
         from . import Row
 
+        self.vet_element()
         self._ensure_rows_exist()
         return _BaseElementIterable[Row](self.__rows)
 
@@ -768,5 +769,20 @@ class Table(TableCellsElement):
     def columns(self) -> Iterator[T]:
         from . import Column
 
+        self.vet_element()
         self._ensure_columns_exist()
         return _BaseElementIterable[Column](self.__cols)
+
+    def _sort_row_labels(self) -> None:
+        from . import TableSliceElement
+
+        self._rows.sort(key=lambda row: row.label if row and row.label else "ZZZZ")
+        TableSliceElement._reindex_slice(self._rows)
+
+    def sort(self, elem: Row | Column) -> None:
+        if isinstance(elem, Row):
+            pass
+        elif isinstance(elem, Column):
+            pass
+        else:
+            raise InvalidException(self, f"Invalid sort target: {elem}")

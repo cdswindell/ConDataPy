@@ -9,11 +9,11 @@ class AtomicInteger:
         self._value = int(value)
         self._lock = Lock()
 
-    def inc(self, d: Optional[int] = 1) -> int:
-        d = d if d is not None else 1
+    def inc(self, d: int = 1) -> int:
+        d = int(d) if d is not None else 1
         with self._lock:
             retval = self._value
-            self._value += int(d)
+            self._value += d
             return retval
 
     def dec(self, d: Optional[int] = 1) -> int:

@@ -36,6 +36,14 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
     def slices_type(self) -> ElementType:
         pass
 
+    @staticmethod
+    def _reindex_slice(elems: ArrayList[T]) -> None:
+        index = 1
+        for elem in elems:
+            if elem is not None:
+                elem._set_index(index)
+            index += 1
+
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
         self._set_index(-1)
