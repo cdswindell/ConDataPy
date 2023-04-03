@@ -250,3 +250,158 @@ class TestArrayList(TestBase):
         assert al.capacity == 20
         al.trim_to_capacity()
         assert al.capacity == 10
+
+    def test_iter(self) -> None:
+        al = ArrayList[int](range(0, 5))
+        assert al
+        assert len(al) == 5
+
+        # data structure itself is an iterator; next should directly apply
+        assert next(al) == 0
+        assert next(al) == 1
+        assert next(al) == 2
+        assert next(al) == 3
+        assert next(al) == 4
+        with pytest.raises(StopIteration):
+            assert next(al)
+
+        # test via call to iter
+        ali = iter(al)
+        assert ali
+        assert ali == al  # also tests equality
+        assert next(al) == 0
+        assert next(al) == 1
+        assert next(al) == 2
+        assert next(al) == 3
+        assert next(al) == 4
+        with pytest.raises(StopIteration):
+            assert next(al)
+
+    def test_extend(self) -> None:
+        al = ArrayList[int](range(0, 5))
+        assert al
+        assert len(al) == 5
+
+        al2 = ArrayList[int](range(5, 10))
+        assert al2
+        assert len(al2) == 5
+
+        al.extend(al2)
+        assert len(al) == 10
+        assert al == ArrayList[int](range(0, 10))
+
+        # extend using iterable
+        al2.extend(range(10, 15))
+        assert len(al2) == 10
+        assert al2 == ArrayList[int](range(5, 15))
+
+        # extend using list
+        al = ArrayList[int](range(0, 5))
+        assert al
+        assert len(al) == 5
+        al.extend([5, 6, 7, 8, 9])
+        assert len(al) == 10
+        assert al == ArrayList[int](range(0, 10))
+
+    def test_add(self) -> None:
+        al = ArrayList[int](range(0, 5))
+        assert al
+        assert len(al) == 5
+
+        al2 = ArrayList[int](range(5, 10))
+        assert al2
+        assert len(al2) == 5
+
+        al3 = al + al2
+        assert len(al3) == 10
+        assert al3 == ArrayList[int](range(0, 10))
+        assert al != al3
+        assert al2 != al3
+
+        # add a single item
+        al3 = al + 5
+        assert len(al3) == 6
+        assert al3 == ArrayList[int](range(0, 6))
+        assert al != al3
+
+    def test_iadd(self) -> None:
+        al = ArrayList[int](range(0, 5))
+        assert al
+        assert len(al) == 5
+
+        al2 = ArrayList[int](range(5, 10))
+        assert al2
+        assert len(al2) == 5
+
+        alp = al
+        al += al2
+        assert len(al) == 10
+        assert al == ArrayList[int](range(0, 10))
+        assert alp == al
+        assert len(alp) == 10
+        assert al2 != al
+
+        # add a single item
+        al2 += 5
+        assert len(al2) == 6
+        assert al2 == ArrayList[int]([5, 6, 7, 8, 9, 5])
+        assert al2 != al
+
+    def test_mul_rmul_imul(self) -> None:
+        al = ArrayList[int](range(0, 5))
+        assert al
+        assert len(al) == 5
+
+        al2 = al * 3
+        assert len(al2) == 15
+        assert al2 == ArrayList[int]([0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
+        assert len(al) == 5
+        assert al == ArrayList[int](range(0, 5))
+        assert al != al2
+
+        al2 = al * -3
+        assert len(al2) == 0
+
+        # __rmul__
+        al2 = 3 * al
+        assert len(al2) == 15
+        assert al2 == ArrayList[int]([0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
+        assert len(al) == 5
+        assert al == ArrayList[int](range(0, 5))
+        assert al != al2
+
+        al2 = -3 * al
+        assert len(al2) == 0
+
+        # __imul__
+        al *= 3
+        assert len(al) == 15
+        assert al == ArrayList[int]([0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
+
+        al = ArrayList[int](range(0, 5))
+        al *= -3
+        assert len(al) == 0
+        assert al == ArrayList[int]()
+
+        al = ArrayList[int](range(0, 5))
+        al *= 0
+        assert len(al) == 0
+        assert al == ArrayList[int]()
+
+    def test_copy(self) -> None:
+        from copy import copy
+        al = ArrayList[int](range(0, 5))
+        assert al
+        assert len(al) == 5
+
+        al2 = al.copy()
+        assert al2
+        assert len(al2) == 5
+        assert al2 == al
+        assert id(al2) != id(al)
+
+        al3 = copy(al)
+        assert al3
+        assert len(al3) == 5
+        assert al3 == al2 == al
+        assert id(al3) != id(al)
