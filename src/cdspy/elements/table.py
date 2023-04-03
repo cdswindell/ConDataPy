@@ -23,6 +23,8 @@ from . import TableElement
 from . import TableCellsElement
 from . import TableContext
 
+from ..computation import Token
+
 from .base_element import _BaseElementIterable
 
 from ..computation import recalculate_affected
@@ -117,7 +119,7 @@ class Table(TableCellsElement):
 
         self._cell_offset_row_map: Dict[int, Row] = {}
         self._unused_cell_offsets = deque[int]()
-        self.__next_cell_offset = 0
+        self.__next_cell_offset_index = 0
 
         self._rows_capacity = self._calculate_rows_capacity(num_rows)
         self._columns_capacity = self._calculate_columns_capacity(num_cols)
@@ -199,8 +201,8 @@ class Table(TableCellsElement):
                     return self._unused_cell_offsets.popleft()
                 except IndexError:
                     pass  # this shouldn't happen because of lock
-            self.__next_cell_offset += 1
-            return self.__next_cell_offset - 1
+            self.__next_cell_offset_index += 1
+            return self.__next_cell_offset_index - 1
 
     def _map_cell_offset_to_row(self, row: Row) -> None:
         if row and row._cell_offset >= 0:
@@ -247,10 +249,10 @@ class Table(TableCellsElement):
         if len(self.__cols) == 0:
             self._cell_offset_row_map.clear()
             self._unused_cell_offsets.clear()
-            if self.__next_cell_offset > 0:
+            if self.__next_cell_offset_index > 0:
                 for r in self._rows:
                     r._set_cell_offset(-1)
-            self.__next_cell_offset = 0
+            self.__next_cell_offset_index = 0
 
         if self.free_space_threshold > 0:
             free_cols = self._columns.capacity - len(self._columns)
@@ -265,10 +267,10 @@ class Table(TableCellsElement):
         if len(self.__rows) == 0:
             self._cell_offset_row_map.clear()
             self._unused_cell_offsets.clear()
-            if self.__next_cell_offset > 0:
+            if self.__next_cell_offset_index > 0:
                 for c in self._columns:
                     c._reclaim_cell_space(self._rows, 0)
-            self.__next_cell_offset = 0
+            self.__next_cell_offset_index = 0
 
         if self.free_space_threshold > 0:
             free_rows = self._rows.capacity - len(self._rows)
@@ -283,19 +285,24 @@ class Table(TableCellsElement):
         num_cols = len(self._columns)
         if num_cols > 0:
             for c in self._columns:
-                c._reclaim_cell_space(self._rows, num_rows)
-            if self.__next_cell_offset > 0:
-                self._cell_offset_row_map.clear()
-                cell_offset = 0
-                if num_rows > 0:
-                    for r in self._rows:
-                        if r and r._cell_offset >= 0:
-                            r._set_cell_offset(cell_offset if num_cols else -1)
+                if c is not None:
+                    c._reclaim_cell_space(self._rows, num_rows)
+        if self.__next_cell_offset_index > num_rows:
+            self._cell_offset_row_map.clear()
+            cell_offset = 0
+            offset = -1
+            if num_rows > 0:
+                for r in self._rows:
+                    if r is not None and r._cell_offset >= 0:
+                        if num_cols > 0:
+                            offset = cell_offset
                             cell_offset += 1
-                self._unused_cell_offsets.clear()
-                self.__next_cell_offset = cell_offset
+                        r._set_cell_offset(offset)
+            self._unused_cell_offsets.clear()
+            self.__next_cell_offset_index = cell_offset
 
     def get_cell(self, row: Row, col: Column) -> Cell:
+        self.vet_elements(row, col)
         return self._get_cell(row, col, True)  # type: ignore[return-value]
 
     def is_cell(self, row: Row, col: Column) -> bool:
@@ -324,6 +331,16 @@ class Table(TableCellsElement):
         self.vet_parent(row, col)
         with self.lock:
             return col._get_cell(row, create_if_sparse=create_if_sparse, set_to_current=True)
+
+    def set_cell_value(self, row: Row, col: Column, o: Any) -> None:
+        self.vet_elements(row, col)
+        with self.lock:
+            cell = self._get_cell(row, col, o is not None)
+            if cell is not None:
+                if isinstance(o, Token):
+                    cell.post_result(cast(Token, o))
+                else:
+                    cell.cell_value = o
 
     def _get_cell_affects(self, cell: Cell, include_indirects: Optional[bool] = True) -> Collection[Derivable]:
         return []

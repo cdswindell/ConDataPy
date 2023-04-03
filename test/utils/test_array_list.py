@@ -390,6 +390,7 @@ class TestArrayList(TestBase):
 
     def test_copy(self) -> None:
         from copy import copy
+
         al = ArrayList[int](range(0, 5))
         assert al
         assert len(al) == 5

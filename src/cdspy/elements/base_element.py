@@ -239,6 +239,12 @@ class BaseElement(ABC):
         else:
             be.vet_element()
 
+    @staticmethod
+    def vet_elements(*elems: BaseElement):
+        if elems:
+            for elem in elems:
+                elem.vet_element()
+
     def __vet_text_key(self, key: Optional[str]) -> str:
         # normalize all string keys
         # replace multiple whitespace with a single space

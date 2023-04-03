@@ -154,6 +154,9 @@ class ArrayList(MutableSequence, Generic[_T]):
             return False
         return self._list[0 : self._len] == cast(ArrayList[_T], o)._list[0 : len(o)]
 
+    def __ne__(self, o: object) -> bool:
+        return not self.__eq__(o)
+
     def __add__(self, other: _T | Iterable[_T]) -> ArrayList[_T]:
         if isinstance(other, ArrayList):
             capacity_incr = max(self.capacity_increment, other.capacity_increment)
@@ -267,7 +270,7 @@ class ArrayList(MutableSequence, Generic[_T]):
         return self._list.count(value)
 
     def copy(self) -> ArrayList[_T]:
-        return self.__class__(self)
+        return ArrayList[_T](self)
 
     def sort(self, /, *args: Any, **kwargs: Any) -> None:
         if self._list:
