@@ -130,8 +130,8 @@ class TestTableContext(TestBase):
         tc.row_capacity_incr = 32
         assert tc.get_property(Property.RowCapacityIncr) == 32
 
-        tc.is_auto_recalculate = False
-        assert not tc.get_property(Property.IsAutoRecalculate)
+        tc.is_auto_recalculate_default = False
+        assert not tc.get_property(Property.IsAutoRecalculateDefault)
 
         tc.free_space_threshold = 4.0
         assert tc.get_property(Property.FreeSpaceThreshold) == 4.0
@@ -152,7 +152,7 @@ class TestTableContext(TestBase):
         # and that the modified properties don't match the default
         for p in [
             Property.RowCapacityIncr,
-            Property.IsAutoRecalculate,
+            Property.IsAutoRecalculateDefault,
             Property.FreeSpaceThreshold,
             Property.DisplayFormat,
         ]:
@@ -162,8 +162,8 @@ class TestTableContext(TestBase):
         assert ntc.row_capacity_incr == 32
         assert ntc.row_capacity_incr == tc.row_capacity_incr
 
-        assert not ntc.is_auto_recalculate
-        assert ntc.is_auto_recalculate == tc.is_auto_recalculate
+        assert not ntc.is_auto_recalculate_default
+        assert ntc.is_auto_recalculate_default == tc.is_auto_recalculate_default
 
         assert ntc.free_space_threshold == 4.0
         assert ntc.free_space_threshold == tc.free_space_threshold

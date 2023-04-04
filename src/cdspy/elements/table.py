@@ -209,10 +209,13 @@ class Table(TableCellsElement):
             self._cell_offset_row_map[row._cell_offset] = row
 
     def _row_by_cell_offset(self, offset: int) -> Row:
-        try:
-            return self._cell_offset_row_map[offset]
-        except KeyError:
-            return cast(Row, None)
+        if int(offset) >= 0:
+            with self.lock:
+                try:
+                    return self._cell_offset_row_map[offset]
+                except KeyError:
+                    pass
+        return cast(Row, None)
 
     @property
     def rows_capacity(self) -> int:
@@ -314,7 +317,7 @@ class Table(TableCellsElement):
             if bool(do_format):
                 return cell.formatted_cell_value
             else:
-                return cell.cell_value
+                return cell.value
         else:
             return None
 
@@ -338,9 +341,9 @@ class Table(TableCellsElement):
             cell = self._get_cell(row, col, o is not None)
             if cell is not None:
                 if isinstance(o, Token):
-                    cell.post_result(cast(Token, o))
+                    cell._post_result(o)
                 else:
-                    cell.cell_value = o
+                    cell.value = o
 
     def _get_cell_affects(self, cell: Cell, include_indirects: Optional[bool] = True) -> Collection[Derivable]:
         return []
@@ -364,15 +367,11 @@ class Table(TableCellsElement):
 
     @property
     def is_datatype_enforced(self) -> bool:
-        if self.is_enforce_datatype:
-            return True
-        return self.table_context.is_enforce_datatype if self.table_context else False
+        return self.is_enforce_datatype or self.table_context.is_enforce_datatype if self.table_context else False
 
     @property
     def is_nulls_supported(self) -> bool:
-        if self.is_supports_null:
-            return True
-        return self.table_context.is_supports_null if self.table_context else False
+        return self.is_supports_null and self.table_context.is_supports_null if self.table_context else False
 
     @property
     def num_rows(self) -> int:
@@ -411,6 +410,10 @@ class Table(TableCellsElement):
     @property
     def is_label_indexed(self) -> bool:
         return False
+
+    @property
+    def is_write_protected(self) -> bool:
+        return self.is_read_only or self.table_context.is_read_only if self.table_context else False
 
     @property
     def derived_elements(self) -> Collection[Derivable]:

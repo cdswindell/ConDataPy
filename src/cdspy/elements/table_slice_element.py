@@ -113,6 +113,29 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
         self._mutate_state(BaseElementState.IN_USE_FLAG, value)
 
     @property
+    def is_write_protected(self) -> bool:
+        twp = self.table.is_write_protected if self.table else False
+        return self.is_read_only or twp
+
+    @property
+    def is_nulls_supported(self) -> bool:
+        tsn = self.table.is_nulls_supported if self.table else False
+        return self.is_supports_null and tsn
+
+    @property
+    def is_datatype_enforced(self) -> bool:
+        """
+        Tables, rows, columns, and cells each can specify if data typing is
+        enforced via the is_enforce_datatype property. This property helps to
+        walk the object hierarchy backwards from most-general (table) to least-
+        general TableElement
+
+        :return: True if data typing is enforced for this object
+        """
+        tde = self.table.is_datatype_enforced if self.table else False
+        return self.is_enforce_datatype and tde
+
+    @property
     def _remote_uuids(self) -> Set[UUID]:
         return self.__remote_uuids
 
@@ -126,26 +149,6 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
 
     def _clear_remote_uuids(self) -> None:
         self.__remote_uuids.clear()
-
-    @property
-    def is_datatype_enforced(self) -> bool:
-        """
-        Tables, rows, columns, and cells each can specify if data typing is
-        enforced via the is_enforce_datatype property. This property helps to
-        walk the object hierarchy backwards from most-general (table) to least-
-        general TableElement
-
-        :return: True if data typing is enforced for this object
-        """
-        if self.is_enforce_datatype:
-            return True
-        return self.table.is_datatype_enforced if self.table else False
-
-    @property
-    def is_nulls_supported(self) -> bool:
-        if self.is_supports_null:
-            return True
-        return self.table.is_nulls_supported if self.table else False
 
     @property
     def num_groups(self) -> int:

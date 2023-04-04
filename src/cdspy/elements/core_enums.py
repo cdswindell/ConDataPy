@@ -6,10 +6,47 @@ from __future__ import annotations
 import re
 from typing import Optional, TYPE_CHECKING, Union
 
-from enum import Enum, verify, UNIQUE
+from enum import Enum, Flag, verify, UNIQUE
 
 if TYPE_CHECKING:
     from . import TableElement
+
+
+@verify(UNIQUE)
+class BaseElementState(Flag):
+    NO_FLAGS_SET = 0x0
+    ENFORCE_DATATYPE_FLAG = 0x01
+    READONLY_FLAG = 0x02
+    SUPPORTS_NULL_FLAG = 0x04
+    AUTO_RECALCULATE_FLAG = 0x08
+
+    AUTO_RECALCULATE_DISABLED_FLAG = 0x10
+    PENDING_THREAD_POOL_FLAG = 0x20
+    IN_USE_FLAG = 0x40
+    IS_PENDING_FLAG = 0x80
+
+    ROW_LABELS_INDEXED_FLAG = 0x100
+    COLUMN_LABELS_INDEXED_FLAG = 0x200
+    CELL_LABELS_INDEXED_FLAG = 0x400
+    TABLE_LABELS_INDEXED_FLAG = 0x800
+
+    GROUP_LABELS_INDEXED_FLAG = 0x1000
+    HAS_CELL_VALIDATOR_FLAG = 0x2000
+    IS_DERIVED_CELL_FLAG = 0x4000
+    IS_TABLE_PERSISTENT_FLAG = 0x8000
+
+    EVENTS_NOTIFY_IN_SAME_THREAD_FLAG = 0x100000
+    EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x200000
+    PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x400000
+
+    IS_DEFAULT_FLAG = 0x1000000
+    IS_DIRTY_FLAG = 0x2000000
+    HAS_CELL_ERROR_MSG_FLAG = 0x4000000
+    IS_AWAITING_FLAG = 0x8000000
+
+    IS_INVALID_FLAG = 0x10000000
+    IS_PROCESSED_FLAG = 0x20000000
+    IS_INITIALIZING_FLAG = 0x40000000
 
 
 @verify(UNIQUE)
@@ -68,14 +105,14 @@ class _TablePropertyInfo:
         read_only: bool,
         initializable: bool,
         nickname: Optional[str] = None,
-        state: Optional[bool] = False,
+        state: Optional[BaseElementState] = None,
         *args: ElementType,
     ) -> None:
         self._optional = optional
         self._read_only = read_only
         self._initializable = initializable
         self._nickname = nickname
-        self._state = bool(state)
+        self._state = state
         self._implemented_by = set(args) if args else set(ElementType)
 
     def __str__(self) -> str:
@@ -131,21 +168,51 @@ class Property(Enum):
     FreeSpaceThreshold = _TablePropertyInfo(
         False, False, True, "fst", None, ElementType.TableContext, ElementType.Table
     )
-    IsAutoRecalculate = _TablePropertyInfo(
-        False, False, True, "recalc", None, ElementType.TableContext, ElementType.Table
+    IsAutoRecalculateDefault = _TablePropertyInfo(
+        False,
+        False,
+        True,
+        "recalc",
+        BaseElementState.AUTO_RECALCULATE_FLAG,
+        ElementType.TableContext,
+        ElementType.Table,
     )
-    IsTableLabelsIndexed = _TablePropertyInfo(False, False, True, "isTLBX", None, ElementType.TableContext)
-    IsRowLabelsIndexed = _TablePropertyInfo(
-        False, False, True, "isRLbX", None, ElementType.TableContext, ElementType.Table
+    IsTableLabelsIndexedDefault = _TablePropertyInfo(False, False, True, "isTLBX", None, ElementType.TableContext)
+    IsRowLabelsIndexedDefault = _TablePropertyInfo(
+        False,
+        False,
+        True,
+        "isRLbX",
+        BaseElementState.ROW_LABELS_INDEXED_FLAG,
+        ElementType.TableContext,
+        ElementType.Table,
     )
-    IsColumnLabelsIndexed = _TablePropertyInfo(
-        False, False, True, "isCLbX", None, ElementType.TableContext, ElementType.Table
+    IsColumnLabelsIndexedDefault = _TablePropertyInfo(
+        False,
+        False,
+        True,
+        "isCLbX",
+        BaseElementState.COLUMN_LABELS_INDEXED_FLAG,
+        ElementType.TableContext,
+        ElementType.Table,
     )
-    IsCellLabelsIndexed = _TablePropertyInfo(
-        False, False, True, "isClLbX", None, ElementType.TableContext, ElementType.Table
+    IsCellLabelsIndexedDefault = _TablePropertyInfo(
+        False,
+        False,
+        True,
+        "isClLbX",
+        BaseElementState.CELL_LABELS_INDEXED_FLAG,
+        ElementType.TableContext,
+        ElementType.Table,
     )
-    IsGroupLabelsIndexed = _TablePropertyInfo(
-        False, False, True, "isGLbX", None, ElementType.TableContext, ElementType.Table
+    IsGroupLabelsIndexedDefault = _TablePropertyInfo(
+        False,
+        False,
+        True,
+        "isGLbX",
+        BaseElementState.GROUP_LABELS_INDEXED_FLAG,
+        ElementType.TableContext,
+        ElementType.Table,
     )
     # PendingDerivationThreadPool Properties
     IsPendingAllowCoreThreadTimeout = _TablePropertyInfo(
@@ -172,8 +239,14 @@ class Property(Enum):
     IsPendingThreadPoolEnabled = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
-    AreTablesPersistentDefault = _TablePropertyInfo(
-        False, False, True, "isP", True, ElementType.TableContext, ElementType.Table
+    IsTablesPersistentDefault = _TablePropertyInfo(
+        False,
+        False,
+        True,
+        "isP",
+        BaseElementState.IS_TABLE_PERSISTENT_FLAG,
+        ElementType.TableContext,
+        ElementType.Table,
     )
 
     # Table Element Properties
@@ -182,7 +255,7 @@ class Property(Enum):
         False,
         True,
         "rod",
-        True,
+        BaseElementState.READONLY_FLAG,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -194,7 +267,7 @@ class Property(Enum):
         False,
         True,
         "snd",
-        True,
+        BaseElementState.SUPPORTS_NULL_FLAG,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -206,7 +279,7 @@ class Property(Enum):
         False,
         True,
         "edt",
-        True,
+        BaseElementState.ENFORCE_DATATYPE_FLAG,
         ElementType.TableContext,
         ElementType.Table,
         ElementType.Row,
@@ -366,7 +439,11 @@ class Property(Enum):
 
     @property
     def is_state_default_property(self) -> bool:
-        return bool(self.value._state)
+        return self.value._state is not None
+
+    @property
+    def state(self) -> BaseElementState:
+        return self.value._state  # type: ignore[return-value]
 
     @property
     def is_boolean_property(self) -> bool:

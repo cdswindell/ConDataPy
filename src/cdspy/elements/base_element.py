@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Collection
-from enum import verify, UNIQUE, Flag
+
 from threading import RLock
 from typing import Any, Final, Generic, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, TypeVar, Union
 from uuid import UUID
 
+from . import BaseElementState
 from . import ElementType
 from . import Property
 from ..exceptions import DeletedElementException
@@ -20,43 +21,6 @@ if TYPE_CHECKING:
     from . import TableElement
 
 TABLE_PROPERTIES_KEY: Final = "_props"
-
-
-@verify(UNIQUE)
-class BaseElementState(Flag):
-    NO_FLAGS_SET = 0x0
-    ENFORCE_DATATYPE_FLAG = 0x01
-    READONLY_FLAG = 0x02
-    SUPPORTS_NULL_FLAG = 0x04
-    AUTO_RECALCULATE_FLAG = 0x08
-
-    AUTO_RECALCULATE_DISABLED_FLAG = 0x10
-    PENDING_THREAD_POOL_FLAG = 0x20
-    IN_USE_FLAG = 0x40
-    IS_PENDING_FLAG = 0x80
-
-    ROW_LABELS_INDEXED_FLAG = 0x100
-    COLUMN_LABELS_INDEXED_FLAG = 0x200
-    CELL_LABELS_INDEXED_FLAG = 0x400
-    TABLE_LABELS_INDEXED_FLAG = 0x800
-
-    GROUP_LABELS_INDEXED_FLAG = 0x1000
-    HAS_CELL_VALIDATOR_FLAG = 0x2000
-    IS_DERIVED_CELL_FLAG = 0x4000
-    IS_TABLE_PERSISTENT_FLAG = 0x8000
-
-    EVENTS_NOTIFY_IN_SAME_THREAD_FLAG = 0x100000
-    EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x200000
-    PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x400000
-
-    IS_DEFAULT_FLAG = 0x1000000
-    IS_DIRTY_FLAG = 0x2000000
-    HAS_CELL_ERROR_MSG_FLAG = 0x4000000
-    IS_AWAITING_FLAG = 0x8000000
-
-    IS_INVALID_FLAG = 0x10000000
-    IS_PROCESSED_FLAG = 0x20000000
-    IS_INITIALIZING_FLAG = 0x40000000
 
 
 class BaseElement(ABC):
@@ -186,8 +150,6 @@ class BaseElement(ABC):
                 self._clear_property(p)
             else:
                 self._set_property(p, value)
-            if p.is_state_default_property:
-                self._initialize_state_from_property(p, value)
         else:
             super().__setattr__(name, value)
 
@@ -240,7 +202,7 @@ class BaseElement(ABC):
             be.vet_element()
 
     @staticmethod
-    def vet_elements(*elems: BaseElement):
+    def vet_elements(*elems: BaseElement) -> None:
         if elems:
             for elem in elems:
                 elem.vet_element()
@@ -314,20 +276,8 @@ class BaseElement(ABC):
 
             # if this property is a state default, initialize it now
             if isinstance(key, Property) and key.is_state_default_property:
-                self._initialize_state_from_property(key, value)
+                self._mutate_state(key.state, BaseElement.__normalize_property_value_bool(key, value))
             return retval
-
-    # noinspection PyCompatibility
-    def _initialize_state_from_property(self, p: Property, v: object) -> None:
-        match p:
-            case Property.IsReadOnlyDefault:
-                self.is_read_only = BaseElement.__normalize_property_value_bool(p, v)
-            case Property.IsSupportsNullsDefault:
-                self.is_supports_null = BaseElement.__normalize_property_value_bool(p, v)
-            case Property.IsEnforceDataTypeDefault:
-                self.is_enforce_datatype = BaseElement.__normalize_property_value_bool(p, v)
-            case Property.AreTablesPersistentDefault:
-                self.is_persistent = BaseElement.__normalize_property_value_bool(p, v)
 
     def _clear_property(self, key: Property | str) -> bool:
         with self.lock:

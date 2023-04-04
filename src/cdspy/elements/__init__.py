@@ -7,8 +7,8 @@ from .core_enums import ElementType as ElementType
 from .core_enums import Property as Property
 from .core_enums import EventType as EventType
 from .core_enums import TimeUnit as TimeUnit
+from .core_enums import BaseElementState as BaseElementState
 
-from .base_element import BaseElementState as BaseElementState
 from .base_element import BaseElement as BaseElement
 
 from .table_context import TableContext as TableContext
