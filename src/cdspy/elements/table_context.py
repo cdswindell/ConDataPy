@@ -105,9 +105,6 @@ class TableContext(
     def __len__(self) -> int:
         return self.num_tables
 
-    def __bool__(self) -> bool:
-        return True
-
     @property
     def __all_tables(self) -> Collection[Table]:
         return set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)
@@ -176,6 +173,7 @@ class TableContext(
 
     def clear(self) -> None:
         with self.lock:
+            self._table_label_map.clear()
             while self._registered_persistent_tables:
                 t = self._registered_persistent_tables.pop()
                 if t and t.is_valid:

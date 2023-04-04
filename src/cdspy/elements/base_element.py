@@ -30,7 +30,7 @@ class BaseElement(ABC):
 
     @classmethod
     def vet_base_element(cls, be: Optional[BaseElement]) -> None:
-        if be is not None and be.is_invalid:
+        if be and be.is_invalid:
             raise DeletedElementException(be.element_type)
 
     @staticmethod
@@ -159,6 +159,13 @@ class BaseElement(ABC):
         else:
             label = ": " + self.label if self.label else ""
             return f"[{self.element_type.name}{label}]"
+
+    def __bool__(self) -> bool:
+        """
+        Instances of BaseElement should return True even if their length is 0
+        :return:
+        """
+        return True
 
     def _implements(self, p: Optional[Property]) -> bool:
         """

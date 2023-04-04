@@ -19,6 +19,7 @@ from . import BaseElementState
 from . import BaseElement
 from . import ElementType
 from . import Property
+from . import EventType
 from . import TableElement
 from . import TableCellsElement
 from . import TableContext
@@ -364,6 +365,9 @@ class Table(TableCellsElement):
                     cell._post_result(o)
                 else:
                     cell.value = o
+
+    def _fire_cell_events(self, cell: Cell, evt: EventType, *args: Any) -> None:
+        pass
 
     def _get_cell_affects(self, cell: Cell, include_indirects: Optional[bool] = True) -> Collection[Derivable]:
         return []

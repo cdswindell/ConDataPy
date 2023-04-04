@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, cast, Iterator, Type, TYPE_CHECKING, Collection
+from typing import Any, cast, Iterator, Optional, Type, TYPE_CHECKING, Collection
 
 from threading import RLock
 
 
 from . import TableContext
 from . import ElementType
+from . import Property
+from . import EventType
 from .base_element import _BaseElementIterable
 from . import BaseElementState
 from . import TableElement
@@ -14,6 +16,7 @@ from . import TableElement
 from ..exceptions import ReadOnlyException
 
 from ..computation import Token
+from ..interfaces import TableCellValidator
 
 from ..mixins import Derivable
 
@@ -54,37 +57,35 @@ class Cell(TableElement, Derivable):
     def _delete(self, compress: bool = True) -> None:
         self._invalidate_cell()
 
+    def _apply_transform(self, value: Any) -> Any:
+        validator = self.validator
+        if validator is None and self.column:
+            validator = self.column.cell_validator
+        if validator is None and self.row:
+            validator = self.row.cell_validator
+
+        if validator:
+            value = validator.transform(value)
+        return value
+
+    def _fire_events(self, evt: EventType, *args: Any) -> None:
+        if self.table:
+            self.table._fire_cell_events(self, evt, *args)
+
     def __set_cell_value_internal(self, value: Any, type_safe_check: bool = True, preprocess: bool = False) -> bool:
         self.__decrement_pendings()
         if bool(type_safe_check) and value is not None and self.is_datatype_enforced:
             if self.is_datatype_mismatch(value):
                 raise ValueError(
-                    f"Datatype Mismatch: Expected: '{cast(Type, self._enforced_datatype).__name__}', rejected: '{type(value).__name__}'"
+                    f"Datatype Mismatch: Expected: '{cast(Type, self.enforced_datatype).__name__}', rejected: '{type(value).__name__}'"
                 )
         values_differ = False
         if (value is None and self._value is not None) or (value and value != self._value):
             if bool(preprocess):
-                pass
+                value = self._apply_transform(value)
             self.__setattr__("_value", value)
             values_differ = True
         return values_differ
-
-    @property
-    def _enforced_datatype(self) -> Type | None:
-        if self.column is not None and self.column.datatype:
-            return self.column.datatype
-        if self._value is not None:
-            return type(self._value)
-        return None
-
-    def is_datatype_mismatch(self, value: Any) -> bool:
-        if value is not None:
-            col_type = self.column.datatype if self.column else None
-            if col_type and not isinstance(value, col_type):
-                return True
-            if self.value and not isinstance(value, type(self.value)):
-                return True
-        return False
 
     def _invalidate_cell(self) -> None:
         pass
@@ -105,6 +106,39 @@ class Cell(TableElement, Derivable):
     def lock(self) -> RLock:
         # TODO: Move out of cell class
         return self._lock
+
+    @property
+    def validator(self) -> TableCellValidator | None:
+        with self.lock:
+            if self._is_set(BaseElementState.HAS_CELL_VALIDATOR_FLAG):
+                return cast(TableCellValidator, self.get_property(Property.CellValidator))
+            else:
+                return None
+
+    @validator.setter
+    def validator(self, tcv: Optional[TableCellValidator]) -> None:
+        if tcv:
+            self._set_property(Property.CellValidator, tcv)
+        else:
+            self._clear_property(Property.CellValidator)
+        self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
+
+    @property
+    def enforced_datatype(self) -> Type | None:
+        if self.column and self.column.datatype:
+            return self.column.datatype
+        if self._value is not None:
+            return type(self._value)
+        return None
+
+    def is_datatype_mismatch(self, value: Any) -> bool:
+        if value is not None:
+            col_type = self.column.datatype if self.column else None
+            if col_type and not isinstance(value, col_type):
+                return True
+            if self.value and not isinstance(value, type(self.value)):
+                return True
+        return False
 
     @property
     def value(self) -> Any:
@@ -130,7 +164,10 @@ class Cell(TableElement, Derivable):
             differ = self.__set_cell_value_internal(value, type_safe_check=True, preprocess=True)
 
             if differ:
-                pass
+                if self.table and self.table.is_auto_recalculate_enabled:
+                    # TODO: DerivationImpl.recalculateAffected(this)
+                    pass
+                self._fire_events(EventType.OnNewValue, old_value, self._value)
 
     @property
     def formatted_value(self) -> Any:

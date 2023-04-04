@@ -95,7 +95,7 @@ class Column(TableSliceElement):
                     # invalidate cells
                     if self.__cells:
                         for cell in self.__cells:
-                            if cell is not None:
+                            if cell:
                                 cell._invalidate_cell()
 
                     # remove the column from the cols array and move all others up
@@ -104,7 +104,7 @@ class Column(TableSliceElement):
                     # and reindex remaining columns
                     if index < self.table.num_columns:
                         for c in self.table._columns[index:]:
-                            if c is not None:
+                            if c:
                                 c._set_index(c.index - 1)
 
                     # clear element from current cell stack
@@ -206,7 +206,7 @@ class Column(TableSliceElement):
                         self._cells.ensure_capacity(cell_offset + 1)
                         c = self._create_new_cell(row)
                         self.__cells[cell_offset] = c
-        if c is not None:
+        if c:
             if bool(set_to_current):
                 self.mark_current()
                 row.mark_current()
@@ -243,7 +243,7 @@ class Column(TableSliceElement):
         Returns the number of non-null cells in the column
         :return:
         """
-        return sum(1 for c in self._cells if c is not None) if self._cells else 0
+        return sum(1 for c in self._cells if c) if self._cells else 0
 
     def mark_current(self) -> Column | None:
         self.vet_element()

@@ -9,11 +9,14 @@ from ..utils import JustInTimeSet
 
 from . import BaseElementState
 from . import ElementType
+from . import Property
 from . import TableElement
 from . import TableCellsElement
 from . import Group
 
 from ..mixins import Derivable
+
+from ..interfaces import TableCellValidator
 
 from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
@@ -97,6 +100,22 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
 
     def _clear_timeseries(self) -> None:
         pass
+
+    @property
+    def cell_validator(self) -> TableCellValidator | None:
+        with self.lock:
+            if self._is_set(BaseElementState.HAS_CELL_VALIDATOR_FLAG):
+                return cast(TableCellValidator, self.get_property(Property.CellValidator))
+            else:
+                return None
+
+    @cell_validator.setter
+    def cell_validator(self, tcv: Optional[TableCellValidator]) -> None:
+        if tcv:
+            self._set_property(Property.CellValidator, tcv)
+        else:
+            self._clear_property(Property.CellValidator)
+        self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
 
     @property
     def index(self) -> int:

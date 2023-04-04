@@ -335,6 +335,9 @@ class Property(Enum):
         ElementType.Column,
         ElementType.Cell,
     )
+    CellValidator = _TablePropertyInfo(
+        True, False, False, "cv", None, ElementType.Row, ElementType.Column, ElementType.Cell
+    )
 
     @classmethod
     def _missing_(cls, name: object) -> Property:

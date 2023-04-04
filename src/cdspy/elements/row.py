@@ -93,7 +93,7 @@ class Row(TableSliceElement):
                     # reindex the rows after the one removed
                     if index < self.table.num_rows:
                         for r in self.table._rows[index:]:
-                            if r is not None:
+                            if r:
                                 r._set_index(r.index - 1)
 
                     # cache the cell offset so that it can be reused
@@ -163,7 +163,7 @@ class Row(TableSliceElement):
         if self.table._columns:
             for col in self.table._columns:
                 if col and self._cell_offset < col._num_cells:
-                    if col._get_cell(self, False, False) is not None:
+                    if col._get_cell(self, False, False):
                         num_cells += 1
         return num_cells
 
