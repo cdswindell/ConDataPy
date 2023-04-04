@@ -133,7 +133,7 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
         :return: True if data typing is enforced for this object
         """
         tde = self.table.is_datatype_enforced if self.table else False
-        return self.is_enforce_datatype and tde
+        return self.is_enforce_datatype or tde
 
     @property
     def _remote_uuids(self) -> Set[UUID]:

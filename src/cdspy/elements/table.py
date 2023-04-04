@@ -218,6 +218,26 @@ class Table(TableCellsElement):
         return cast(Row, None)
 
     @property
+    def is_column_labels_indexed(self) -> bool:
+        return self._is_set(BaseElementState.COLUMN_LABELS_INDEXED_FLAG)
+
+    @property
+    def is_row_labels_indexed(self) -> bool:
+        return self._is_set(BaseElementState.ROW_LABELS_INDEXED_FLAG)
+
+    @property
+    def is_cell_labels_indexed(self) -> bool:
+        return self._is_set(BaseElementState.CELL_LABELS_INDEXED_FLAG)
+
+    @property
+    def is_group_labels_indexed(self) -> bool:
+        return self._is_set(BaseElementState.GROUP_LABELS_INDEXED_FLAG)
+
+    @property
+    def is_label_indexed(self) -> bool:
+        return bool(self.table_context.is_table_labels_indexed) if self.table else False
+
+    @property
     def rows_capacity(self) -> int:
         return self._rows_capacity
 
@@ -365,6 +385,17 @@ class Table(TableCellsElement):
     def element_type(self) -> ElementType:
         return ElementType.Table
 
+    @BaseElement.label.setter  # type: ignore[attr-defined]
+    def label(self, value: Optional[str]) -> None:
+        old_label = self.label
+        try:
+            self._set_property(Property.Label, value)
+            if self.table_context:
+                self.table_context._index_table_label(self)
+        except KeyError as e:
+            self._set_property(Property.Label, old_label)
+            raise e
+
     @property
     def is_datatype_enforced(self) -> bool:
         return self.is_enforce_datatype or self.table_context.is_enforce_datatype if self.table_context else False
@@ -408,10 +439,6 @@ class Table(TableCellsElement):
         self.fill(None)
 
     @property
-    def is_label_indexed(self) -> bool:
-        return False
-
-    @property
     def is_write_protected(self) -> bool:
         return self.is_read_only or self.table_context.is_read_only if self.table_context else False
 
@@ -420,7 +447,7 @@ class Table(TableCellsElement):
         return []
 
     # override to
-    @BaseElement.is_persistent.setter  # type: ignore
+    @BaseElement.is_persistent.setter  # type: ignore[attr-defined]
     def is_persistent(self, state: bool) -> None:
         with self.lock:
             self._mutate_state(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)  # type: ignore

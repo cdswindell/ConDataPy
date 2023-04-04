@@ -4,7 +4,7 @@ ElementType enum defines all components available in the cdsPy
 from __future__ import annotations
 
 import re
-from typing import Optional, TYPE_CHECKING, Union
+from typing import Optional, TYPE_CHECKING, Tuple, Union
 
 from enum import Enum, Flag, verify, UNIQUE
 
@@ -121,6 +121,7 @@ class _TablePropertyInfo:
         return f"[{optional}{ro}]"
 
 
+# noinspection PyPropertyDefinition
 @verify(UNIQUE)
 class Property(Enum):
     """
@@ -215,12 +216,12 @@ class Property(Enum):
         ElementType.Table,
     )
     # PendingDerivationThreadPool Properties
-    IsPendingAllowCoreThreadTimeout = _TablePropertyInfo(
+    IsPendingAllowCoreThreadTimeoutDefault = _TablePropertyInfo(
         True,
         False,
         True,
         None,
-        None,
+        BaseElementState.PENDINGS_ALLOW_CORE_THREAD_TIMEOUT_FLAG,
         ElementType.TableContext,
         ElementType.Table,
     )
@@ -365,9 +366,29 @@ class Property(Enum):
     @classmethod
     def by_attr_name(cls, name: str) -> Optional[Property]:
         try:
-            return Property.by_name("".join(name.title().split("_")))
+            return cls.by_name("".join(name.title().split("_")))
         except ValueError:
             return None
+
+    @classmethod  # type: ignore[misc]
+    @property
+    def read_only(cls) -> Tuple[Property, ...]:
+        return tuple(sorted([p for p in cls if p.is_read_only_property]))
+
+    @classmethod  # type: ignore[misc]
+    @property
+    def initializable(cls) -> Tuple[Property, ...]:
+        return tuple(sorted([p for p in cls if p.is_initializable_property]))
+
+    @classmethod  # type: ignore[misc]
+    @property
+    def optional(cls) -> Tuple[Property, ...]:
+        return tuple(sorted([p for p in cls if p.is_optional_property]))
+
+    @classmethod  # type: ignore[misc]
+    @property
+    def state_default(cls) -> Tuple[Property, ...]:
+        return tuple(sorted([p for p in cls if p.is_state_default_property]))
 
     @staticmethod
     def by_nickname(short_name: Optional[str] = None) -> Optional[Property]:

@@ -168,7 +168,7 @@ class Column(TableSliceElement):
 
     @datatype.setter
     def datatype(self, datatype: type | None) -> None:
-        self._datatype = type
+        self._datatype = datatype
 
     def get_cell(self, row: Row) -> Cell | None:
         return self._get_cell(row, set_to_current=True, create_if_sparse=True)

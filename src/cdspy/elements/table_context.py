@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Collection
 from threading import RLock
 from typing import Any, cast, Dict, Final, Iterator, Optional, Set, TYPE_CHECKING
-from weakref import WeakSet
+from weakref import WeakSet, WeakValueDictionary
 
 from . import BaseElementState
 from . import BaseElement
@@ -25,7 +25,6 @@ from ..mixins import EventsProcessorThreadPoolCreator
 from ..utils import singleton
 
 if TYPE_CHECKING:
-    from . import T
     from . import Tag
     from . import Table
 
@@ -48,7 +47,7 @@ _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.IsGroupLabelsIndexedDefault: False,
     Property.IsTablesPersistentDefault: False,
     Property.IsPendingThreadPoolEnabled: True,
-    Property.IsPendingAllowCoreThreadTimeout: True,
+    Property.IsPendingAllowCoreThreadTimeoutDefault: True,
     Property.NumPendingCorePoolThreads: 8,
     Property.NumPendingMaxPoolThreads: 128,
     Property.PendingThreadKeepAliveTimeout: 5,
@@ -70,6 +69,13 @@ class TableContext(
     EventProcessorThreadPool,
     EventsProcessorThreadPoolCreator,
 ):
+    @staticmethod
+    def _make_table_label_key(label: str) -> str | None:
+        if label:
+            return " ".join(label.strip().lower().split())
+        else:
+            return None
+
     def __init__(self, template: Optional[TableContext] = None) -> None:
         super().__init__()
         self._lock = RLock()
@@ -86,9 +92,14 @@ class TableContext(
 
         if not template:
             self.label = "Default Table Context"
+
+        # table label map
+        self._table_label_map: WeakValueDictionary[str, Table] = WeakValueDictionary()
         self._mark_initialized()
 
-    def __iter__(self) -> Iterator[T]:
+    def __iter__(self) -> Iterator[Table]:
+        from . import Table
+
         return _BaseElementIterable[Table](self.tables)
 
     def __len__(self) -> int:
@@ -100,6 +111,36 @@ class TableContext(
     @property
     def __all_tables(self) -> Collection[Table]:
         return set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)
+
+    @property
+    def is_table_labels_indexed(self) -> bool:
+        return self._is_set(BaseElementState.TABLE_LABELS_INDEXED_FLAG)
+
+    @is_table_labels_indexed.setter
+    def is_table_labels_indexed(self, state: bool) -> None:
+        with self.lock:
+            if bool(state):
+                self._index_all_table_labels()
+            else:
+                self._table_label_map.clear()
+            self._mutate_state(BaseElementState.TABLE_LABELS_INDEXED_FLAG, state)
+
+    def _index_all_table_labels(self) -> None:
+        for t in self:
+            try:
+                self._index_table_label(t, True)
+            except KeyError as e:
+                self.is_table_labels_indexed = False
+                raise e
+
+    def _index_table_label(self, t: Table, force_it: bool = False) -> None:
+        key = TableContext._make_table_label_key(t.label)
+        if key and (self.is_table_labels_indexed or force_it):
+            with self.lock:
+                if key in self._table_label_map and self._table_label_map[key] != t:
+                    raise KeyError(f"TableContext: Table label '{key}' not unique")
+                else:
+                    self._table_label_map[key] = t
 
     @property
     def tables(self) -> Collection[Table]:
@@ -147,6 +188,13 @@ class TableContext(
                     t._delete()
                     del t
 
+    def _purge_labeled_table(self, t: Table) -> None:
+        if t is not None:
+            key = TableContext._make_table_label_key(t.label)
+            with self.lock:
+                if key and key in self._table_label_map:
+                    self._table_label_map.pop(key)
+
     def _register(self, t: Table) -> Optional[TableContext]:
         if t:
             with self.lock:
@@ -156,11 +204,13 @@ class TableContext(
                 else:
                     self._registered_persistent_tables.discard(t)
                     self._registered_nonpersistent_tables.add(t)
+                self._index_table_label(t)
         return self
 
     def _deregister(self, t: Table) -> None:
         if t:
             with self.lock:
+                self._purge_labeled_table(t)
                 self._registered_nonpersistent_tables.discard(t)
                 self._registered_persistent_tables.discard(t)
 
@@ -201,22 +251,28 @@ class TableContext(
                 return tag
         return None
 
-    def get_table(self, mode: Access, *args: object) -> Optional[BaseElement]:
+    def get_table(self, mode: Access, *args: object) -> Table | None:
         from . import Table
 
         if mode.has_associated_property:
             if args:
-                return BaseElement._find(self.tables, mode.associated_property, args[0])
+                if self.is_table_labels_indexed and (mode.associated_property == Property.Label):
+                    key = TableContext._make_table_label_key(str(args[0]))
+                    if key and key in self._table_label_map:
+                        return self._table_label_map[key]
+                    else:
+                        return None
+                return BaseElement._find(self.tables, mode.associated_property, args[0])  # type: ignore[return-value]
             raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
         elif mode == Access.ByTags:
             if args and str in {type(t) for t in args}:
-                return BaseElement._find_tagged(self.tables, *[v for v in args if v and isinstance(v, str)])
+                return BaseElement._find_tagged(self.tables, *[v for v in args if v and isinstance(v, str)])  # type: ignore[return-value]
             raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
         elif mode == Access.ByProperty:
-            key = cast(Property, args[0]) if args and len(args) > 0 else None
+            pkey = cast(Property, args[0] if args and len(args) > 0 else None)
             value = args[1] if args and len(args) > 1 else None
-            if key:
-                return BaseElement._find(self.tables, key, value)
+            if pkey:
+                return BaseElement._find(self.tables, pkey, value)  # type: ignore[return-value]
             raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {value}")
         elif mode == Access.ByReference:
             if args:
