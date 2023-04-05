@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection
 
 from threading import RLock
-from typing import Any, Final, Generic, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, TypeVar, Union
+from typing import Any, Generic, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, Tuple, TypeVar, Union
 from uuid import UUID
 
 from . import BaseElementState
@@ -20,10 +20,9 @@ from ..exceptions import UnsupportedException
 if TYPE_CHECKING:
     from . import TableElement
 
-TABLE_PROPERTIES_KEY: Final = "_props"
-
 
 class BaseElement(ABC):
+    __slots__: Tuple[str, ...] = ("_state", "_props")
     """
     BaseElement is the base class for all CDS elements, including Rows, Columns, Cells, and Tables
     """
@@ -123,6 +122,7 @@ class BaseElement(ABC):
         Constructs a base element, initializing the flags property to IS_INITIALIZING_FLAG
         """
         self._state = BaseElementState.IS_INITIALIZING_FLAG
+        self._props: Dict | None = None
 
     def __getattribute__(self, name: str) -> Any:
         """
@@ -248,17 +248,15 @@ class BaseElement(ABC):
 
     def _reset_element_properties(self) -> None:
         with self.lock:
-            t_props: Dict = vars(self).pop(TABLE_PROPERTIES_KEY, None)
-            if t_props:
-                t_props.clear()
+            if self._props:
+                self._props.clear()
+                self._props = None
 
     def _element_properties(self, create_if_empty: bool = False) -> Optional[Dict]:
         with self.lock:
-            t_props: Dict = vars(self).get(TABLE_PROPERTIES_KEY, None)
-            if t_props is None and create_if_empty:  # type: ignore
-                t_props = dict()  # type: ignore
-                setattr(self, TABLE_PROPERTIES_KEY, t_props)
-            return t_props
+            if self._props is None and create_if_empty:  # type: ignore
+                self._props = dict()  # type: ignore
+            return self._props
 
     def _set_property(self, key: Property | str, value: Any) -> Any:
         with self.lock:

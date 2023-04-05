@@ -4,7 +4,7 @@ from collections import deque
 import threading
 import weakref
 
-from typing import Any, cast, Dict, Iterator, Optional, overload, Collection, TYPE_CHECKING, Tuple
+from typing import Any, cast, Dict, Iterator, List, Optional, overload, Collection, TYPE_CHECKING, Tuple
 
 import uuid
 
@@ -29,6 +29,8 @@ from ..computation import Token
 from .base_element import _BaseElementIterable
 
 from ..computation import recalculate_affected
+
+from ..interfaces import TableEventListener
 
 from ..mixins import Derivable
 
@@ -130,6 +132,8 @@ class Table(TableCellsElement):
         self._cell_label_index: Dict[str, Cell] = {}
         self._Group_label_index: Dict[str, Group] = {}
 
+        self._cell_element_properties: Dict[Cell, Dict] = {}
+
         self.__table_creation_thread = weakref.ref(threading.current_thread())
 
         # finally, register table with context
@@ -185,6 +189,23 @@ class Table(TableCellsElement):
                 if self.table_context:
                     self.table_context._deregister(self)
                     self._context = cast(TableContext, None)
+
+    def _get_cell_element_properties(self, cell: Cell, create_if_empty: bool = False) -> Optional[Dict]:
+        if cell:
+            with cell.lock:
+                cell_props = self._cell_element_properties.get(cell, None)
+                if bool(create_if_empty) and cell_props is None:
+                    cell_props = dict()
+                    self._cell_element_properties[cell] = cell_props
+                return cell_props
+        return None
+
+    def _reset_cell_element_properties(self, cell: Cell) -> None:
+        if cell:
+            self._cell_element_properties.pop(cell, None)
+
+    def _remove_all_cell_listeners(self, cell: Cell, *events: EventType) -> List[TableEventListener]:
+        return []
 
     def _cache_cell_offset(self, offset: int) -> None:
         if offset >= 0:

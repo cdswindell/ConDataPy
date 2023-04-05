@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, cast, Iterator, Optional, Type, TYPE_CHECKING, Collection
+from typing import Any, cast, Dict, Iterator, List, Optional, Type, TYPE_CHECKING, Collection
 
 from threading import RLock
-
 
 from . import TableContext
 from . import ElementType
@@ -17,6 +16,7 @@ from ..exceptions import ReadOnlyException
 
 from ..computation import Token
 from ..interfaces import TableCellValidator
+from ..interfaces import TableEventListener
 
 from ..mixins import Derivable
 
@@ -28,13 +28,12 @@ if TYPE_CHECKING:
 
 
 class Cell(TableElement, Derivable):
-    __slots__ = (
+    __slots__ = [
         "_offset",
         "_value",
         "_col",
         "_lock",
-        "_state",
-    )
+    ]
 
     # TODO: make class smaller
     def __init__(self, col: Column, cell_offset: int) -> None:
@@ -42,7 +41,7 @@ class Cell(TableElement, Derivable):
         self._col = col
         self._offset = cell_offset if cell_offset is not None else -1
         self._value = None
-        self._lock = RLock()  # TODO: move to table
+        self._lock = RLock()
         # initialize special properties
         row = self.table._row_by_cell_offset(self._offset) if self.table else None
         self.is_read_only = (col.is_write_protected if col else False) or (row.is_write_protected if row else False)
@@ -55,7 +54,21 @@ class Cell(TableElement, Derivable):
         return _BaseElementIterable[Cell](tuple(self))
 
     def _delete(self, compress: bool = True) -> None:
-        self._invalidate_cell()
+        self.__set_cell_value_internal(None, False, False)
+        self._reset_element_properties()
+
+    def _reset_element_properties(self) -> None:
+        if self.table:
+            self.table._reset_cell_element_properties(self)
+
+    def _element_properties(self, create_if_empty: bool = False) -> Optional[Dict]:
+        """
+        Overridden in Cell class, as Property array is maintained in parent table
+        to minimize space consumed by table cells
+        :param create_if_empty:
+        :return:
+        """
+        return self.table._get_cell_element_properties(self, create_if_empty) if self.table else None
 
     def _apply_transform(self, value: Any) -> Any:
         validator = self.validator
@@ -72,13 +85,18 @@ class Cell(TableElement, Derivable):
         if self.table:
             self.table._fire_cell_events(self, evt, *args)
 
+    def remove_all_listeners(self, *events: EventType) -> List[TableEventListener]:
+        if self.table:
+            return self.table._remove_all_cell_listeners(self, *events)
+        else:
+            return []
+
     def __set_cell_value_internal(self, value: Any, type_safe_check: bool = True, preprocess: bool = False) -> bool:
         self.__decrement_pendings()
         if bool(type_safe_check) and value is not None and self.is_datatype_enforced:
             if self.is_datatype_mismatch(value):
-                raise ValueError(
-                    f"Datatype Mismatch: Expected: '{cast(Type, self.enforced_datatype).__name__}', rejected: '{type(value).__name__}'"
-                )
+                datatype = cast(Type, self.enforced_datatype).__name__
+                raise ValueError(f"Datatype Mismatch: Expected: '{datatype}', rejected: '{type(value).__name__}'")
         values_differ = False
         if (value is None and self._value is not None) or (value and value != self._value):
             if bool(preprocess):
@@ -88,7 +106,17 @@ class Cell(TableElement, Derivable):
         return values_differ
 
     def _invalidate_cell(self) -> None:
-        pass
+        self.label = None  # if cells are indexed, we need to remove from map
+        self.clear_derivation()
+
+        # remove all listeners
+        self.remove_all_listeners()
+
+        self.__decrement_pendings()
+        self._value = None
+        self._col = None  # type: ignore[assignment]
+        self._offset = -1
+        self._invalidate()
 
     def _register_affects(self, d: Derivable) -> None:
         self.vet_element()
@@ -183,6 +211,21 @@ class Cell(TableElement, Derivable):
         return self.value is None
 
     @property
+    def is_pending(self) -> bool:
+        return self._is_set(BaseElementState.IS_PENDING_FLAG)
+
+    def __set_pending(self, pending: bool) -> None:
+        self._mutate_state(BaseElementState.IS_PENDING_FLAG, pending)
+
+    @property
+    def is_pendings(self) -> bool:
+        return self.is_pending
+
+    @property
+    def is_awaiting(self) -> bool:
+        return self._is_set(BaseElementState.IS_AWAITING_FLAG)
+
+    @property
     def is_write_protected(self) -> bool:
         cwp = self.column.is_write_protected if self.column else False
         rwp = self.row.is_write_protected if self.row else False
@@ -243,17 +286,6 @@ class Cell(TableElement, Derivable):
     @property
     def is_derived(self) -> bool:
         return self._is_set(BaseElementState.IS_DERIVED_CELL_FLAG)
-
-    @property
-    def is_pending(self) -> bool:
-        return self.is_pendings
-
-    @property
-    def is_pendings(self) -> bool:
-        return self._is_set(BaseElementState.IS_PENDING_FLAG)
-
-    def __set_pendings(self, pending: bool) -> None:
-        self._mutate_state(BaseElementState.IS_PENDING_FLAG, pending)
 
     @property
     def is_label_indexed(self) -> bool:

@@ -287,10 +287,6 @@ class Property(Enum):
         ElementType.Column,
         ElementType.Cell,
     )
-    NumRowsCapacity = _TablePropertyInfo(False, True, False, None, None, ElementType.Table)
-    NumColumnsCapacity = _TablePropertyInfo(False, True, False, None, None, ElementType.Table)
-    NumCellsCapacity = _TablePropertyInfo(False, True, False, None, None, ElementType.Column)
-    NextCellOffset = _TablePropertyInfo(False, True, False, None, None, ElementType.Table)
     Derivation = _TablePropertyInfo(
         False,
         False,
@@ -485,7 +481,6 @@ class Property(Enum):
         return self in {
             Property.Precision,
             Property.CellOffset,
-            Property.NextCellOffset,
             Property.RowCapacityIncr,
             Property.ColumnCapacityIncr,
             Property.FreeSpaceThreshold,

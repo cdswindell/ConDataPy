@@ -74,8 +74,12 @@ src/cdspy/exceptions/__pycache__/unimplemented_exception.cpython-311.pyc
 src/cdspy/exceptions/__pycache__/unsupported_exception.cpython-311.pyc
 src/cdspy/interfaces/__init__.py
 src/cdspy/interfaces/table_cell_validator.py
+src/cdspy/interfaces/table_element_event.py
+src/cdspy/interfaces/table_event_listener.py
 src/cdspy/interfaces/__pycache__/__init__.cpython-311.pyc
 src/cdspy/interfaces/__pycache__/table_cell_validator.cpython-311.pyc
+src/cdspy/interfaces/__pycache__/table_element_event.cpython-311.pyc
+src/cdspy/interfaces/__pycache__/table_event_listener.cpython-311.pyc
 src/cdspy/mixins/__init__.py
 src/cdspy/mixins/derivable.py
 src/cdspy/mixins/event_processor.py

@@ -9,7 +9,6 @@ from cdspy.elements import ElementType
 from cdspy.elements import BaseElementState
 from cdspy.elements import Property
 
-from cdspy.elements.base_element import TABLE_PROPERTIES_KEY
 from cdspy.elements.base_element import BaseElement
 
 from cdspy.exceptions import InvalidPropertyException
@@ -47,7 +46,7 @@ def test_base_element_initial_state() -> None:
     assert tc._state == BaseElementState.IS_INITIALIZING_FLAG
     assert tc.is_initializing
     assert not tc.is_initialized
-    assert vars(tc).get(TABLE_PROPERTIES_KEY) is None
+    assert tc._props is None
     assert tc._element_properties() is None
 
     # retest, but mark element as initialized

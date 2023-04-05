@@ -5,7 +5,7 @@ from ..exceptions import InvalidParentException
 
 from abc import ABC, abstractmethod
 from collections.abc import Collection
-from typing import cast, Optional, TYPE_CHECKING
+from typing import cast, Optional, Tuple, TYPE_CHECKING
 
 from . import Property
 from . import BaseElement
@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
 
 class TableElement(BaseElement, ABC):
+    __slots__: Tuple[()] = ()
+
     @property
     @abstractmethod
     def table(self) -> Table:
