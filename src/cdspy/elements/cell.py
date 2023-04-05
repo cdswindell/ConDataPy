@@ -15,8 +15,8 @@ from . import TableElement
 from ..exceptions import ReadOnlyException
 
 from ..computation import Token
-from ..interfaces import TableCellValidator
-from ..interfaces import TableEventListener
+from ..templates import TableCellValidator
+from ..templates import TableEventListener
 
 from ..mixins import Derivable
 
@@ -84,6 +84,32 @@ class Cell(TableElement, Derivable):
     def _fire_events(self, evt: EventType, *args: Any) -> None:
         if self.table:
             self.table._fire_cell_events(self, evt, *args)
+
+    @property
+    def listeners(self) -> List[TableEventListener]:
+        if self.table:
+            return self.table._get_cell_listeners(self)
+        else:
+            return []
+
+    def add_listeners(self, et: EventType, *listeners: TableEventListener) -> bool:
+        if self.table:
+            self.table._add_cell_listeners(self, et, *listeners)
+        else:
+            return False
+
+    def remove_listeners(self, et: EventType, *listeners: TableEventListener) -> bool:
+        if self.table:
+            self.table._remove_cell_listeners(self, et, *listeners)
+        else:
+            return False
+
+    @property
+    def has_listeners(self) -> bool:
+        if self.table:
+            return self.table._has_cell_listeners(self)
+        else:
+            return False
 
     def remove_all_listeners(self, *events: EventType) -> List[TableEventListener]:
         if self.table:

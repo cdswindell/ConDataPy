@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import cast, Optional, Set, TypeVar, Generic
+from typing import cast, List, Optional, Set, TypeVar, Generic
 from uuid import UUID
 
 from ..utils import ArrayList
@@ -16,7 +16,7 @@ from . import Group
 
 from ..mixins import Derivable
 
-from ..interfaces import TableCellValidator
+from ..templates import TableCellValidator
 
 from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
@@ -25,6 +25,8 @@ T = TypeVar("T", bound="TableSliceElement")
 
 
 class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
+    __slots__: List[str] = ["_index", "__remote_uuids", "_groups"]
+
     @abstractmethod
     def mark_current(self) -> T | None:
         pass

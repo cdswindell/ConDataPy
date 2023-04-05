@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from collections.abc import Collection
 from threading import RLock
-from typing import cast, Final, Optional, TYPE_CHECKING
+from typing import cast, Final, List, Optional, TYPE_CHECKING
 import uuid
 from weakref import ref
 
@@ -25,6 +25,8 @@ if TYPE_CHECKING:
 
 
 class TableCellsElement(TableElement, ABC):
+    __slots__: List[str] = ["_lock", "_pendings", "_table_ref", "_affects"]
+
     _ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1000)
 
     def __init__(self, te: Optional[TableElement] = None) -> None:

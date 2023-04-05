@@ -30,7 +30,7 @@ from .base_element import _BaseElementIterable
 
 from ..computation import recalculate_affected
 
-from ..interfaces import TableEventListener
+from ..templates import TableEventListener
 
 from ..mixins import Derivable
 
@@ -203,6 +203,18 @@ class Table(TableCellsElement):
     def _reset_cell_element_properties(self, cell: Cell) -> None:
         if cell:
             self._cell_element_properties.pop(cell, None)
+
+    def _get_cell_listeners(self, cell: Cell) -> List[TableEventListener]:
+        return []
+
+    def _has_cell_listeners(self, cell: Cell) -> bool:
+        return False
+
+    def _add_cell_listeners(self, cell: Cell, et: EventType, *listeners: TableEventListener) -> bool:
+        return False
+
+    def _remove_cell_listeners(self, cell: Cell, et: EventType, *listeners: TableEventListener) -> bool:
+        return False
 
     def _remove_all_cell_listeners(self, cell: Cell, *events: EventType) -> List[TableEventListener]:
         return []
