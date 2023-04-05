@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, cast, Dict, Iterator, List, Optional, Type, TYPE_CHECKING, Collection
+from typing import Any, cast, Collection, Dict, Iterator, List
+from typing import Optional, Set, Type, TYPE_CHECKING
 
 from threading import RLock
 
@@ -18,6 +19,8 @@ from ..computation import Token
 from ..templates import TableCellValidator
 from ..templates import TableEventListener
 
+from ..events import BlockedRequestException
+
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
@@ -25,6 +28,7 @@ if TYPE_CHECKING:
     from . import Table
     from . import Row
     from . import Column
+    from . import Group
 
 
 class Cell(TableElement, Derivable):
@@ -50,12 +54,71 @@ class Cell(TableElement, Derivable):
         )
         self._mark_initialized()
 
+    def __del__(self) -> None:
+        print(f"Deleting {self.element_type.name}...")
+        if self.is_valid:
+            self._delete()
+            print(f"Deleted {self.element_type.name} (via __del__)...")
+
     def __iter__(self) -> Iterator[T]:
         return _BaseElementIterable[Cell](tuple(self))
 
+    def __str__(self) -> str:
+        return str(self.formatted_value)
+
     def _delete(self, compress: bool = True) -> None:
-        self.__set_cell_value_internal(None, False, False)
-        self._reset_element_properties()
+        self._invalidate_cell()
+
+    def _invalidate_cell(self) -> None:
+        self.label = None  # if cells are indexed, we need to remove from map
+        self.clear_derivation()
+
+        # remove all listeners
+        self.remove_all_listeners()
+
+        # clear derivations on elements dependent on this cell
+        affects = self.table._get_cell_affects(self, False) if self.table else []
+        for affected in affects:
+            affected.clear_derivation()
+
+        # remove cell from any groups
+        for g in self._get_groups():
+            if g and g.is_valid:
+                g.remove(self)
+
+        self.__decrement_pendings()
+
+        # set column cell slot to None
+        if self._col and self._offset >= 0 and self._col._cells[self._offset] == self:
+            # noinspection PyTypeChecker
+            self._col._cells[self._offset] = cast(Cell, None)
+
+        # reset the cell state
+        self._value = None
+        self._col = None  # type: ignore[assignment]
+        self._offset = -1
+
+        # and invalidate, marking it as deleted
+        self._invalidate()
+
+    def recalculate(self) -> None:
+        self.vet_element()
+        derivation = self.table._get_cell_derivation(self) if self.table else None
+        if derivation:
+            derivation.recalculate_target()
+            self._fire_events(EventType.OnRecalculate)
+
+    def _register_affects(self, d: Derivable) -> None:
+        self.vet_element()
+        # To minimize memory, effects are maintained in parent table
+        if self.table:
+            self.table._register_cell_affects(self, d)
+
+    def _deregister_affects(self, d: Derivable) -> None:
+        self.vet_element()
+        # To minimize memory, effects are maintained in parent table
+        if self.table:
+            self.table._deregister_cell_affects(self, d)
 
     def _reset_element_properties(self) -> None:
         if self.table:
@@ -94,13 +157,13 @@ class Cell(TableElement, Derivable):
 
     def add_listeners(self, et: EventType, *listeners: TableEventListener) -> bool:
         if self.table:
-            self.table._add_cell_listeners(self, et, *listeners)
+            return self.table._add_cell_listeners(self, et, *listeners)
         else:
             return False
 
     def remove_listeners(self, et: EventType, *listeners: TableEventListener) -> bool:
         if self.table:
-            self.table._remove_cell_listeners(self, et, *listeners)
+            return self.table._remove_cell_listeners(self, et, *listeners)
         else:
             return False
 
@@ -127,34 +190,19 @@ class Cell(TableElement, Derivable):
         if (value is None and self._value is not None) or (value and value != self._value):
             if bool(preprocess):
                 value = self._apply_transform(value)
+            try:
+                self._fire_events(EventType.OnBeforeNewValue, self._value, value)
+            except BlockedRequestException:
+                return False
             self.__setattr__("_value", value)
             values_differ = True
         return values_differ
 
-    def _invalidate_cell(self) -> None:
-        self.label = None  # if cells are indexed, we need to remove from map
-        self.clear_derivation()
-
-        # remove all listeners
-        self.remove_all_listeners()
-
-        self.__decrement_pendings()
-        self._value = None
-        self._col = None  # type: ignore[assignment]
-        self._offset = -1
-        self._invalidate()
-
-    def _register_affects(self, d: Derivable) -> None:
-        self.vet_element()
-        # To minimize memory, effects are maintained in parent table
+    def _get_groups(self) -> Set[Group]:
         if self.table:
-            self.table._register_cell_affects(self, d)
-
-    def _deregister_affects(self, d: Derivable) -> None:
-        self.vet_element()
-        # To minimize memory, effects are maintained in parent table
-        if self.table:
-            self.table._deregister_cell_affects(self, d)
+            return self.table._get_cell_groups(self)
+        else:
+            return set()
 
     @property
     def lock(self) -> RLock:
@@ -218,15 +266,46 @@ class Cell(TableElement, Derivable):
             differ = self.__set_cell_value_internal(value, type_safe_check=True, preprocess=True)
 
             if differ:
-                if self.table and self.table.is_auto_recalculate_enabled:
+                if self.table and self.table.is_automatic_recalculate_enabled:
                     # TODO: DerivationImpl.recalculateAffected(this)
                     pass
                 self._fire_events(EventType.OnNewValue, old_value, self._value)
 
     @property
-    def formatted_value(self) -> Any:
-        # TODO: apply format
-        return self._value
+    def _display_format_str(self) -> str | None:
+        for e in [self, self.column, self.row, self.table]:
+            if e and e.display_format:
+                return e.display_format
+        return None
+
+    @property
+    def _units_str(self) -> str | None:
+        for e in [self, self.column, self.row, self.table]:
+            if e and e.units:
+                return e.units
+        return None
+
+    @property
+    def is_formatted(self) -> bool:
+        return bool(self._display_format_str)
+
+    # noinspection PyBroadException
+    @property
+    def formatted_value(self) -> str | None:
+        if self.is_pending:
+            return "Pending..."
+        if self.is_awaiting:
+            return "Awaiting..."
+        if self._value is None:
+            return None
+        # try the format string
+        try:
+            return self._display_format_str.format(self._value, units=self._units_str)  # type: ignore[union-attr]
+        except Exception:
+            pass
+        if isinstance(self._value, bool):
+            return "Yes" if bool(self._value) else "No"
+        return str(self._value)
 
     @property
     def element_type(self) -> ElementType:
@@ -265,12 +344,9 @@ class Cell(TableElement, Derivable):
 
     @property
     def is_datatype_enforced(self) -> bool:
-        if self.table and self.table.is_datatype_enforced:
-            return True
-        if self.column and self.column.is_datatype_enforced:
-            return True
-        if self.row and self.row.is_datatype_enforced:
-            return True
+        for e in [self.table, self.column, self.row]:
+            if e and e.is_datatype_enforced:
+                return True
         return self.is_enforce_datatype
 
     @property
@@ -304,6 +380,7 @@ class Cell(TableElement, Derivable):
 
     def delete(self) -> None:
         self.__set_cell_value_internal(None, type_safe_check=False, preprocess=True)
+        self._reset_element_properties()
 
     @property
     def num_groups(self) -> int:
@@ -318,11 +395,16 @@ class Cell(TableElement, Derivable):
         return self.table.are_cell_labels_indexed if self.table else False
 
     def __decrement_pendings(self) -> None:
-        # TODO: implement
-        pass
+        if self.is_pendings:
+            self.__set_pending(False)
+            if self.table:
+                self.table._decrement_pendings()
+            if self.column:
+                self.column._decrement_pendings()
+            if self.row:
+                self.row._decrement_pendings()
 
     def _post_result(self, t: Token) -> bool:
-        # TODO: implement
         return False
 
     @property

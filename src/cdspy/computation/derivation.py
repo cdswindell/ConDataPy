@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Final, Optional
+from typing import Final, Optional, List
 
 from ..elements import TableElement
 
@@ -8,7 +8,7 @@ from ..utils.atomic_integer import AtomicInteger
 
 
 class _DerivationContext:
-    __slots__ = ["_cached_any", "_is_recalculate_affected", "_pendings"]
+    __slots__: List[str] = ["_cached_any", "_is_recalculate_affected", "_pendings"]
 
     def __init__(self) -> None:
         self._cached_any = False
@@ -34,7 +34,7 @@ class _DerivationContext:
 class Derivation:
     _ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1000)
 
-    __slots__ = ["_ident"]
+    __slots__: List[str] = ["_ident"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -43,6 +43,9 @@ class Derivation:
     @property
     def ident(self) -> int:
         return self._ident
+
+    def recalculate_target(self) -> None:
+        pass
 
 
 def recalculate_affected(te: TableElement, dc: Optional[_DerivationContext] = None) -> None:

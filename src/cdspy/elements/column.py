@@ -96,7 +96,7 @@ class Column(TableSliceElement):
                     if self.__cells:
                         for cell in self.__cells:
                             if cell:
-                                cell._invalidate_cell()
+                                cell._delete()
 
                     # remove the column from the cols array and move all others up
                     self.table._columns.__delitem__(index)

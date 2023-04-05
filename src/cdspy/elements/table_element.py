@@ -88,6 +88,22 @@ class TableElement(BaseElement, ABC):
         self._delete(True)
 
     @property
+    def display_format(self) -> str | None:
+        return cast(str, self.get_property(Property.DisplayFormat))
+
+    @display_format.setter
+    def display_format(self, display_format: Optional[str]) -> None:
+        self._set_property(Property.DisplayFormat, display_format)
+
+    @property
+    def units(self) -> str | None:
+        return cast(str, self.get_property(Property.Units))
+
+    @units.setter
+    def units(self, units: Optional[str]) -> None:
+        self._set_property(Property.Units, units)
+
+    @property
     def _tags(self) -> set[Tag]:
         """
         Protected method to retrieve Tags collection from element properties
@@ -156,6 +172,9 @@ class TableElement(BaseElement, ABC):
                     # return True if query_tags is a proper subset of current tags
                     return bool(query_tags) and cur_tags >= query_tags
         return False
+
+    # define a simpler alias
+    is_tagged = has_all_tags
 
     def has_any_tags(self, *tags: str) -> bool:
         from . import Tag

@@ -4,7 +4,8 @@ from collections import deque
 import threading
 import weakref
 
-from typing import Any, cast, Dict, Iterator, List, Optional, overload, Collection, TYPE_CHECKING, Tuple
+from typing import Any, cast, Dict, Iterator, List, Optional
+from typing import overload, Collection, Set, TYPE_CHECKING, Tuple
 
 import uuid
 
@@ -29,6 +30,7 @@ from ..computation import Token
 from .base_element import _BaseElementIterable
 
 from ..computation import recalculate_affected
+from ..computation import Derivation
 
 from ..templates import TableEventListener
 
@@ -132,7 +134,10 @@ class Table(TableCellsElement):
         self._cell_label_index: Dict[str, Cell] = {}
         self._Group_label_index: Dict[str, Group] = {}
 
-        self._cell_element_properties: Dict[Cell, Dict] = {}
+        self._cell_properties: Dict[Cell, Dict] = {}
+        self._cell_groups: Dict[Cell, Set[Group]] = {}
+        self._cell_affects: Dict[Cell, Set[Derivable]] = {}
+        self._cell_derivations: Dict[Cell, Derivation] = {}
 
         self.__table_creation_thread = weakref.ref(threading.current_thread())
 
@@ -193,16 +198,16 @@ class Table(TableCellsElement):
     def _get_cell_element_properties(self, cell: Cell, create_if_empty: bool = False) -> Optional[Dict]:
         if cell:
             with cell.lock:
-                cell_props = self._cell_element_properties.get(cell, None)
+                cell_props = self._cell_properties.get(cell, None)
                 if bool(create_if_empty) and cell_props is None:
                     cell_props = dict()
-                    self._cell_element_properties[cell] = cell_props
+                    self._cell_properties[cell] = cell_props
                 return cell_props
         return None
 
     def _reset_cell_element_properties(self, cell: Cell) -> None:
         if cell:
-            self._cell_element_properties.pop(cell, None)
+            self._cell_properties.pop(cell, None)
 
     def _get_cell_listeners(self, cell: Cell) -> List[TableEventListener]:
         return []
@@ -218,6 +223,56 @@ class Table(TableCellsElement):
 
     def _remove_all_cell_listeners(self, cell: Cell, *events: EventType) -> List[TableEventListener]:
         return []
+
+    def _get_cell_groups(self, cell: Cell) -> Set[Group]:
+        return self._cell_groups.get(cell, set())
+
+    def _get_cell_affects(self, cell: Cell, include_indirects: bool = True) -> List[Derivable]:
+        affected = self._cell_affects.get(cell, set())
+        num_affects = len(affected)
+        affects: Set[Derivable] = set()
+        if num_affects > 0:
+            affects.update(affected)
+
+        if bool(include_indirects):
+            if cell.column:
+                affects.update(cell.column.affects)
+            if cell.row:
+                affects.update(cell.row.affects)
+
+        # remove cell to avoid cycles
+        affects.discard(cell)
+        return list(affects)
+
+    def _get_cell_derivation(self, cell: Cell) -> Derivation:
+        return self._cell_derivations.get(cell, cast(Derivation, None))
+
+    def _register_cell_derivation(self, cell: Cell, d: Derivation) -> Derivation:
+        if cell and d:
+            with cell.lock:
+                cell._set(BaseElementState.IS_DERIVED_CELL_FLAG)
+                old_d = self._cell_derivations.get(cell, None)
+                self._cell_derivations[cell] = d
+                return cast(Derivation, old_d)
+        return cast(Derivation, None)
+
+    @property
+    def is_automatic_recalculate_enabled(self) -> bool:
+        return self.is_automatic_recalculation and not self._is_set(BaseElementState.AUTO_RECALCULATE_DISABLED_FLAG)
+
+    @property
+    def is_automatic_recalculation(self) -> bool:
+        return self._is_set(BaseElementState.AUTO_RECALCULATE_FLAG)
+
+    @is_automatic_recalculation.setter
+    def is_automatic_recalculation(self, state: bool) -> None:
+        self._mutate_state(BaseElementState.AUTO_RECALCULATE_FLAG, state)
+
+    def enable_automatic_recalculation(self) -> None:
+        self._reset(BaseElementState.AUTO_RECALCULATE_DISABLED_FLAG)
+
+    def disable_automatic_recalculation(self) -> None:
+        self._set(BaseElementState.AUTO_RECALCULATE_DISABLED_FLAG)
 
     def _cache_cell_offset(self, offset: int) -> None:
         if offset >= 0:
@@ -401,9 +456,6 @@ class Table(TableCellsElement):
 
     def _fire_cell_events(self, cell: Cell, evt: EventType, *args: Any) -> None:
         pass
-
-    def _get_cell_affects(self, cell: Cell, include_indirects: Optional[bool] = True) -> Collection[Derivable]:
-        return []
 
     @property
     def _num_cells(self) -> int:
