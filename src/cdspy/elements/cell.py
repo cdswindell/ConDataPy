@@ -207,12 +207,19 @@ class Cell(TableElement, Derivable):
     @property
     def error_code(self) -> ErrorCode:
         self.vet_element()
-        if self._value == NaN or math.isnan(self._value):
+        if self._value == NaN:
             return ErrorCode.NaN
-        elif self._value == Inf or self._value == NInf or math.isinf(self._value):
+        elif self._value == Inf or self._value == NInf:
             return ErrorCode.Infinity
-        elif self._value is not None and isinstance(self._value, ErrorCode):
-            return self._value
+        elif self._value is not None:
+            if isinstance(self._value, ErrorCode):
+                return self._value
+            elif isinstance(self._value, float):
+                fvalue = float(self._value)
+                if math.isinf(fvalue):
+                    return ErrorCode.Infinity
+                elif math.isnan(fvalue):
+                    return ErrorCode.NaN
         return ErrorCode.NoError
 
     @property
