@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Final, cast, Collection, Dict, Iterator, List
-from typing import Optional, Set, Type, TYPE_CHECKING
+from typing import Any, Final, cast, Collection, Dict, Iterator, List, Callable
+from typing import Optional, Type, TYPE_CHECKING
 from threading import RLock
 import uuid
 
@@ -16,8 +16,8 @@ from . import TableElement
 
 from ..exceptions import ReadOnlyException
 
-from ..computation import Token, Derivation, ErrorCode
-from ..templates import TableCellValidator
+from ..computation import Token, Derivation, ErrorCode, ErrorResult
+from ..templates import TableCellValidator, LambdaTransformer, TableCellTransformer
 from ..templates import TableEventListener
 
 from ..events import BlockedRequestException
@@ -53,11 +53,10 @@ class Cell(TableElement, Derivable):
         self._value = None
         self._lock = RLock()
         # initialize special properties
-        row = self.table._row_by_cell_offset(self._offset) if self.table else None
-        self.is_read_only = (col.is_write_protected if col else False) or (row.is_write_protected if row else False)
-        self.is_supports_null = (col.is_nulls_supported if col else False) and (
-            row.is_nulls_supported if row else False
-        )
+        for p in self.element_type.initializable_properties():
+            if p in [Property.Units, Property.DisplayFormat]:
+                continue
+            self._initialize_property(p, self.table.get_property(p))
         self._mark_initialized()
 
     def __del__(self) -> None:
@@ -71,6 +70,10 @@ class Cell(TableElement, Derivable):
 
     def __str__(self) -> str:
         return str(self.formatted_value)
+
+    @property
+    def element_type(self) -> ElementType:
+        return ElementType.Cell
 
     def _delete(self, compress: bool = True) -> None:
         self._invalidate_cell()
@@ -100,7 +103,7 @@ class Cell(TableElement, Derivable):
             self._col._cells[self._offset] = cast(Cell, None)
 
         # reset the cell state
-        self._value = None
+        self._value: Any = None
         self._col = None  # type: ignore[assignment]
         self._offset = -1
 
@@ -211,20 +214,23 @@ class Cell(TableElement, Derivable):
             return ErrorCode.NaN
         elif self._value == Inf or self._value == NInf:
             return ErrorCode.Infinity
-        elif self._value is not None:
-            if isinstance(self._value, ErrorCode):
-                return self._value
-            elif isinstance(self._value, float):
-                fvalue = float(self._value)
-                if math.isinf(fvalue):
-                    return ErrorCode.Infinity
-                elif math.isnan(fvalue):
-                    return ErrorCode.NaN
+        elif isinstance(self._value, ErrorCode):
+            return self._value  # type: ignore[unreachable]
+        elif isinstance(self._value, ErrorResult):
+            return self._value.error_code  # type: ignore[unreachable]
+        elif isinstance(self._value, float):
+            fvalue = float(self._value)  # type: ignore[unreachable]
+            if math.isinf(fvalue):
+                return ErrorCode.Infinity
+            elif math.isnan(fvalue):
+                return ErrorCode.NaN
         return ErrorCode.NoError
 
     @property
     def error_message(self) -> str | None:
-        if self._is_set(BaseElementState.HAS_CELL_ERROR_MSG_FLAG):
+        if isinstance(self._value, ErrorResult):
+            return self._value.error_message  # type: ignore[unreachable]
+        elif self._is_set(BaseElementState.HAS_CELL_ERROR_MSG_FLAG):
             return cast(str, self.get_property(Property.ErrorMessage))
         else:
             return None
@@ -251,7 +257,7 @@ class Cell(TableElement, Derivable):
         if self.column and self.column.datatype:
             return self.column.datatype
         if self._value is not None:
-            return type(self._value)
+            return type(self._value)  # type: ignore[unreachable]
         return None
 
     @property
@@ -286,8 +292,8 @@ class Cell(TableElement, Derivable):
         if self._value is None:
             return None
         # try the format string
-        try:
-            return self._display_format_str.format(self._value, units=self._units_str)  # type: ignore[union-attr]
+        try:  # type: ignore[unreachable]
+            return self._display_format_str.format(self._value, self._units_str)  # type: ignore[union-attr]
         except Exception:
             pass
         if isinstance(self._value, bool):
@@ -304,11 +310,23 @@ class Cell(TableElement, Derivable):
 
     @validator.setter
     def validator(self, tcv: Optional[TableCellValidator]) -> None:
-        if tcv:
+        if isinstance(tcv, TableCellValidator):
             self._set_property(Property.CellValidator, tcv)
+        elif tcv is not None:
+            raise ValueError(f"Validator must be a TableCellValidator or None, not '{type(tcv).__name__}'")
         else:
             self._clear_property(Property.CellValidator)
         self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
+
+    @property
+    def transformer(self) -> TableCellTransformer | None:
+        return cast(TableCellTransformer, self.validator)
+
+    @transformer.setter
+    def transformer(self, tcv: Optional[TableCellTransformer | Callable]) -> None:
+        if callable(tcv):
+            tcv = LambdaTransformer.build(tcv)
+        self.validator = tcv
 
     def _apply_transform(self, value: Any) -> Any:
         if self.validator:
@@ -348,12 +366,6 @@ class Cell(TableElement, Derivable):
     def _datatype(self) -> Type | None:
         return type(self._value) if self._value is not None else None
 
-    def _get_groups(self) -> Set[Group]:
-        if self.table:
-            return self.table._get_cell_groups(self)
-        else:
-            return set()
-
     @property
     def value(self) -> Any:
         return self._value
@@ -382,10 +394,6 @@ class Cell(TableElement, Derivable):
                     # TODO: DerivationImpl.recalculateAffected(this)
                     pass
                 self._fire_events(EventType.OnNewValue, old_value, self._value)
-
-    @property
-    def element_type(self) -> ElementType:
-        return ElementType.Cell
 
     @property
     def uuid(self) -> uuid.UUID:
@@ -481,7 +489,21 @@ class Cell(TableElement, Derivable):
 
     @property
     def num_groups(self) -> int:
-        return 0
+        return len(self.table._get_cell_groups(self)) if self.table else 0
+
+    @property
+    def groups(self) -> Collection[Group]:
+        return tuple(self.table._get_cell_groups(self)) if self.table else ()
+
+    def _register_to_group(self, g: Group) -> bool:
+        if self.table:
+            self.table._register_group_cell(self, g)
+        return False
+
+    def _deregister_from_group(self, g: Group) -> bool:
+        if self.table:
+            self.table._deregister_group_cell(self, g)
+        return False
 
     @property
     def is_derived(self) -> bool:

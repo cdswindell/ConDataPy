@@ -173,6 +173,7 @@ class Group(TableCellsElement):
                         # TODO: Add Row and Column and Back Pointer
                     elif isinstance(elem, Cell):
                         added_any = True if elem not in self.__cells else added_any
+                        elem._register_to_group(self)
                         self.__cells.add(elem)
                         # TODO: add back pointer
         if added_any:
@@ -205,6 +206,7 @@ class Group(TableCellsElement):
                 self.__groups.discard(te)
             elif isinstance(te, Cell):
                 self.__cells.discard(te)
+                te._remove_from_group(self)
 
     @property
     def derived_elements(self) -> Collection[Derivable]:

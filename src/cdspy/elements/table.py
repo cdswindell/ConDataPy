@@ -224,6 +224,26 @@ class Table(TableCellsElement):
     def _remove_all_cell_listeners(self, cell: Cell, *events: EventType) -> List[TableEventListener]:
         return []
 
+    def _register_group_cell(self, cell: Cell, group: Group) -> bool:
+        groups = self._cell_groups.get(cell, None)
+        if groups is None:
+            groups = set()
+            self._cell_groups[cell] = groups
+        preexists = group in groups
+        groups.add(group)
+        return preexists
+
+    def _deregister_group_cell(self, cell: Cell, group: Group) -> bool:
+        groups = self._cell_groups.get(cell, None)
+        if groups is None:
+            return False
+        else:
+            existed = group in groups
+            groups.discard(group)
+            if len(groups) == 0:
+                del self._cell_groups[cell]
+            return existed
+
     def _get_cell_groups(self, cell: Cell) -> Set[Group]:
         return self._cell_groups.get(cell, set())
 

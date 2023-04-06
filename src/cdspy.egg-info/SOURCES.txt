@@ -10,11 +10,11 @@ src/cdspy.egg-info/top_level.txt
 src/cdspy/__pycache__/__init__.cpython-311.pyc
 src/cdspy/computation/__init__.py
 src/cdspy/computation/derivation.py
-src/cdspy/computation/error_code.py
+src/cdspy/computation/error_result.py
 src/cdspy/computation/token.py
 src/cdspy/computation/__pycache__/__init__.cpython-311.pyc
 src/cdspy/computation/__pycache__/derivation.cpython-311.pyc
-src/cdspy/computation/__pycache__/error_code.cpython-311.pyc
+src/cdspy/computation/__pycache__/error_result.cpython-311.pyc
 src/cdspy/computation/__pycache__/token.cpython-311.pyc
 src/cdspy/elements/__init__.py
 src/cdspy/elements/base_element.py
