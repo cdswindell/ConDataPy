@@ -10,9 +10,11 @@ src/cdspy.egg-info/top_level.txt
 src/cdspy/__pycache__/__init__.cpython-311.pyc
 src/cdspy/computation/__init__.py
 src/cdspy/computation/derivation.py
+src/cdspy/computation/error_code.py
 src/cdspy/computation/token.py
 src/cdspy/computation/__pycache__/__init__.cpython-311.pyc
 src/cdspy/computation/__pycache__/derivation.cpython-311.pyc
+src/cdspy/computation/__pycache__/error_code.cpython-311.pyc
 src/cdspy/computation/__pycache__/token.cpython-311.pyc
 src/cdspy/elements/__init__.py
 src/cdspy/elements/base_element.py
@@ -81,10 +83,12 @@ src/cdspy/mixins/__pycache__/derivable.cpython-311.pyc
 src/cdspy/mixins/__pycache__/event_processor.cpython-311.pyc
 src/cdspy/mixins/__pycache__/taggable.cpython-311.pyc
 src/cdspy/templates/__init__.py
+src/cdspy/templates/table_cell_transformer.py
 src/cdspy/templates/table_cell_validator.py
 src/cdspy/templates/table_element_event.py
 src/cdspy/templates/table_event_listener.py
 src/cdspy/templates/__pycache__/__init__.cpython-311.pyc
+src/cdspy/templates/__pycache__/table_cell_transformer.cpython-311.pyc
 src/cdspy/templates/__pycache__/table_cell_validator.cpython-311.pyc
 src/cdspy/templates/__pycache__/table_element_event.cpython-311.pyc
 src/cdspy/templates/__pycache__/table_event_listener.cpython-311.pyc

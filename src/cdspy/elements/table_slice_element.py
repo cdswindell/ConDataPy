@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import cast, List, Optional, Set, TypeVar, Generic
 from uuid import UUID
 
+from ..computation import Derivation
 from ..utils import ArrayList
 from ..utils import JustInTimeSet
 
@@ -189,3 +190,7 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
 
     def clear_time_series(self) -> None:
         pass
+
+    @property
+    def derivation(self) -> Derivation | None:
+        return None

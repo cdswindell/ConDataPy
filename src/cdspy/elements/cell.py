@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, cast, Collection, Dict, Iterator, List
+import math
+from typing import Any, Final, cast, Collection, Dict, Iterator, List
 from typing import Optional, Set, Type, TYPE_CHECKING
-
 from threading import RLock
+import uuid
 
 from . import TableContext
 from . import ElementType
@@ -15,13 +16,18 @@ from . import TableElement
 
 from ..exceptions import ReadOnlyException
 
-from ..computation import Token
+from ..computation import Token, Derivation, ErrorCode
 from ..templates import TableCellValidator
 from ..templates import TableEventListener
 
 from ..events import BlockedRequestException
 
 from ..mixins import Derivable
+
+NaN: Final = float("NaN")
+Inf: Final = float("inf")
+NInf: Final = float("-inf")
+
 
 if TYPE_CHECKING:
     from . import T
@@ -133,17 +139,6 @@ class Cell(TableElement, Derivable):
         """
         return self.table._get_cell_element_properties(self, create_if_empty) if self.table else None
 
-    def _apply_transform(self, value: Any) -> Any:
-        validator = self.validator
-        if validator is None and self.column:
-            validator = self.column.cell_validator
-        if validator is None and self.row:
-            validator = self.row.cell_validator
-
-        if validator:
-            value = validator.transform(value)
-        return value
-
     def _fire_events(self, evt: EventType, *args: Any) -> None:
         if self.table:
             self.table._fire_cell_events(self, evt, *args)
@@ -180,58 +175,60 @@ class Cell(TableElement, Derivable):
         else:
             return []
 
+    def _set_cell_value_no_datatype_check(self, value: Any) -> bool:
+        return self.__set_cell_value_internal(value, False, False)
+
     def __set_cell_value_internal(self, value: Any, type_safe_check: bool = True, preprocess: bool = False) -> bool:
-        self.__decrement_pendings()
-        if bool(type_safe_check) and value is not None and self.is_datatype_enforced:
-            if self.is_datatype_mismatch(value):
-                datatype = cast(Type, self.enforced_datatype).__name__
-                raise ValueError(f"Datatype Mismatch: Expected: '{datatype}', rejected: '{type(value).__name__}'")
-        values_differ = False
-        if (value is None and self._value is not None) or (value and value != self._value):
-            if bool(preprocess):
-                value = self._apply_transform(value)
-            try:
-                self._fire_events(EventType.OnBeforeNewValue, self._value, value)
-            except BlockedRequestException:
-                return False
-            self.__setattr__("_value", value)
-            values_differ = True
-        return values_differ
-
-    def _get_groups(self) -> Set[Group]:
-        if self.table:
-            return self.table._get_cell_groups(self)
-        else:
-            return set()
-
-    @property
-    def lock(self) -> RLock:
-        # TODO: Move out of cell class
-        return self._lock
-
-    @property
-    def validator(self) -> TableCellValidator | None:
         with self.lock:
-            if self._is_set(BaseElementState.HAS_CELL_VALIDATOR_FLAG):
-                return cast(TableCellValidator, self.get_property(Property.CellValidator))
-            else:
-                return None
-
-    @validator.setter
-    def validator(self, tcv: Optional[TableCellValidator]) -> None:
-        if tcv:
-            self._set_property(Property.CellValidator, tcv)
-        else:
-            self._clear_property(Property.CellValidator)
-        self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
+            if self.is_value_error:
+                self._set_error_message(None)
+            self.__decrement_pendings()
+            if bool(type_safe_check) and value is not None and self.is_datatype_enforced:
+                if self.is_datatype_mismatch(value):
+                    datatype = cast(Type, self.enforced_datatype).__name__
+                    raise ValueError(f"Datatype Mismatch: Expected: '{datatype}', rejected: '{type(value).__name__}'")
+            values_differ = False
+            if (value is None and self._value is not None) or (value and value != self._value):
+                if bool(preprocess):
+                    value = self._apply_transform(value)
+                try:
+                    self._fire_events(EventType.OnBeforeNewValue, self._value, value)
+                except BlockedRequestException:
+                    return False
+                self._value = value
+                values_differ = True
+            return values_differ
 
     @property
-    def enforced_datatype(self) -> Type | None:
-        if self.column and self.column.datatype:
-            return self.column.datatype
-        if self._value is not None:
-            return type(self._value)
-        return None
+    def is_value_error(self) -> bool:
+        self.vet_element()
+        return self.error_code != ErrorCode.NoError
+
+    @property
+    def error_code(self) -> ErrorCode:
+        self.vet_element()
+        if self._value == NaN or math.isnan(self._value):
+            return ErrorCode.NaN
+        elif self._value == Inf or self._value == NInf or math.isinf(self._value):
+            return ErrorCode.Infinity
+        elif self._value is not None and isinstance(self._value, ErrorCode):
+            return self._value
+        return ErrorCode.NoError
+
+    @property
+    def error_message(self) -> str | None:
+        if self._is_set(BaseElementState.HAS_CELL_ERROR_MSG_FLAG):
+            return cast(str, self.get_property(Property.ErrorMessage))
+        else:
+            return None
+
+    def _set_error_message(self, emsg: Optional[str]) -> None:
+        if emsg:
+            self._set(BaseElementState.HAS_CELL_ERROR_MSG_FLAG)
+            self._set_property(Property.ErrorMessage, emsg.strip())
+        else:
+            self._reset(BaseElementState.HAS_CELL_ERROR_MSG_FLAG)
+            self._clear_property(Property.ErrorMessage)
 
     def is_datatype_mismatch(self, value: Any) -> bool:
         if value is not None:
@@ -243,33 +240,16 @@ class Cell(TableElement, Derivable):
         return False
 
     @property
-    def value(self) -> Any:
-        return self._value
+    def enforced_datatype(self) -> Type | None:
+        if self.column and self.column.datatype:
+            return self.column.datatype
+        if self._value is not None:
+            return type(self._value)
+        return None
 
-    @value.setter
-    def value(self, value: Any) -> None:
-        from . import Property
-
-        self.vet_element()
-        if value is not None and isinstance(value, Token):
-            self._post_result(value)
-        else:
-            if self.is_write_protected:
-                raise ReadOnlyException(self, Property.CellValue)
-            if value is None and not self.is_nulls_supported:
-                raise ValueError("Cell value can not be set to None")
-
-            self.clear_derivation()
-            self._reset(BaseElementState.IS_AWAITING_FLAG)
-
-            old_value = self._value
-            differ = self.__set_cell_value_internal(value, type_safe_check=True, preprocess=True)
-
-            if differ:
-                if self.table and self.table.is_automatic_recalculate_enabled:
-                    # TODO: DerivationImpl.recalculateAffected(this)
-                    pass
-                self._fire_events(EventType.OnNewValue, old_value, self._value)
+    @property
+    def is_label_indexed(self) -> bool:
+        return self.table.are_cell_labels_indexed if self.table else False
 
     @property
     def _display_format_str(self) -> str | None:
@@ -308,8 +288,137 @@ class Cell(TableElement, Derivable):
         return str(self._value)
 
     @property
+    def validator(self) -> TableCellValidator | None:
+        with self.lock:
+            if self._is_set(BaseElementState.HAS_CELL_VALIDATOR_FLAG):
+                return cast(TableCellValidator, self.get_property(Property.CellValidator))
+            else:
+                return None
+
+    @validator.setter
+    def validator(self, tcv: Optional[TableCellValidator]) -> None:
+        if tcv:
+            self._set_property(Property.CellValidator, tcv)
+        else:
+            self._clear_property(Property.CellValidator)
+        self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
+
+    def _apply_transform(self, value: Any) -> Any:
+        if self.validator:
+            return self.validator.transform(value)
+        for e in [self.column, self.row]:
+            if e and e.cell_validator is not None:
+                return e.cell_validator.transform(value)
+        return value
+
+    @property
+    def table(self) -> Table:
+        return self._col.table if self._col else None  # type: ignore[return-value]
+
+    @property
+    def table_context(self) -> TableContext:
+        self.vet_element()
+        return self.table.table_context if self.table else None  # type: ignore[return-value]
+
+    @property
+    def column(self) -> Column:
+        self.vet_element()
+        return self._col
+
+    @property
+    def row(self) -> Row:
+        self.vet_element()
+        return self.table._row_by_cell_offset(self._offset) if self.table else None  # type: ignore[return-value]
+
+    @property
+    def datatype(self) -> Type | None:
+        if not self.is_value_error:
+            return self._datatype
+        else:
+            return None
+
+    @property
+    def _datatype(self) -> Type | None:
+        return type(self._value) if self._value is not None else None
+
+    def _get_groups(self) -> Set[Group]:
+        if self.table:
+            return self.table._get_cell_groups(self)
+        else:
+            return set()
+
+    @property
+    def value(self) -> Any:
+        return self._value
+
+    @value.setter
+    def value(self, value: Any) -> None:
+        from . import Property
+
+        self.vet_element()
+        if value is not None and isinstance(value, Token):
+            self._post_result(value)
+        else:
+            if self.is_write_protected:
+                raise ReadOnlyException(self, Property.CellValue)
+            if value is None and not self.is_nulls_supported:
+                raise ValueError("Cell value can not be set to None")
+
+            self.clear_derivation()
+            self._reset(BaseElementState.IS_AWAITING_FLAG)
+
+            old_value = self._value
+            differ = self.__set_cell_value_internal(value, type_safe_check=True, preprocess=True)
+
+            if differ:
+                if self.table and self.table.is_automatic_recalculate_enabled:
+                    # TODO: DerivationImpl.recalculateAffected(this)
+                    pass
+                self._fire_events(EventType.OnNewValue, old_value, self._value)
+
+    @property
     def element_type(self) -> ElementType:
         return ElementType.Cell
+
+    @property
+    def uuid(self) -> uuid.UUID:
+        with self.lock:
+            value = self.get_property(Property.UUID)
+            if value is None:
+                value = uuid.uuid4()
+                self._initialize_property(Property.UUID, value)
+            return cast(uuid.UUID, value)
+
+    @uuid.setter
+    def uuid(self, value: uuid.UUID | str) -> None:
+        with self.lock:
+            if self.get_property(Property.UUID):
+                pass
+            else:
+                if isinstance(value, str):
+                    self._initialize_property(Property.UUID, uuid.UUID(value))
+                elif isinstance(value, uuid.UUID):
+                    self._initialize_property(Property.UUID, value)
+
+    def lookup_remote_uuid(self) -> uuid.UUID:  # type: ignore[name-defined]
+        for e in [self, self.row, self.column]:
+            if e and e.is_derived:
+                return e.derivation.lookup_remote_uuid_by_cell(self)
+        return None
+
+    def __increment_pendings(self) -> None:
+        if not self.is_pendings:
+            self.__set_pending(True)
+            for e in [self.table, self.column, self.row]:
+                if e:
+                    e._increment_pendings()
+
+    def __decrement_pendings(self) -> None:
+        if self.is_pendings:
+            self.__set_pending(False)
+            for e in [self.table, self.column, self.row]:
+                if e:
+                    e._decrement_pendings()
 
     @property
     def is_null(self) -> bool:
@@ -353,25 +462,6 @@ class Cell(TableElement, Derivable):
     def num_cells(self) -> int:
         return 1
 
-    @property
-    def table(self) -> Table:
-        return self._col.table if self._col else None  # type: ignore[return-value]
-
-    @property
-    def table_context(self) -> TableContext:
-        self.vet_element()
-        return self.table.table_context if self.table else None  # type: ignore[return-value]
-
-    @property
-    def column(self) -> Column:
-        self.vet_element()
-        return self._col
-
-    @property
-    def row(self) -> Row:
-        self.vet_element()
-        return self.table._row_by_cell_offset(self._offset) if self.table else None  # type: ignore[return-value]
-
     def fill(self, value: Any) -> None:
         self.value = value
 
@@ -390,20 +480,6 @@ class Cell(TableElement, Derivable):
     def is_derived(self) -> bool:
         return self._is_set(BaseElementState.IS_DERIVED_CELL_FLAG)
 
-    @property
-    def is_label_indexed(self) -> bool:
-        return self.table.are_cell_labels_indexed if self.table else False
-
-    def __decrement_pendings(self) -> None:
-        if self.is_pendings:
-            self.__set_pending(False)
-            if self.table:
-                self.table._decrement_pendings()
-            if self.column:
-                self.column._decrement_pendings()
-            if self.row:
-                self.row._decrement_pendings()
-
     def _post_result(self, t: Token) -> bool:
         return False
 
@@ -416,5 +492,14 @@ class Cell(TableElement, Derivable):
         self.vet_element()
         return tuple([self]) if self.is_derived else tuple()
 
+    @property
+    def derivation(self) -> Derivation | None:
+        return self.table._get_cell_derivation(self) if self.table else None
+
     def clear_derivation(self) -> None:
         pass
+
+    @property
+    def lock(self) -> RLock:
+        # TODO: Move out of cell class
+        return self._lock

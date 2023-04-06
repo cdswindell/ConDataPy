@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from typing import Final, Optional, List
+from typing import Final, Optional, List, TYPE_CHECKING
+import uuid
 
 from ..elements import TableElement
 
 from ..utils.atomic_integer import AtomicInteger
+
+if TYPE_CHECKING:
+    from ..elements import Cell
 
 
 class _DerivationContext:
@@ -46,6 +50,9 @@ class Derivation:
 
     def recalculate_target(self) -> None:
         pass
+
+    def lookup_remote_uuid_by_cell(self, cell: Cell) -> uuid.UUID | None:
+        return None
 
 
 def recalculate_affected(te: TableElement, dc: Optional[_DerivationContext] = None) -> None:
