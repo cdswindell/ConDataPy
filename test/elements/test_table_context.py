@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import pytest
 
 from ..test_base import TestBase
@@ -7,7 +8,6 @@ from ..test_base import TestBase
 from cdspy.elements import ElementType
 from cdspy.elements import Property
 from cdspy.elements import Access
-from cdspy.elements import default_table_context
 from cdspy.elements import TableContext
 from cdspy.elements.table_context import _TABLE_CONTEXT_DEFAULTS
 
@@ -16,24 +16,16 @@ from cdspy.exceptions import InvalidAccessException
 
 # noinspection PyMethodMayBeStatic
 class TestTableContext(TestBase):
-    # ---------------------------
-    # Method level setup/teardown
-    # ---------------------------
-    def setup_method(self) -> None:
-        """Make sure default context is empty"""
-        TableContext().clear()
-
-    def teardown_method(self) -> None:
-        """Clear default context"""
-        TableContext().clear()
-
     def test_default_table_context(self) -> None:
-        dtc = default_table_context()
+        dtc: TableContext = TableContext.fetch_default_context()
         assert dtc
         assert dtc.is_initialized
 
         # creating a new instance of TableContext should return same object
         assert TableContext() == dtc
+        assert id(TableContext()) == id(dtc)
+
+        assert id(TableContext.create_context()) == id(dtc)
 
         # object should be "Truthy"
         assert bool(dtc)
@@ -58,7 +50,7 @@ class TestTableContext(TestBase):
             assert dtc.has_property(p)
 
     def test_default_table_context_tags(self) -> None:
-        dtc = default_table_context()
+        dtc: TableContext = TableContext.fetch_default_context()
         assert dtc
 
         # verify there are no tags
@@ -102,7 +94,7 @@ class TestTableContext(TestBase):
         assert dtc.tags == ["abc", "def", "ghi"]
 
     def test_template_contexts(self) -> None:
-        tc = TableContext(default_table_context())
+        tc = TableContext.create_context(TableContext())
         assert tc
         assert tc.is_initialized
 
@@ -112,11 +104,11 @@ class TestTableContext(TestBase):
 
         # assert the new context is not the default
         assert not tc.is_default
-        assert tc != default_table_context()
+        assert tc != TableContext.fetch_default_context()
         assert tc != TableContext()
 
         # assert that if we create a second context from a template, it is different
-        assert TableContext(default_table_context()) != tc
+        assert TableContext(TableContext.fetch_default_context()) != tc
 
         # assert all initializable properties are defined, and the same as the default context
         for p in ElementType.TableContext.initializable_properties():
@@ -176,20 +168,25 @@ class TestTableContext(TestBase):
         assert tc
 
         # make two tables
-        t1 = tc.create_table()
+        t1 = tc.create_table(label="abc")
         assert t1
         assert t1.is_valid
         assert not t1.is_invalid
         assert not t1.is_persistent
+        assert t1.table_context == tc
+        assert len(tc) == 1
 
-        t2 = tc.create_table()
+        t2 = tc.create_table(label="def")
         assert t2
-        assert not t1.is_persistent
+        assert not t2.is_persistent
+        assert t2.table_context == tc
+        assert t2 != t1
 
         assert len(tc) == 2
 
         # dereferencing t1 remove it from tc
         t1 = None  # type: ignore
+        gc.collect()
         assert len(tc) == 1
 
     def test_persistent_tables_not_removed_on_dereference(self) -> None:
@@ -322,3 +319,41 @@ class TestTableContext(TestBase):
         for access in [Access.First, Access.Last, Access.Next, Access.Previous, Access.Current, Access.ByIndex]:
             with pytest.raises(InvalidAccessException, match=f"Invalid Get Request: {access.name} Child: Table"):
                 assert tc.get_table(access)
+
+    def test_indexed_table_labels(self) -> None:
+        tc = TableContext.create_context(TableContext())
+        assert tc
+        assert tc != TableContext()
+
+        t1 = tc.create_table(label="abc")
+        assert t1
+        assert t1.label == "abc"
+        t2 = tc.create_table(label="abc")
+        assert t2
+        assert t2.label == "abc"
+
+        assert len(tc) == 2
+        assert tc.num_tables == 2
+
+        # set context to indexed tables; should fail
+        with pytest.raises(KeyError):
+            tc.is_table_labels_indexed = True
+        assert not tc.is_table_labels_indexed
+
+        # change name of second table and retry
+        t2.label = "def"
+        assert t2.label != "abc"
+        tc.is_table_labels_indexed = True
+        assert tc.is_table_labels_indexed
+
+        # try creating a new table with the name "def"; it should fail
+        with pytest.raises(KeyError, match="TableContext: Table label 'def' not unique"):
+            t3 = tc.create_table(label="def")
+        assert len(tc) == 2
+
+        # turn off indexed labels,
+        tc.is_table_labels_indexed = False
+        assert not tc.is_table_labels_indexed
+        t3 = tc.create_table(label="def")
+        assert len(tc) == 3
+

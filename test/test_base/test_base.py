@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Final, TYPE_CHECKING
 
+from cdspy.elements import TableContext
+
 if TYPE_CHECKING:
     from cdspy.elements import Table
 
@@ -10,6 +12,17 @@ PROPERTY_DEF: Final = "Property DEF"
 
 
 class TestBase:
+    # ---------------------------
+    # Method level setup/teardown
+    # ---------------------------
+    def setup_method(self) -> None:
+        """Make sure default context is empty"""
+        TableContext().clear()
+
+    def teardown_method(self) -> None:
+        """Clear default context"""
+        TableContext().clear()
+
     @staticmethod
     def add_test_rows(t: Table) -> None:
         for x in range(1, 21):

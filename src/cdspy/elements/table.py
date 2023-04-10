@@ -94,8 +94,8 @@ class Table(TableCellsElement):
 
         num_rows = self._parse_args(int, "num_rows", 0, TableContext().row_capacity_incr, *args, **kwargs)
         num_cols = self._parse_args(int, "num_cols", 1, TableContext().column_capacity_incr, *args, **kwargs)
-        parent_context = self._parse_args(TableContext, "parent_context", None, None, *args, **kwargs)
-        template_table = self._parse_args(Table, "template_table", None, None, *args, **kwargs)
+        parent_context = self._parse_args(TableContext, "parent_context", 2, None, *args, **kwargs)
+        template_table = self._parse_args(Table, "template_table", 3, None, *args, **kwargs)
 
         # define Table with superclass
         self._set_table(self)

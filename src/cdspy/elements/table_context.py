@@ -22,7 +22,6 @@ from ..mixins import DerivableThreadPoolConfig
 from ..mixins import EventProcessorThreadPool
 from ..mixins import EventsProcessorThreadPoolCreator
 
-from ..utils import singleton
 
 if TYPE_CHECKING:
     from . import Tag
@@ -61,7 +60,6 @@ _EVENTS_KEEP_ALIVE_TIMEOUT_SEC_DEFAULT: Final[int] = 30
 _EVENTS_ALLOW_CORE_THREAD_TIMEOUT_DEFAULT: Final[bool] = False
 
 
-@singleton
 class TableContext(
     BaseElement,
     DerivableThreadPool,
@@ -69,6 +67,31 @@ class TableContext(
     EventProcessorThreadPool,
     EventsProcessorThreadPoolCreator,
 ):
+    _class_lock = RLock()
+
+    def __new__(cls, template_context: Optional[TableContext] = None) -> TableContext:
+        with cls._class_lock:
+            if template_context is not None:
+                return super().__new__(cls)
+            # Another thread could have created the instance
+            # before we acquired the lock. So check that the
+            # instance is still nonexistent.
+            if not hasattr(cls, "_default_table_context"):
+                print("Creating default context...")
+                cls._default_table_context = super().__new__(cls)
+        return cls._default_table_context
+
+    @staticmethod
+    def fetch_default_context() -> TableContext:
+        return TableContext()
+
+    @staticmethod
+    def create_context(template: Optional[TableContext] = None) -> TableContext:
+        if template is None:
+            return TableContext()
+        else:
+            return TableContext(template)
+
     @staticmethod
     def _make_table_label_key(label: str) -> str | None:
         if label:
@@ -77,6 +100,10 @@ class TableContext(
             return None
 
     def __init__(self, template: Optional[TableContext] = None) -> None:
+        # we want to prevent __init__ being called on this class instance more than once,
+        # which could occur from our singleton-like __new__ method
+        if hasattr(self, "_sealed") and self._sealed:  # type: ignore[has-type]
+            return
         super().__init__()
         self._lock = RLock()
 
@@ -96,6 +123,7 @@ class TableContext(
         # table label map
         self._table_label_map: WeakValueDictionary[str, Table] = WeakValueDictionary()
         self._mark_initialized()
+        self._sealed = True
 
     def __iter__(self) -> Iterator[Table]:
         from . import Table
@@ -104,10 +132,6 @@ class TableContext(
 
     def __len__(self) -> int:
         return self.num_tables
-
-    @property
-    def __all_tables(self) -> Collection[Table]:
-        return set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)
 
     @property
     def is_table_labels_indexed(self) -> bool:
@@ -123,7 +147,7 @@ class TableContext(
             self._mutate_state(BaseElementState.TABLE_LABELS_INDEXED_FLAG, state)
 
     def _index_all_table_labels(self) -> None:
-        for t in self:
+        for t in self.tables:
             try:
                 self._index_table_label(t, True)
             except KeyError as e:
@@ -141,7 +165,7 @@ class TableContext(
 
     @property
     def tables(self) -> Collection[Table]:
-        return tuple(sorted(self.__all_tables))
+        return tuple(sorted(set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)))
 
     @property
     def lock(self) -> RLock:
@@ -169,7 +193,11 @@ class TableContext(
 
         num_rows = self._parse_args(int, "num_rows", 0, self.row_capacity_incr, *args, **kwargs)
         num_cols = self._parse_args(int, "num_cols", 1, self.column_capacity_incr, *args, **kwargs)
-        return Table(num_rows, num_cols, self)
+        label = self._parse_args(str, "label", 2, None, *args, **kwargs)
+        t = Table(num_rows, num_cols, self)
+        if label:
+            t.label = label
+        return t
 
     def clear(self) -> None:
         with self.lock:
@@ -280,11 +308,3 @@ class TableContext(
                 self.vet_element(t)
                 return t
         raise InvalidAccessException(self, ElementType.Table, mode, False, args)
-
-
-def build_table_context(template: Optional[TableContext] = None) -> TableContext:
-    return TableContext(template)
-
-
-def default_table_context() -> TableContext:
-    return TableContext()

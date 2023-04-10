@@ -61,13 +61,13 @@ class TableCellsElement(TableElement, ABC):
         self._table_ref = None
 
     def _get_template(self, te: Optional[TableElement] = None) -> BaseElement:
-        from . import default_table_context
+        from . import TableContext
 
         if te:
             return te
         if self.table and self.table != self:
             return self.table
-        return self.table_context if self.table_context else default_table_context()
+        return self.table_context if self.table_context else TableContext.fetch_default_context()
 
     def _register_affects(self, elem: Derivable) -> None:
         with self.lock:

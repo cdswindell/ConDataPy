@@ -41,6 +41,7 @@ def singleton(cls):
             previous_instances[cls] = {"args": (args, kwargs), "instance": cls(*args, **kwargs)}
             return previous_instances[cls].get("instance")
 
+    wrapper.__name__ = cls.__name__
     return wrapper
 
 
