@@ -77,7 +77,6 @@ class TableContext(
             # before we acquired the lock. So check that the
             # instance is still nonexistent.
             if not hasattr(cls, "_default_table_context"):
-                print("Creating default context...")
                 cls._default_table_context = super().__new__(cls)
         return cls._default_table_context
 
@@ -168,6 +167,10 @@ class TableContext(
         return tuple(sorted(set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)))
 
     @property
+    def labeled_tables(self) -> Dict[str, Table]:
+        return {t.label: t for t in self.tables if t.label}
+
+    @property
     def lock(self) -> RLock:
         return self._lock
 
@@ -193,10 +196,19 @@ class TableContext(
 
         num_rows = self._parse_args(int, "num_rows", 0, self.row_capacity_incr, *args, **kwargs)
         num_cols = self._parse_args(int, "num_cols", 1, self.column_capacity_incr, *args, **kwargs)
-        label = self._parse_args(str, "label", 2, None, *args, **kwargs)
+        label = self._parse_args(str, "label", None, None, *args, **kwargs)
+        description = self._parse_args(str, "description", None, None, *args, **kwargs)
+        units = self._parse_args(str, "units", None, None, *args, **kwargs)
+        display_format = self._parse_args(str, "display_format", None, None, *args, **kwargs)
         t = Table(num_rows, num_cols, self)
         if label:
             t.label = label
+        if description:
+            t.description = description
+        if units:
+            t.units = units
+        if display_format:
+            t.display_format = display_format
         return t
 
     def clear(self) -> None:

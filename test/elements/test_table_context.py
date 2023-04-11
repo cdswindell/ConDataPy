@@ -328,6 +328,9 @@ class TestTableContext(TestBase):
         t1 = tc.create_table(label="abc")
         assert t1
         assert t1.label == "abc"
+        assert "abc" in tc.labeled_tables
+        assert t1 == tc.labeled_tables["abc"]
+
         t2 = tc.create_table(label="abc")
         assert t2
         assert t2.label == "abc"
@@ -345,15 +348,73 @@ class TestTableContext(TestBase):
         assert t2.label != "abc"
         tc.is_table_labels_indexed = True
         assert tc.is_table_labels_indexed
+        assert "def" in tc.labeled_tables
+        assert t2 == tc.labeled_tables["def"]
+        assert tc.get_table(Access.ByLabel, "def") == t2
 
         # try creating a new table with the name "def"; it should fail
         with pytest.raises(KeyError, match="TableContext: Table label 'def' not unique"):
             t3 = tc.create_table(label="def")
         assert len(tc) == 2
 
+        # add a table without a label, no exception
+        t3 = tc.create_table()
+        assert len(tc) == 3
+
         # turn off indexed labels,
         tc.is_table_labels_indexed = False
         assert not tc.is_table_labels_indexed
-        t3 = tc.create_table(label="def")
-        assert len(tc) == 3
+        t4 = tc.create_table(label="def")
+        assert len(tc) == 4
 
+        # even with indexing off, should be able to retrieve table by label
+        assert tc.get_table(Access.ByLabel, "abc") == t1
+
+        # when indexing is off and more than one table has the same label, indeterminate return
+        assert tc.get_table(Access.ByLabel, "def") in [t2, t4]
+
+        # test de-referenced tables go away
+        t1 = None  # type: ignore[assignment]
+        gc.collect()
+        assert len(tc) == 3
+        assert "abc" not in tc.labeled_tables
+
+    def test_create_table(self) -> None:
+        tc = TableContext.create_context(TableContext())
+        assert tc
+        assert tc != TableContext()
+
+        t1 = tc.create_table(label="abc")
+        assert t1
+        assert t1.label == "abc"
+        assert t1.description is None
+        assert t1.units is None
+        assert t1.display_format is None
+
+        t1 = tc.create_table(description="Tail Growth Data")
+        assert t1
+        assert t1.label is None
+        assert t1.description == "Tail Growth Data"
+        assert t1.units is None
+        assert t1.display_format is None
+
+        t1 = tc.create_table(units="in")
+        assert t1
+        assert t1.label is None
+        assert t1.description is None
+        assert t1.units == "in"
+        assert t1.display_format is None
+
+        t1 = tc.create_table(display_format="{0:,}")
+        assert t1
+        assert t1.label is None
+        assert t1.description is None
+        assert t1.units is None
+        assert t1.display_format == "{0:,}"
+
+        t1 = tc.create_table(label="abc", description="Tail Growth Data", display_format="{0:,}")
+        assert t1
+        assert t1.label == "abc"
+        assert t1.description == "Tail Growth Data"
+        assert t1.units is None
+        assert t1.display_format == "{0:,}"
