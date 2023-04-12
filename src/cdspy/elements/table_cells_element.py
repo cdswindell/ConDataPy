@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from collections.abc import Collection
 from threading import RLock
-from typing import cast, Final, List, Optional, TYPE_CHECKING
+from typing import cast, Final, List, Optional, TYPE_CHECKING, Any
 import uuid
 from weakref import ref
 
@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 
 from ..exceptions import InvalidParentException
 
-from . import Property
+from . import Property, EventType
 from . import TableElement
 
 from ..utils.atomic_integer import AtomicInteger
@@ -38,10 +38,8 @@ class TableCellsElement(TableElement, ABC):
         self._initialize_property(Property.Ident, TableCellsElement._ELEMENT_IDENT_GENERATOR.inc())
 
     def __del__(self) -> None:
-        print(f"Deleting {self.element_type.name}...")
         if self.is_valid:
             self._delete()
-            print(f"Deleted {self.element_type.name} (via __del__)...")
 
     def __lt__(self, other: TableCellsElement) -> bool:
         if not isinstance(other, TableCellsElement):
@@ -153,3 +151,6 @@ class TableCellsElement(TableElement, ABC):
                         e._set_table(self.table)
                     elif e.table != self.table:
                         raise InvalidParentException(e, self)
+
+    def fire_events(self, te: TableElement, et: EventType, *args: Any) -> None:
+        pass

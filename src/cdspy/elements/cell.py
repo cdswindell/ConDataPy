@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Final, cast, Collection, Dict, Iterator, List, Callable
+from typing import Any, Final, cast, Collection, Dict, Iterator, List, Callable, Union
 from typing import Optional, Type, TYPE_CHECKING
 from threading import RLock
 import uuid
@@ -60,10 +60,8 @@ class Cell(TableElement, Derivable):
         self._mark_initialized()
 
     def __del__(self) -> None:
-        print(f"Deleting {self.element_type.name}...")
         if self.is_valid:
             self._delete()
-            print(f"Deleted {self.element_type.name} (via __del__)...")
 
     def __iter__(self) -> Iterator[T]:
         return _BaseElementIterable[Cell](tuple(self))
@@ -76,7 +74,8 @@ class Cell(TableElement, Derivable):
         return ElementType.Cell
 
     def _delete(self, compress: bool = True) -> None:
-        self._invalidate_cell()
+        if self.is_valid:
+            self._invalidate_cell()
 
     def _invalidate_cell(self) -> None:
         self.label = None  # if cells are indexed, we need to remove from map
@@ -91,7 +90,7 @@ class Cell(TableElement, Derivable):
             affected.clear_derivation()
 
         # remove cell from any groups
-        for g in self._get_groups():
+        for g in self.groups:
             if g and g.is_valid:
                 g.remove(self)
 
@@ -108,6 +107,7 @@ class Cell(TableElement, Derivable):
         self._offset = -1
 
         # and invalidate, marking it as deleted
+        self._reset_element_properties()
         self._invalidate()
 
     def recalculate(self) -> None:
@@ -128,6 +128,9 @@ class Cell(TableElement, Derivable):
         # To minimize memory, effects are maintained in parent table
         if self.table:
             self.table._deregister_cell_affects(self, d)
+
+    def get_property(self, key: Union[Property, str, None]) -> Any:
+        return super().get_property(key)
 
     def _reset_element_properties(self) -> None:
         if self.table:
@@ -179,9 +182,9 @@ class Cell(TableElement, Derivable):
             return []
 
     def _set_cell_value_no_datatype_check(self, value: Any) -> bool:
-        return self.__set_cell_value_internal(value, False, False)
+        return self._set_cell_value_internal(value, False, False)
 
-    def __set_cell_value_internal(self, value: Any, type_safe_check: bool = True, preprocess: bool = False) -> bool:
+    def _set_cell_value_internal(self, value: Any, type_safe_check: bool = True, preprocess: bool = False) -> bool:
         with self.lock:
             if self.is_value_error:
                 self._set_error_message(None)
@@ -387,7 +390,7 @@ class Cell(TableElement, Derivable):
             self._reset(BaseElementState.IS_AWAITING_FLAG)
 
             old_value = self._value
-            differ = self.__set_cell_value_internal(value, type_safe_check=True, preprocess=True)
+            differ = self._set_cell_value_internal(value, type_safe_check=True, preprocess=True)
 
             if differ:
                 if self.table and self.table.is_automatic_recalculate_enabled:
@@ -417,8 +420,8 @@ class Cell(TableElement, Derivable):
 
     def lookup_remote_uuid(self) -> uuid.UUID:  # type: ignore[name-defined]
         for e in [self, self.row, self.column]:
-            if e and e.is_derived:
-                return e.derivation.lookup_remote_uuid_by_cell(self)
+            if e and e.is_derived:  # type: ignore[attr-defined]
+                return e.derivation.lookup_remote_uuid_by_cell(self)  # type: ignore[attr-defined]
         return None
 
     def __increment_pendings(self) -> None:
@@ -469,7 +472,7 @@ class Cell(TableElement, Derivable):
     @property
     def is_datatype_enforced(self) -> bool:
         for e in [self.table, self.column, self.row]:
-            if e and e.is_datatype_enforced:
+            if e and e.is_datatype_enforced:  # type: ignore[attr-defined]
                 return True
         return self.is_enforce_datatype
 
@@ -484,8 +487,7 @@ class Cell(TableElement, Derivable):
         return self.fill(None)
 
     def delete(self) -> None:
-        self.__set_cell_value_internal(None, type_safe_check=False, preprocess=True)
-        self._reset_element_properties()
+        self._set_cell_value_internal(None, type_safe_check=False, preprocess=True)
 
     @property
     def num_groups(self) -> int:

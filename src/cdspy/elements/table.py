@@ -37,7 +37,7 @@ from ..templates import TableEventListener
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
-    from . import T
+    from . import S
     from . import TableSliceElement
     from . import Row
     from . import Column
@@ -92,8 +92,8 @@ class Table(TableCellsElement):
 
         super().__init__(None)
 
-        num_rows = self._parse_args(int, "num_rows", 0, TableContext().row_capacity_incr, *args, **kwargs)
-        num_cols = self._parse_args(int, "num_cols", 1, TableContext().column_capacity_incr, *args, **kwargs)
+        num_rows = self._parse_args(int, "num_rows", 0, TableContext().row_capacity_incr_default, *args, **kwargs)
+        num_cols = self._parse_args(int, "num_cols", 1, TableContext().column_capacity_incr_default, *args, **kwargs)
         parent_context = self._parse_args(TableContext, "parent_context", 2, None, *args, **kwargs)
         template_table = self._parse_args(Table, "template_table", 3, None, *args, **kwargs)
 
@@ -247,6 +247,12 @@ class Table(TableCellsElement):
     def _get_cell_groups(self, cell: Cell) -> Set[Group]:
         return self._cell_groups.get(cell, set())
 
+    def _register_cell_affects(self, cell: Cell, d: Derivable) -> None:
+        pass
+
+    def _deregister_cell_affects(self, cell: Cell, d: Derivable) -> None:
+        pass
+
     def _get_cell_affects(self, cell: Cell, include_indirects: bool = True) -> List[Derivable]:
         affected = self._cell_affects.get(cell, set())
         num_affects = len(affected)
@@ -275,6 +281,30 @@ class Table(TableCellsElement):
                 self._cell_derivations[cell] = d
                 return cast(Derivation, old_d)
         return cast(Derivation, None)
+
+    @property
+    def free_space_threshold(self) -> float:
+        return cast(float, self.get_property(Property.FreeSpaceThreshold))
+
+    @free_space_threshold.setter
+    def free_space_threshold(self, default: float) -> None:
+        self._set_property(Property.FreeSpaceThreshold, default)
+
+    @property
+    def row_capacity_incr(self) -> int:
+        return cast(int, self.get_property(Property.RowCapacityIncr))
+
+    @row_capacity_incr.setter
+    def row_capacity_incr(self, default: int) -> None:
+        self._set_property(Property.RowCapacityIncr, default)
+
+    @property
+    def column_capacity_incr(self) -> int:
+        return cast(int, self.get_property(Property.ColumnCapacityIncr))
+
+    @column_capacity_incr.setter
+    def column_capacity_incr(self, default: int) -> None:
+        self._set_property(Property.ColumnCapacityIncr, default)
 
     @property
     def is_automatic_recalculate_enabled(self) -> bool:
@@ -363,14 +393,14 @@ class Table(TableCellsElement):
         return self.__cols
 
     def _calculate_rows_capacity(self, num_required: int) -> int:
-        capacity = cast(int, self.row_capacity_incr)
+        capacity = self.row_capacity_incr
         if num_required > 0:
             remainder = num_required % capacity
             capacity = num_required + (capacity - remainder if remainder > 0 else 0)
         return capacity
 
     def _calculate_columns_capacity(self, num_required: int) -> int:
-        capacity = cast(int, self.column_capacity_incr)
+        capacity = self.column_capacity_incr
         if num_required > 0:
             remainder = num_required % capacity
             capacity = num_required + (capacity - remainder if remainder > 0 else 0)
@@ -401,7 +431,8 @@ class Table(TableCellsElement):
             self._unused_cell_offsets.clear()
             if self.__next_cell_offset_index > 0:
                 for c in self._columns:
-                    c._reclaim_cell_space(self._rows, 0)
+                    if c:
+                        c._reclaim_cell_space(self._rows, 0)
             self.__next_cell_offset_index = 0
 
         if self.free_space_threshold > 0:
@@ -444,7 +475,7 @@ class Table(TableCellsElement):
         cell = self._get_cell(row, col, False)
         if cell:
             if bool(do_format):
-                return cell.formatted_cell_value
+                return cell.formatted_value
             else:
                 return cell.value
         else:
@@ -453,7 +484,7 @@ class Table(TableCellsElement):
     def get_formatted_cell_value(self, row: Row, col: Column) -> Any:
         cell = self._get_cell(row, col, False)
         if cell:
-            return cell.formatted_cell_value
+            return cell.formatted_value
         else:
             return None
 
@@ -542,7 +573,26 @@ class Table(TableCellsElement):
         return False
 
     def fill(self, o: Optional[object]) -> None:
-        pass
+        with self.lock:
+            self.vet_element()
+
+            any_changed = False
+            cr = self._current_cell
+            self.disable_automatic_recalculation()
+            try:
+                col = self.get_column(Access.First)
+                while col:
+                    if col._fill(
+                        o, preserve_current=False, preserve_derived_cells=False, fire_events=False, recalculate=False
+                    ):
+                        any_changed = True
+                    col = self.get_column(Access.Next)
+            finally:
+                self.enable_automatic_recalculation()
+                cr.set_current_cell_reference(self)
+        # there is no need to recalculate table, as all derivations are cleared with this operation
+        if any_changed:
+            self.fire_events(self, EventType.OnNewValue, o)
 
     def clear(self) -> None:
         self.fill(None)
@@ -737,7 +787,7 @@ class Table(TableCellsElement):
         elif access == Access.ByIdent:
             if is_adding or md is None or not isinstance(md, int):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            target = self._find(slices, Property.Ident, int(md))
+            target = cast(TableSliceElement, self._find(slices, Property.Ident, int(md)))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByReference:
             if is_adding or md is None or not isinstance(md, TableSliceElement) or md.element_type != et:
@@ -746,25 +796,25 @@ class Table(TableCellsElement):
         elif access in [Access.ByLabel, Access.ByDescription]:
             if is_adding or md is None or not isinstance(md, str):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            target = self._find(slices, access.associated_property, str(md))
+            target = cast(TableSliceElement, self._find(slices, access.associated_property, str(md)))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByUUID:
             if is_adding or md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
             md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
-            target = self._find(slices, Property.UUID, md)
+            target = cast(TableSliceElement, self._find(slices, Property.UUID, md))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByTags:
             if is_adding or not mda or any(not isinstance(item, str) for item in mda):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {mda}")
-            target = self._find_tagged(slices, *cast(Tuple[str], mda))
+            target = cast(TableSliceElement, self._find_tagged(slices, *cast(Tuple[str], mda)))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByProperty:
             key: Property | str = md  # type: ignore[assignment]
             value = mda[1] if mda and len(mda) > 1 else None
             if is_adding or key is None or value is None:
                 raise InvalidException(self, f"Invalid {et.name} {access.name} key: {key}")
-            target = self._find(slices, key, value)
+            target = cast(TableSliceElement, self._find(slices, key, value))
             return int(target.index) - 1 if target else -1
 
         return -1
@@ -815,7 +865,7 @@ class Table(TableCellsElement):
         # create a new row/column object and insert it into table
         with self.lock:
             raw_te: Row | Column = Row(self) if slice_type == ElementType.Row else Column(self)
-            te = self.__add(raw_te, insert_mode, set_to_current, True, *mda)
+            te = self.__add_slice(raw_te, insert_mode, set_to_current, True, *mda)
             # do post_processing
             if te and mda:
                 if access == Access.ByLabel:
@@ -826,7 +876,7 @@ class Table(TableCellsElement):
                     te.description = str(mda[0])
             return te  # type: ignore[return-value]
 
-    def __add(
+    def __add_slice(
         self, te: Row | Column, access: Access, set_to_current: bool = True, fire_events: bool = True, *mda: object
     ) -> None | Row | Column:
         self.vet_element()
@@ -909,7 +959,7 @@ class Table(TableCellsElement):
                 self._get_slice(ElementType.Row, self._rows, Access.ByIndex, True, False, index + 1)
 
     @property
-    def rows(self) -> Iterator[T]:
+    def rows(self) -> Iterator[S]:
         from . import Row
 
         self.vet_element()
@@ -922,7 +972,7 @@ class Table(TableCellsElement):
                 self._get_slice(ElementType.Column, self._columns, Access.ByIndex, True, False, index + 1)
 
     @property
-    def columns(self) -> Iterator[T]:
+    def columns(self) -> Iterator[S]:
         from . import Column
 
         self.vet_element()

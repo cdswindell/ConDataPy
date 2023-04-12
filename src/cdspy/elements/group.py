@@ -206,7 +206,7 @@ class Group(TableCellsElement):
                 self.__groups.discard(te)
             elif isinstance(te, Cell):
                 self.__cells.discard(te)
-                te._remove_from_group(self)
+                te._deregister_from_group(self)
 
     @property
     def derived_elements(self) -> Collection[Derivable]:

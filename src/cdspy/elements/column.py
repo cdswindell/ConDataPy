@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Collection, Iterator
 from typing import cast, Optional, TYPE_CHECKING
+from weakref import ref
 
 from ..utils import ArrayList
 
@@ -9,10 +10,9 @@ from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
 from ..events import BlockedRequestException
 
-from . import ElementType
+from . import ElementType, Access
 from . import TableSliceElement
 from . import Cell
-from .base_element import _BaseElementIterable
 
 from ..utils import JustInTimeSet
 
@@ -21,6 +21,38 @@ if TYPE_CHECKING:
     from . import Table
     from . import Row
     from ..mixins import Derivable
+
+
+class _ColumnCellIterator:
+    def __init__(self, col: Column) -> None:
+        self._index = 0
+        self._col = col
+        self._table_ref = ref(col.table) if col else None
+        self._num_rows = self.table.num_rows if self.table else 0
+
+    def __iter__(self) -> Iterator[Cell]:
+        self._index = 0
+        self._num_rows = self.table.num_rows if self.table else 0
+        return self
+
+    def __next__(self) -> Cell:
+        if self._index < self._num_rows:
+            self._index += 1
+            row: Row = self.table._get_slice(  # type: ignore[assignment]
+                ElementType.Row, self.table._rows, Access.ByIndex, True, False, self._index
+            )
+            cell = self._col._get_cell(row, True, False)
+            return cell  # type: ignore[return-value]
+        else:
+            raise StopIteration
+
+    @property
+    def table(self) -> Table:
+        return self._table_ref() if self._table_ref else None  # type: ignore[return-value]
+
+    @property
+    def column(self) -> Column:
+        return self._col
 
 
 # noinspection DuplicatedCode
@@ -42,7 +74,7 @@ class Column(TableSliceElement):
             value = self._get_template(te).get_property(p)
             self._initialize_property(p, value)
 
-        self.__cells = ArrayList[Cell](capacity_increment=te.row_capacity_incr if te else None)
+        self.__cells = ArrayList[Cell](capacity_increment=te.row_capacity_incr if te else None)  # type: ignore[arg-type]
 
         if proxy and isinstance(self, FilteredColumn):
             proxy.register_filter(self)
@@ -59,7 +91,7 @@ class Column(TableSliceElement):
 
         # for filter rows, deregister from parent
         if self._proxy and isinstance(self, FilteredColumn):
-            self._proxy.deregister(self)
+            self._proxy.deregister_filter(self)
 
         # delete all filter columns based on this (self)
         while self._filters:
@@ -135,7 +167,8 @@ class Column(TableSliceElement):
     def _reclaim_cell_space(self, rows: ArrayList[Row], num_rows: int) -> None:
         if 0 < num_rows < self._num_cells and self._num_cells:
             cells = ArrayList[Cell](
-                initial_capacity=num_rows, capacity_increment=self.table.row_capacity_incr if self.table else None
+                initial_capacity=num_rows,
+                capacity_increment=self.table.row_capacity_incr if self.table else None,  # type: ignore[arg-type]
             )
             for row in rows:
                 if row and row._cell_offset >= 0:
@@ -144,7 +177,9 @@ class Column(TableSliceElement):
         elif self.__cells.capacity > self._num_cells:
             self.__cells.trim()
         else:
-            self.__cells = ArrayList[Cell](capacity_increment=self.table.row_capacity_incr if self.table else None)
+            self.__cells = ArrayList[Cell](
+                capacity_increment=self.table.row_capacity_incr if self.table else None  # type: ignore[arg-type]
+            )
 
     @property
     def element_type(self) -> ElementType:
@@ -171,9 +206,9 @@ class Column(TableSliceElement):
         self._datatype = datatype
 
     def get_cell(self, row: Row) -> Cell | None:
-        return self._get_cell(row, set_to_current=True, create_if_sparse=True)
+        return self._get_cell(row, create_if_sparse=True, set_to_current=True)
 
-    def _get_cell(self, row: Row, set_to_current: bool = True, create_if_sparse: bool = True) -> Cell | None:
+    def _get_cell(self, row: Row, create_if_sparse: bool = True, set_to_current: bool = True) -> Cell | None:
         self.vet_components(row)
         c = None
         if self.table:
@@ -245,13 +280,13 @@ class Column(TableSliceElement):
         """
         return sum(1 for c in self._cells if c) if self._cells else 0
 
+    @property
+    def cells(self) -> Iterator[Cell]:
+        return _ColumnCellIterator(self)
+
     def mark_current(self) -> Column | None:
         self.vet_element()
         return self.table.mark_current(self) if self.table else None
-
-    @property
-    def cells(self) -> Iterator[Cell]:
-        return _BaseElementIterable[Cell](self.__cells)
 
     @property
     def is_null(self) -> bool:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Final, TYPE_CHECKING
 
-from cdspy.elements import TableContext
+from cdspy.elements import TableContext, Access
 
 if TYPE_CHECKING:
     from cdspy.elements import Table
@@ -40,6 +40,23 @@ class TestBase:
             c.description = f"Column {x} Description"
             c.set_property(PROPERTY_ABC, f"Column {x} {PROPERTY_ABC}")
             c.set_property(PROPERTY_DEF, f"Column {x} {PROPERTY_DEF}")
+
+    @staticmethod
+    def create_large_table(tc: TableContext, rows: int, cols: int, fill: Any) -> Table:
+        t = tc.create_table(rows, cols)
+
+        cx = t.add_column(Access.ByIndex, cols)
+
+        r1 = t.add_row(rows)
+
+        if fill is not None:
+            t.fill(fill)
+
+        assert t.num_rows == rows
+        assert t.num_columns == cols
+
+        t.label = "large table"
+        return t
 
     def init(self, *args: Any, **kwargs: Any) -> None:
         super().__init__()

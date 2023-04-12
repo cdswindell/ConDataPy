@@ -72,7 +72,6 @@ def test_property_getters() -> None:
         assert Property.by_name(" " + p.name + "  ") == p
         assert Property.by_name(p.name.lower()) == p
         assert Property.by_name(p.name.upper()) == p
-        assert Property.by_attr_name(p.as_attr_name) == p
         unique_nicknames = set()
         if p.nickname:
             # test that nicknames are unique
@@ -86,15 +85,6 @@ def test_property_getters() -> None:
             assert Property.by_nickname(p.nickname) is None
             assert Property.by_nickname(p.nickname.lower()) is None
             assert Property.by_nickname(p.nickname.upper()) is None
-
-    # test a handful of as_attr_name examples
-    assert Property.Tags.as_attr_name == "tags"
-    assert Property.by_attr_name("tags") == Property.Tags
-    assert Property.IsTablesPersistentDefault.as_attr_name == "is_tables_persistent_default"
-    assert Property.by_attr_name("is_tables_persistent_default") == Property.IsTablesPersistentDefault
-    assert (
-        Property.IsPendingAllowCoreThreadTimeoutDefault.as_attr_name == "is_pending_allow_core_thread_timeout_default"
-    )
 
 
 def test_property_getter_failures() -> None:

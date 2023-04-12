@@ -124,35 +124,6 @@ class BaseElement(ABC):
         self._state = BaseElementState.IS_INITIALIZING_FLAG
         self._props: Dict | None = None
 
-    def __getattribute__(self, name: str) -> Any:
-        """
-        Allow attribute names that match Property keys to return values.
-        Note that only properties supported by the BaseElement are returned;
-
-        :param name:
-        :return:
-        """
-        try:
-            return super().__getattribute__(name)
-        except AttributeError:
-            p = Property.by_attr_name(name)
-            if p and self._implements(p) and p.is_initializable_property:
-                return self.get_property(p)
-            else:
-                raise AttributeError(name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        p = Property.by_attr_name(name)
-        if p and p.is_initializable_property:
-            # special process for strings
-            value = BaseElement._normalize(value)
-            if value is None:
-                self._clear_property(p)
-            else:
-                self._set_property(p, value)
-        else:
-            super().__setattr__(name, value)
-
     def __repr__(self) -> str:
         if self.is_invalid:
             return f"[Deleted {self.element_type.name}]"
@@ -331,9 +302,9 @@ class BaseElement(ABC):
     def get_property(self, key: Union[Property, str, None]) -> Any:
         with self.lock:
             key = self._vet_property_key(key)
-            tprops = self._element_properties()
-            if tprops:
-                return tprops.get(key, None)
+            t_props = self._element_properties()
+            if t_props:
+                return t_props.get(key, None)
             else:
                 return None
 

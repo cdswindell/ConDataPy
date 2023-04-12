@@ -119,16 +119,16 @@ class TestTableContext(TestBase):
 
         # change a few initializable properties and confirm that if we make a
         # new context using tc as a template, the new one has the same defaults
-        tc.row_capacity_incr = 32
+        tc.row_capacity_incr_default = 32
         assert tc.get_property(Property.RowCapacityIncr) == 32
 
         tc.is_auto_recalculate_default = False
         assert not tc.get_property(Property.IsAutoRecalculateDefault)
 
-        tc.free_space_threshold = 4.0
+        tc.free_space_threshold_default = 4.0
         assert tc.get_property(Property.FreeSpaceThreshold) == 4.0
 
-        tc.display_format = "Value: {value}"
+        tc.display_format_default = "Value: {value}"
         assert tc.get_property(Property.DisplayFormat) == "Value: {value}"
 
         # make a new context using tc as the template
@@ -151,17 +151,17 @@ class TestTableContext(TestBase):
             assert ntc.get_property(p) != TableContext().get_property(p)
 
         # and verify the alternate access methods also check
-        assert ntc.row_capacity_incr == 32
-        assert ntc.row_capacity_incr == tc.row_capacity_incr
+        assert ntc.row_capacity_incr_default == 32
+        assert ntc.row_capacity_incr_default == tc.row_capacity_incr_default
 
         assert not ntc.is_auto_recalculate_default
         assert ntc.is_auto_recalculate_default == tc.is_auto_recalculate_default
 
-        assert ntc.free_space_threshold == 4.0
-        assert ntc.free_space_threshold == tc.free_space_threshold
+        assert ntc.free_space_threshold_default == 4.0
+        assert ntc.free_space_threshold_default == tc.free_space_threshold_default
 
-        assert ntc.display_format == "Value: {value}"
-        assert ntc.display_format == tc.display_format
+        assert ntc.display_format_default == "Value: {value}"
+        assert ntc.display_format_default == tc.display_format_default
 
     def test_nonpersistent_tables_removed_on_dereference(self) -> None:
         tc = TableContext()
@@ -319,6 +319,13 @@ class TestTableContext(TestBase):
         for access in [Access.First, Access.Last, Access.Next, Access.Previous, Access.Current, Access.ByIndex]:
             with pytest.raises(InvalidAccessException, match=f"Invalid Get Request: {access.name} Child: Table"):
                 assert tc.get_table(access)
+
+        # delete labeled table and make sure it cannot be retrieved
+        assert tc.get_table(Access.ByLabel, "table 1") == t1
+        t1.delete()
+        assert t1.is_invalid
+        assert tc.get_table(Access.ByLabel, "table 1") is None
+        assert "table 1" not in tc.labeled_tables
 
     def test_indexed_table_labels(self) -> None:
         tc = TableContext.create_context(TableContext())

@@ -28,3 +28,4 @@ from .tag import Tag as Tag
 
 
 T = TypeVar("T", bound=TableElement)
+S = TypeVar("S", bound=TableSliceElement)

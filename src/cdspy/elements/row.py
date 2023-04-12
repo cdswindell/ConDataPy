@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Collection
-from typing import Optional, TYPE_CHECKING
+from collections.abc import Collection, Iterator
+from typing import Optional, TYPE_CHECKING, cast
 
 from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
@@ -56,7 +56,7 @@ class Row(TableSliceElement):
 
         # for filter rows, deregister from parent
         if self._proxy and isinstance(self, FilteredRow):
-            self._proxy.deregister(self)
+            self._proxy.deregister_filter(self)
 
         # delete all filter rows based on this (self)
         while self._filters:
@@ -182,3 +182,7 @@ class Row(TableSliceElement):
     @property
     def derived_elements(self) -> Collection[Derivable]:
         return []
+
+    @property
+    def cells(self) -> Iterator[Cell]:
+        return cast(Iterator[Cell], [])

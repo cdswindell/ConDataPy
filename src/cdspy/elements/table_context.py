@@ -163,6 +163,62 @@ class TableContext(
                     self._table_label_map[key] = t
 
     @property
+    def free_space_threshold_default(self) -> float:
+        return cast(float, self.get_property(Property.FreeSpaceThreshold))
+
+    @free_space_threshold_default.setter
+    def free_space_threshold_default(self, default: float) -> None:
+        self._set_property(Property.FreeSpaceThreshold, default)
+
+    @property
+    def row_capacity_incr_default(self) -> int:
+        return cast(int, self.get_property(Property.RowCapacityIncr))
+
+    @row_capacity_incr_default.setter
+    def row_capacity_incr_default(self, default: int) -> None:
+        self._set_property(Property.RowCapacityIncr, default)
+
+    @property
+    def column_capacity_incr_default(self) -> int:
+        return cast(int, self.get_property(Property.ColumnCapacityIncr))
+
+    @column_capacity_incr_default.setter
+    def column_capacity_incr_default(self, default: int) -> None:
+        self._set_property(Property.ColumnCapacityIncr, default)
+
+    @property
+    def is_tables_persistent_default(self) -> bool:
+        return cast(bool, self.get_property(Property.IsTablesPersistentDefault))
+
+    @is_tables_persistent_default.setter
+    def is_tables_persistent_default(self, default: bool) -> None:
+        self._set_property(Property.IsTablesPersistentDefault, default)
+
+    @property
+    def is_auto_recalculate_default(self) -> bool:
+        return cast(bool, self.get_property(Property.IsAutoRecalculateDefault))
+
+    @is_auto_recalculate_default.setter
+    def is_auto_recalculate_default(self, default: bool) -> None:
+        self._set_property(Property.IsAutoRecalculateDefault, default)
+
+    @property
+    def display_format_default(self) -> str:
+        return cast(str, self.get_property(Property.DisplayFormat))
+
+    @display_format_default.setter
+    def display_format_default(self, default: str) -> None:
+        self._set_property(Property.DisplayFormat, default)
+
+    @property
+    def units_default(self) -> str:
+        return cast(str, self.get_property(Property.Units))
+
+    @units_default.setter
+    def units_default(self, default: str) -> None:
+        self._set_property(Property.Units, default)
+
+    @property
     def tables(self) -> Collection[Table]:
         return tuple(sorted(set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)))
 
@@ -194,8 +250,8 @@ class TableContext(
     def create_table(self, *args: Any, **kwargs: Any) -> Table:
         from . import Table
 
-        num_rows = self._parse_args(int, "num_rows", 0, self.row_capacity_incr, *args, **kwargs)
-        num_cols = self._parse_args(int, "num_cols", 1, self.column_capacity_incr, *args, **kwargs)
+        num_rows = self._parse_args(int, "num_rows", 0, self.row_capacity_incr_default, *args, **kwargs)
+        num_cols = self._parse_args(int, "num_cols", 1, self.column_capacity_incr_default, *args, **kwargs)
         label = self._parse_args(str, "label", None, None, *args, **kwargs)
         description = self._parse_args(str, "description", None, None, *args, **kwargs)
         units = self._parse_args(str, "units", None, None, *args, **kwargs)

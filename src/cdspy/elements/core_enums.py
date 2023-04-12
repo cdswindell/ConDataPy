@@ -3,7 +3,6 @@ ElementType enum defines all components available in the cdsPy
 """
 from __future__ import annotations
 
-import re
 from typing import Optional, TYPE_CHECKING, Tuple, Union
 
 from enum import Enum, Flag, verify, UNIQUE
@@ -76,20 +75,20 @@ class ElementType(Enum):
     def properties(self) -> list[Property]:
         return sorted({p for p in Property if p.is_implemented_by(self)})
 
-    def required_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_required_property})
+    def required_properties(self) -> set[Property]:
+        return {p for p in Property if p.is_required_property and p.is_implemented_by(self)}
 
-    def optional_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and not p.is_required_property})
+    def optional_properties(self) -> set[Property]:
+        return {p for p in Property if not p.is_required_property and p.is_implemented_by(self)}
 
-    def initializable_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_initializable_property})
+    def initializable_properties(self) -> set[Property]:
+        return {p for p in Property if p.is_initializable_property and p.is_implemented_by(self)}
 
-    def read_only_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_read_only_property})
+    def read_only_properties(self) -> set[Property]:
+        return {p for p in Property if p.is_read_only_property and p.is_implemented_by(self)}
 
-    def mutable_properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self) and p.is_mutable_property})
+    def mutable_properties(self) -> set[Property]:
+        return {p for p in Property if p.is_mutable_property and p.is_implemented_by(self)}
 
 
 class _TablePropertyInfo:
@@ -300,11 +299,7 @@ class Property(Enum):
     TimeSeries = _TablePropertyInfo(False, False, False, "tx", None, ElementType.Column, ElementType.Row)
 
     # Cell properties
-    Row = _TablePropertyInfo(False, True, False, None, None, ElementType.Cell)
-    Column = _TablePropertyInfo(False, True, False, None, None, ElementType.Cell)
-    CellOffset = _TablePropertyInfo(False, True, False, None, None, ElementType.Row, ElementType.Cell)
     DataType = _TablePropertyInfo(False, False, False, "dt", None, ElementType.Column, ElementType.Cell)
-
     CellValue = _TablePropertyInfo(False, False, False, "v", None, ElementType.Cell)
     ErrorMessage = _TablePropertyInfo(True, False, False, "e", None, ElementType.Cell)
     Units = _TablePropertyInfo(
@@ -348,6 +343,7 @@ class Property(Enum):
 
     @classmethod
     def by_name(cls, name: str) -> Property | None:
+        orig_name = name
         name = name.strip()
         if name in cls.__members__:
             return cls[name]
@@ -361,13 +357,6 @@ class Property(Enum):
                 raise ValueError(f"'{name}' is not a valid {cls.__name__}")
             else:
                 raise ValueError(f"None/Empty is not a valid {cls.__name__}")
-
-    @classmethod
-    def by_attr_name(cls, name: str) -> Optional[Property]:
-        try:
-            return cls.by_name("".join(name.title().split("_")))
-        except ValueError:
-            return None
 
     @classmethod  # type: ignore[misc]
     @property
@@ -415,10 +404,6 @@ class Property(Enum):
         return self.name.__hash__()
 
     @property
-    def as_attr_name(self) -> str:
-        return "_".join([t.lower() for t in re.split("(?<=.)(?=[A-Z])", self.name)])
-
-    @property
     def nickname(self) -> str:
         if self.value._nickname:
             return str(self.value._nickname)
@@ -430,10 +415,10 @@ class Property(Enum):
 
         if e is None:
             return False
+        if isinstance(e, TableElement):
+            return e.element_type in self.value._implemented_by
         if isinstance(e, ElementType):
             return e in self.value._implemented_by
-        if isinstance(e, TableElement):
-            return self.is_implemented_by(e.element_type)
         else:
             return False  # type: ignore
 
@@ -480,7 +465,6 @@ class Property(Enum):
         # handle one-offs by placing them in set
         return self in {
             Property.Precision,
-            Property.CellOffset,
             Property.RowCapacityIncr,
             Property.ColumnCapacityIncr,
             Property.FreeSpaceThreshold,
@@ -497,7 +481,7 @@ class Property(Enum):
         }
 
 
-# Define static Nickname map
+# Define static property maps
 _PROPERTIES_BY_NICKNAME = {p.nickname.lower(): p for p in Property}
 
 

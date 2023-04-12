@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import cast, List, Optional, Set, TypeVar, Generic
+from typing import cast, List, Optional, Set, TypeVar, Generic, Any, Iterable, TYPE_CHECKING
 from uuid import UUID
 
+from .table import _CellReference
 from ..computation import Derivation
 from ..utils import ArrayList
 from ..utils import JustInTimeSet
 
-from . import BaseElementState
+from . import BaseElementState, EventType
 from . import ElementType
 from . import Property
 from . import TableElement
@@ -19,8 +20,11 @@ from ..mixins import Derivable
 
 from ..templates import TableCellValidator
 
-from ..exceptions import InvalidException
+from ..exceptions import InvalidException, ReadOnlyException
 from ..exceptions import UnsupportedException
+
+if TYPE_CHECKING:
+    from . import Cell
 
 T = TypeVar("T", bound="TableSliceElement")
 
@@ -40,6 +44,11 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
     @property
     @abstractmethod
     def slices_type(self) -> ElementType:
+        pass
+
+    @property
+    @abstractmethod
+    def cells(self) -> Iterable[Cell]:
         pass
 
     @staticmethod
@@ -103,6 +112,10 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
 
     def _clear_timeseries(self) -> None:
         pass
+
+    @property
+    def _current_cell(self) -> _CellReference | None:
+        return self.table._current_cell if self.table else None
 
     @property
     def cell_validator(self) -> TableCellValidator | None:
@@ -176,11 +189,69 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
     def num_groups(self) -> int:
         return len(self._groups)
 
-    def _fill(self, value: object, preserve_current: bool, preserve_derived_cells: bool, fire_events: bool) -> None:
-        pass
+    def _fill(
+        self, o: object, preserve_current: bool, preserve_derived_cells: bool, fire_events: bool, recalculate: bool
+    ) -> bool:
+        self.vet_element()
+        if self.is_read_only:
+            raise ReadOnlyException(self, Property.CellValue)
+        if o is None and not self.is_supports_null:
+            raise ValueError("Cell value can not be set to None")
+
+        cr = self._current_cell if preserve_current else None
+        reactivate_auto_recalc = False
+        if self.table:
+            self.table.disable_automatic_recalculation()
+            reactivate_auto_recalc = True
+
+        any_changed = False
+        try:
+            with self.table.lock:
+                self.clear_derivation()
+                self.clear_time_series()
+                any_changed = self.__fill_element(o, preserve_derived_cells)
+                if any_changed:
+                    self._set_is_in_use(True)
+                    if bool(fire_events):
+                        self.fire_events(self, EventType.OnNewValue, o)
+        finally:
+            if cr is not None:
+                cr.set_current_cell_reference(self.table)
+            if reactivate_auto_recalc:
+                self.table.enable_automatic_recalculation()
+
+        # TODO: recalculate affected
+        if bool(recalculate):
+            pass
+        return any_changed
+
+    def __fill_element(self, o: Any, preserve_derived_cells: bool) -> bool:
+        any_changed = False
+        read_only_exception_encountered = False
+        null_value_exception_encountered = False
+
+        for cell in self.cells:
+            if preserve_derived_cells and cell.is_derived:
+                continue
+            else:
+                cell.clear_derivation()
+            try:
+                if cell._set_cell_value_internal(o, type_safe_check=True, preprocess=False):
+                    any_changed = True
+            except ReadOnlyException:
+                read_only_exception_encountered = True
+            except ValueError:
+                null_value_exception_encountered = True
+        # if any were set, ignore exceptions, otherwise, throw them
+        if not any_changed:
+            if read_only_exception_encountered:
+                raise ReadOnlyException(self, Property.CellValue)
+            if null_value_exception_encountered:
+                raise ValueError("Cell value can not be set to None")
+        return any_changed
 
     def fill(self, value: object) -> None:
-        self._fill(value, preserve_current=True, preserve_derived_cells=False, fire_events=True)
+        self._fill(value, preserve_current=True, preserve_derived_cells=False, fire_events=True, recalculate=True)
 
     def clear(self) -> None:
         self.fill(None)
@@ -194,3 +265,7 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
     @property
     def derivation(self) -> Derivation | None:
         return None
+
+    @property
+    def is_derived(self) -> bool:
+        return False
