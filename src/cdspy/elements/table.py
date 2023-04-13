@@ -822,6 +822,7 @@ class Table(TableCellsElement):
     def _add_slice_dispatch(
         self, et: ElementType, a1: int | Access | None = None, *args: object
     ) -> Row | Column | None:
+        self.vet_element()
         if a1 is None:
             return self._add_slice(et, Access.Last, False, True, True)  # type: ignore[return-value]
         elif isinstance(a1, int):
@@ -879,29 +880,27 @@ class Table(TableCellsElement):
     def __add_slice(
         self, te: Row | Column, access: Access, set_to_current: bool = True, fire_events: bool = True, *mda: object
     ) -> None | Row | Column:
-        self.vet_element()
-        with self.lock:
-            try:
-                if bool(fire_events):
-                    pass
-            except BlockedRequestException:
-                return None
-            successfully_created = False
-            try:
-                index = self._calculate_index(te.element_type, True, access, *mda)
-                if index <= -1:
-                    raise InvalidAccessException(self, te, access, True, *mda)
-                slices: ArrayList[Row] | ArrayList[Column] = (
-                    self._rows if te.element_type == ElementType.Row else self._columns
-                )
-                if te._insert_slice(slices, index) is not None and bool(set_to_current):
-                    te.mark_current()
-                successfully_created = True
-                return te
-            finally:
-                if successfully_created and bool(fire_events):
-                    pass
-                    # TODO: fire onCreate event
+        try:
+            if bool(fire_events):
+                pass
+        except BlockedRequestException:
+            return None
+        successfully_created = False
+        try:
+            index = self._calculate_index(te.element_type, True, access, *mda)
+            if index <= -1:
+                raise InvalidAccessException(self, te, access, True, *mda)
+            slices: ArrayList[Row] | ArrayList[Column] = (
+                self._rows if te.element_type == ElementType.Row else self._columns
+            )
+            if te._insert_slice(slices, index) is not None and bool(set_to_current):
+                te.mark_current()
+            successfully_created = True
+            return te
+        finally:
+            if successfully_created and bool(fire_events):
+                pass
+                # TODO: fire onCreate event
 
     def add_row(self, a1: int | Access | None = None, *args: object) -> Row:
         return self._add_slice_dispatch(ElementType.Row, a1, *args)  # type: ignore[return-value]

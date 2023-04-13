@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import gc
-import pytest
 
 from ..test_base import TestBase
 
@@ -12,9 +11,9 @@ from cdspy.elements import TableContext, Access
 class TestWeakReferences(TestBase):
     def test_nonpersistent_tables(self) -> None:
         tc = TableContext()
-        num_tables = 16
-        num_rows = 256  # 1024
-        num_cols = 3  # 256
+        num_tables = 8
+        num_rows = 256
+        num_cols = 16
 
         tc.row_capacity_incr_default = num_rows
         tc.column_capacity_incr_default = num_cols
@@ -30,12 +29,11 @@ class TestWeakReferences(TestBase):
         gc.collect()
         assert len(tc) == 0
 
-    @pytest.mark.skip(reason="no way of currently testing this")
     def test_persistent_tables(self) -> None:
         tc = TableContext()
-        num_tables = 8
-        num_rows = 1024
-        num_cols = 2562
+        num_tables = 4
+        num_rows = 32
+        num_cols = 265
 
         tc.row_capacity_incr_default = num_rows
         tc.column_capacity_incr_default = num_cols

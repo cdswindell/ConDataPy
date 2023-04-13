@@ -207,9 +207,9 @@ class BaseElement(ABC):
         if key is None:
             raise InvalidPropertyException(self)
         if isinstance(key, Property):
-            if not key.is_implemented_by(self.element_type):
+            if self.element_type not in key.value._implemented_by:
                 raise UnimplementedException(self, key)
-            elif for_mutable_op and key.is_read_only_property:
+            if for_mutable_op and key.is_read_only_property:
                 raise ReadOnlyException(self, key)
         elif isinstance(key, str):
             key = self.__vet_text_key(key)

@@ -3,7 +3,7 @@ ElementType enum defines all components available in the cdsPy
 """
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING, Tuple, Union
+from typing import Optional, TYPE_CHECKING, Tuple, Union, Dict
 
 from enum import Enum, Flag, verify, UNIQUE
 
@@ -82,13 +82,20 @@ class ElementType(Enum):
         return {p for p in Property if not p.is_required_property and p.is_implemented_by(self)}
 
     def initializable_properties(self) -> set[Property]:
-        return {p for p in Property if p.is_initializable_property and p.is_implemented_by(self)}
+        s = _INITIALIZABLE_PROPERTIES.get(self, None)
+        if s is None:
+            s = {p for p in Property if p.is_initializable_property and self in p.value._implemented_by}
+            _INITIALIZABLE_PROPERTIES[self] = s
+        return s
 
     def read_only_properties(self) -> set[Property]:
         return {p for p in Property if p.is_read_only_property and p.is_implemented_by(self)}
 
     def mutable_properties(self) -> set[Property]:
         return {p for p in Property if p.is_mutable_property and p.is_implemented_by(self)}
+
+
+_INITIALIZABLE_PROPERTIES: Dict[ElementType, set[Property]] = {}
 
 
 class _TablePropertyInfo:

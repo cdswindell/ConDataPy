@@ -89,16 +89,14 @@ class TableCellsElement(TableElement, ABC):
 
     @property
     def table(self) -> Table:
-        from . import Table
-
-        return cast(Table, self._table_ref() if self._table_ref else None)
+        return self._table_ref() if self._table_ref else None  # type: ignore[return-value]
 
     def _set_table(self, table: Table) -> None:
         self._table_ref = ref(table) if table else None
 
     @property
     def table_context(self) -> TableContext:
-        return self.table.table_context if self.table else cast(TableContext, None)
+        return self.table.table_context if self.table else None  # type: ignore[return-value]
 
     @property
     def lock(self) -> RLock:
