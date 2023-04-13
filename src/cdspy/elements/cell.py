@@ -194,7 +194,7 @@ class Cell(TableElement, Derivable):
                     datatype = cast(Type, self.enforced_datatype).__name__
                     raise ValueError(f"Datatype Mismatch: Expected: '{datatype}', rejected: '{type(value).__name__}'")
             values_differ = False
-            if (value is None and self._value is not None) or (value and value != self._value):
+            if (value is None and self._value is not None) or (value is not None and value != self._value):
                 if bool(preprocess):
                     value = self._apply_transform(value)
                 try:

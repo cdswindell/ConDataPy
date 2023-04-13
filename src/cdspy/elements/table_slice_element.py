@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import cast, List, Optional, Set, TypeVar, Generic, Any, Iterable, TYPE_CHECKING
+from typing import cast, List, Optional, Set, TypeVar, Generic, Any, Iterable, TYPE_CHECKING, Callable
 from uuid import UUID
 
 from .table import _CellReference
@@ -18,7 +18,7 @@ from . import Group
 
 from ..mixins import Derivable
 
-from ..templates import TableCellValidator
+from ..templates import TableCellValidator, TableCellTransformer, LambdaTransformer
 
 from ..exceptions import InvalidException, ReadOnlyException
 from ..exceptions import UnsupportedException
@@ -134,6 +134,16 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
         self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
 
     @property
+    def cell_transformer(self) -> TableCellTransformer | None:
+        return cast(TableCellTransformer, self.cell_validator)
+
+    @cell_transformer.setter
+    def cell_transformer(self, tcv: Optional[TableCellTransformer | Callable]) -> None:
+        if callable(tcv):
+            tcv = LambdaTransformer.build(tcv)
+        self.cell_validator = tcv
+
+    @property
     def index(self) -> int:
         return self._index
 
@@ -236,7 +246,7 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
             else:
                 cell.clear_derivation()
             try:
-                if cell._set_cell_value_internal(o, type_safe_check=True, preprocess=False):
+                if cell._set_cell_value_internal(o, type_safe_check=True, preprocess=True):
                     any_changed = True
             except ReadOnlyException:
                 read_only_exception_encountered = True

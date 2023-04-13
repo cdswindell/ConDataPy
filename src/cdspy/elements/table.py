@@ -109,6 +109,7 @@ class Table(TableCellsElement):
         # finally, with context set, initialize default properties
         for p in ElementType.Table.initializable_properties():
             source = template_table if template_table else parent_context
+            source_value = source.get_property(p)
             self._initialize_property(p, source.get_property(p))
 
         # Initialize other instance attributes

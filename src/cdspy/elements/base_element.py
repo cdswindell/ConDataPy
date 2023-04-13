@@ -237,7 +237,10 @@ class BaseElement(ABC):
             properties: dict = cast(dict, self._element_properties(True))
 
             retval = properties[key] if key in properties else None
-            properties[key] = value
+            if value is None:
+                self._clear_property(key)
+            else:
+                properties[key] = value
         return retval
 
     def _initialize_property(self, key: Property | str, value: Any) -> Any:
@@ -248,7 +251,10 @@ class BaseElement(ABC):
             # get the dictionary from the base object, creating it if empty
             properties: dict = cast(dict, self._element_properties(True))
             retval = properties.get(key, None)
-            properties[key] = value
+            if value is None:
+                self._clear_property(key)
+            else:
+                properties[key] = value
 
             # if this property is a state default, initialize it now
             if isinstance(key, Property) and key.is_state_default_property:
