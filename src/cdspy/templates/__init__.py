@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .table_cell_validator import TableCellValidator as TableCellValidator
+from .table_cell_validator import LambdaValidator as LambdaValidator
 from .table_cell_validator import ConstraintViolationError as ConstraintViolationError
 
 from .table_cell_transformer import TableCellTransformer as TableCellTransformer

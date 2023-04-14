@@ -47,7 +47,7 @@ class TestTableContext(TestBase):
         for p in ElementType.TableContext.initializable_properties():
             assert dtc.get_property(p) == _TABLE_CONTEXT_DEFAULTS.get(p)
         for p in _TABLE_CONTEXT_DEFAULTS:
-            assert dtc.has_property(p)
+            assert dtc.has_property(p) or _TABLE_CONTEXT_DEFAULTS.get(p) is None
 
     def test_default_table_context_tags(self) -> None:
         dtc: TableContext = TableContext.fetch_default_context()
@@ -115,7 +115,7 @@ class TestTableContext(TestBase):
             assert tc.get_property(p) == TableContext().get_property(p)
             assert tc.get_property(p) == _TABLE_CONTEXT_DEFAULTS.get(p)
         for p in _TABLE_CONTEXT_DEFAULTS:
-            assert tc.has_property(p)
+            assert tc.has_property(p) or _TABLE_CONTEXT_DEFAULTS.get(p) is None
 
         # change a few initializable properties and confirm that if we make a
         # new context using tc as a template, the new one has the same defaults

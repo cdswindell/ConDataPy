@@ -18,7 +18,7 @@ from . import Group
 
 from ..mixins import Derivable
 
-from ..templates import TableCellValidator, TableCellTransformer, LambdaTransformer
+from ..templates import TableCellValidator, TableCellTransformer, LambdaTransformer, LambdaValidator
 
 from ..exceptions import InvalidException, ReadOnlyException
 from ..exceptions import UnsupportedException
@@ -126,8 +126,10 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
                 return None
 
     @cell_validator.setter
-    def cell_validator(self, tcv: Optional[TableCellValidator]) -> None:
+    def cell_validator(self, tcv: Optional[TableCellValidator | Callable]) -> None:
         if tcv:
+            if callable(tcv):
+                tcv = LambdaValidator.build(tcv)
             self._set_property(Property.CellValidator, tcv)
         else:
             self._clear_property(Property.CellValidator)

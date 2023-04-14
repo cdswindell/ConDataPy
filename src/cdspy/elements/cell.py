@@ -17,7 +17,7 @@ from . import TableElement
 from ..exceptions import ReadOnlyException
 
 from ..computation import Token, Derivation, ErrorCode, ErrorResult
-from ..templates import TableCellValidator, LambdaTransformer, TableCellTransformer
+from ..templates import TableCellValidator, LambdaTransformer, TableCellTransformer, LambdaValidator
 from ..templates import TableEventListener
 
 from ..events import BlockedRequestException
@@ -312,11 +312,15 @@ class Cell(TableElement, Derivable):
                 return None
 
     @validator.setter
-    def validator(self, tcv: Optional[TableCellValidator]) -> None:
+    def validator(self, tcv: Optional[TableCellValidator | Callable]) -> None:
+        if callable(tcv):
+            tcv = LambdaValidator.build(tcv)
         if isinstance(tcv, TableCellValidator):
             self._set_property(Property.CellValidator, tcv)
         elif tcv is not None:
-            raise ValueError(f"Validator must be a TableCellValidator or None, not '{type(tcv).__name__}'")
+            raise ValueError(
+                f"Validator must be a Lambda expression, TableCellValidator or None, not '{type(tcv).__name__}'"
+            )
         else:
             self._clear_property(Property.CellValidator)
         self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)

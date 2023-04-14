@@ -54,6 +54,10 @@ src/cdspy/events/__init__.py
 src/cdspy/events/blocked_request_exception.py
 src/cdspy/events/__pycache__/__init__.cpython-311.pyc
 src/cdspy/events/__pycache__/blocked_request_exception.cpython-311.pyc
+src/cdspy/examples/__init__.py
+src/cdspy/examples/validation.py
+src/cdspy/examples/__pycache__/__init__.cpython-311.pyc
+src/cdspy/examples/__pycache__/validation.cpython-311.pyc
 src/cdspy/exceptions/__init__.py
 src/cdspy/exceptions/base_exceptions.py
 src/cdspy/exceptions/deleted_element_exception.py

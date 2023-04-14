@@ -1,4 +1,7 @@
+# type: ignore
 from __future__ import annotations
+
+from numbers import Number
 
 import pytest
 
@@ -9,7 +12,7 @@ from ..test_base import TestBase
 from cdspy.elements import Table
 
 
-# noinspection PyMethodMayBeStatic
+# noinspection PyMethodMayBeStatic,PyTypeChecker
 class TestCellValidation(TestBase):
     def test_cell_validation(self) -> None:
         t = Table()
@@ -63,6 +66,79 @@ class TestCellValidation(TestBase):
             c_r1_c2.value = 50
 
         with pytest.raises(ConstraintViolationError, match="Numeric Value Required"):
+            c_r1_c2.value = "abc"
+
+        # clear validator, should now be no exceptions
+        r1.cell_validator = None
+        c_r1_c2.value = 50
+        assert c_r1_c2.value == 50
+
+        c_r1_c2.value = 0
+        assert c_r1_c2.value == 0
+
+        c_r1_c2.value = "abc"
+        assert c_r1_c2.value == "abc"
+
+    def test_lambda_validation(self) -> None:
+        t = Table()
+        r1 = t.add_row()
+        r2 = t.add_row()
+        r3 = t.add_row()
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        r1.cell_validator = (
+            lambda x: x if isinstance(x, Number) and 30.0 <= x <= 40.0 else ConstraintViolationError.raise_()
+        )
+        c1.cell_validator = (
+            lambda x: x if isinstance(x, Number) and 1.0 <= x <= 10.0 else ConstraintViolationError.raise_()
+        )
+
+        c_r1_c1 = t.get_cell(r1, c1)
+        c_r2_c1 = t.get_cell(r2, c1)
+        c_r3_c1 = t.get_cell(r3, c1)
+        c_r3_c1.validator = (
+            lambda x: x
+            if x is not None and isinstance(x, Number) and -100.0 <= x <= 20.0
+            else ConstraintViolationError.raise_()
+        )
+
+        # now set values
+        c_r1_c1.value = 2.0
+        assert c_r1_c1.value == 2.0
+
+        c_r2_c1.value = None
+        assert c_r2_c1.value is None
+
+        c_r3_c1.value = 19
+        assert c_r3_c1.value == 19
+
+        # these tests should fail
+        with pytest.raises(ConstraintViolationError):
+            c_r2_c1.value = -5
+
+        with pytest.raises(ConstraintViolationError):
+            c_r3_c1.value = None
+
+        c_r1_c2 = t.get_cell(r1, c2)
+        c_r2_c2 = t.get_cell(r2, c2)
+        c_r3_c2 = t.get_cell(r3, c2)
+
+        c_r1_c2.value = 35
+        assert c_r1_c2.value == 35
+
+        c_r2_c2.value = 200
+        assert c_r2_c2.value == 200
+
+        c_r3_c2.value = None
+        assert c_r3_c2.is_null
+        assert c_r3_c2.value is None
+
+        # these tests should fail
+        with pytest.raises(ConstraintViolationError):
+            c_r1_c2.value = 50
+
+        with pytest.raises(ConstraintViolationError):
             c_r1_c2.value = "abc"
 
         # clear validator, should now be no exceptions
