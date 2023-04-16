@@ -5,7 +5,7 @@ from typing import cast, Optional, TYPE_CHECKING
 
 from ordered_set import OrderedSet
 
-from ..mixins import Derivable
+from ..mixins import Derivable, Groupable
 from ..utils import JustInTimeSet
 
 from . import ElementType
@@ -25,8 +25,12 @@ if TYPE_CHECKING:
     from . import Cell
 
 
-class Group(TableCellsElement):
+class Group(TableCellsElement, Groupable):
     def __init__(self, parent: Table, label: Optional[str] = None) -> None:
+        from . import Row
+        from . import Column
+        from . import Cell
+
         super().__init__(parent)
         self.label = label
         self.__cells = JustInTimeSet[Cell]()
@@ -39,12 +43,20 @@ class Group(TableCellsElement):
         self._mark_initialized()
 
     def __contains__(self, x: TableElement | None) -> bool:
+        from . import Row
+        from . import Column
+        from . import Cell
+
         if x and isinstance(x, TableElement):
             with self._lock:
                 if isinstance(x, Cell):
                     return x in self.__cells
-                if isinstance(x, Group):
-                    return x in self.__groups
+        if isinstance(x, Group):
+            return x in self.__groups
+        if isinstance(x, Row):
+            return x in self.__rows
+        if isinstance(x, Column):
+            return x in self.__cols
         return False
 
     def __del__(self) -> None:
@@ -147,6 +159,9 @@ class Group(TableCellsElement):
     def groups(self) -> Collection[Group]:
         return tuple(self._groups)
 
+    def _add_to_group(self, g: Group) -> None:
+        self.__groups.add(g)
+
     def add(self, *elems: TableElement) -> bool:
         from . import Row
         from . import Column
@@ -173,9 +188,10 @@ class Group(TableCellsElement):
                         # TODO: Add Row and Column and Back Pointer
                     elif isinstance(elem, Cell):
                         added_any = True if elem not in self.__cells else added_any
-                        elem._register_to_group(self)
                         self.__cells.add(elem)
                         # TODO: add back pointer
+                    # set up the back-pointer from the element to this group
+                    cast(Groupable, elem)._add_to_group(self)
         if added_any:
             self.__num_cells = -1
         return added_any

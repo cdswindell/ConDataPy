@@ -844,7 +844,15 @@ class Table(TableCellsElement):
         elif access in [Access.ByLabel, Access.ByDescription]:
             if is_adding or md is None or not isinstance(md, str):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            target = cast(TableSliceElement, self._find(slices, access.associated_property, str(md)))
+            if (
+                access == Access.ByLabel
+                and (et == ElementType.Row and self.is_row_labels_indexed)
+                or (et == ElementType.Column and self.is_column_labels_indexed)
+            ):
+                key = str(md).strip().lower()
+                target = self._element_label_indexes[et].get(key, None) if key else None  # type: ignore
+            else:
+                target = cast(TableSliceElement, self._find(slices, access.associated_property, str(md)))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByUUID:
             if is_adding or md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
@@ -864,7 +872,17 @@ class Table(TableCellsElement):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} key: {key}")
             target = cast(TableSliceElement, self._find(slices, key, value))
             return int(target.index) - 1 if target else -1
-
+        elif access == Access.ByDataType:
+            if et != ElementType.Column:
+                raise InvalidException(self, f"{access.name} only valid for Columns")
+            if is_adding or md is None or (not isinstance(md, str) and not isinstance(md, type)):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {cast(type, md).__name__}")
+            is_exact = bool(mda[1]) if mda and len(mda) > 1 else True
+            if is_exact:
+                target = cast(TableSliceElement, self._find(slices, Property.DataType, md))
+            else:
+                target = None
+            return int(target.index) - 1 if target else -1
         return -1
 
     def _add_slice_dispatch(
@@ -908,7 +926,20 @@ class Table(TableCellsElement):
                     else False
                 )
                 if not allow_dups:
-                    raise InvalidException(self, f"{slice_type.name} with {access.name} {mda[0]} exists")
+                    raise InvalidException(self, f"{slice_type.name} with {access.name} '{mda[0]}' exists")
+            insert_mode = Access.Last  # add new slice as last
+        elif access == Access.ByDataType:
+            if slice_type != ElementType.Column:
+                raise InvalidException(self, f"{access.name} only valid for Columns")
+            existing_slice = self.get_column(access, *mda)
+            if existing_slice:
+                if bool(return_existing):
+                    return existing_slice
+                else:
+                    allow_dups = bool(mda[1]) if mda and len(mda) > 1 and isinstance(mda[1], bool) else False
+                    if not allow_dups:
+                        dt = cast(type, mda[0])
+                        raise InvalidException(self, f"{slice_type.name} with {access.name} '{dt.__name__}' exists")
             insert_mode = Access.Last  # add new slice as last
 
         # create a new row/column object and insert it into table
@@ -923,6 +954,8 @@ class Table(TableCellsElement):
                     te.uuid = mda[0] if isinstance(mda[0], uuid.UUID) else uuid.UUID(str(mda[0]))
                 elif access == Access.ByDescription:
                     te.description = str(mda[0])
+                elif access == Access.ByDataType:
+                    te.datatype = mda[0]  # type: ignore[union-attr]
             return te  # type: ignore[return-value]
 
     def __add_slice(

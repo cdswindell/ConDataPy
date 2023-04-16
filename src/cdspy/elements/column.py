@@ -10,7 +10,7 @@ from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
 from ..events import BlockedRequestException
 
-from . import ElementType, Access
+from . import ElementType, Access, Property
 from . import TableSliceElement
 from . import Cell
 
@@ -74,7 +74,8 @@ class Column(TableSliceElement):
             value = self._get_template(te).get_property(p)
             self._initialize_property(p, value)
 
-        self.__cells = ArrayList[Cell](capacity_increment=te.row_capacity_incr if te else None)  # type: ignore[arg-type]
+        ci = te.row_capacity_incr if te else None
+        self.__cells = ArrayList[Cell](capacity_increment=ci)  # type: ignore[arg-type]
 
         if proxy and isinstance(self, FilteredColumn):
             proxy.register_filter(self)
@@ -203,7 +204,10 @@ class Column(TableSliceElement):
 
     @datatype.setter
     def datatype(self, datatype: type | None) -> None:
+        # datatype is stored on column for efficiency, as well as
+        # in the props dict to aid in retrieval (BaseElement._find)
         self._datatype = datatype
+        self._set_property(Property.DataType, datatype)
 
     def get_cell(self, row: Row) -> Cell | None:
         return self._get_cell(row, create_if_sparse=True, set_to_current=True)

@@ -22,7 +22,7 @@ from ..templates import TableEventListener
 
 from ..events import BlockedRequestException
 
-from ..mixins import Derivable
+from ..mixins import Derivable, Groupable
 
 NaN: Final = float("NaN")
 Inf: Final = float("inf")
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
     from . import Group
 
 
-class Cell(TableElement, Derivable):
+class Cell(TableElement, Derivable, Groupable):
     __slots__ = [
         "_offset",
         "_value",
@@ -500,6 +500,9 @@ class Cell(TableElement, Derivable):
     @property
     def groups(self) -> Collection[Group]:
         return tuple(self.table._get_cell_groups(self)) if self.table else ()
+
+    def _add_to_group(self, g: Group) -> None:
+        self._register_to_group(g)
 
     def _register_to_group(self, g: Group) -> bool:
         if self.table:

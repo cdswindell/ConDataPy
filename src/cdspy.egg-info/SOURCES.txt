@@ -81,6 +81,7 @@ src/cdspy/exceptions/__pycache__/unsupported_exception.cpython-311.pyc
 src/cdspy/mixins/__init__.py
 src/cdspy/mixins/derivable.py
 src/cdspy/mixins/event_processor.py
+src/cdspy/mixins/groupable.py
 src/cdspy/mixins/taggable.py
 src/cdspy/mixins/__pycache__/__init__.cpython-311.pyc
 src/cdspy/mixins/__pycache__/derivable.cpython-311.pyc

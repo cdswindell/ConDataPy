@@ -17,7 +17,7 @@ from . import TableElement
 from . import TableCellsElement
 from . import Group
 
-from ..mixins import Derivable
+from ..mixins import Derivable, Groupable
 
 from ..templates import TableCellValidator, TableCellTransformer, LambdaTransformer, LambdaValidator
 
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 T = TypeVar("T", bound="TableSliceElement")
 
 
-class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
+class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]):
     __slots__: List[str] = ["_index", "__remote_uuids", "_groups"]
 
     @abstractmethod
@@ -84,6 +84,9 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
         while self._groups:
             g = self._groups.pop()
             g.remove(self)
+
+    def _add_to_group(self, g: Group) -> None:
+        self._groups.add(g)
 
     def _insert_slice(self, elems: ArrayList[T], index: int) -> T:
         self.vet_element(allow_uninitialized=True)

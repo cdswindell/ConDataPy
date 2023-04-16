@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+from _weakref import ref
 from collections.abc import Collection, Iterator
-from typing import Optional, TYPE_CHECKING, cast
+from typing import Optional, TYPE_CHECKING
 
 from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
 from ..events import BlockedRequestException
 
-from . import ElementType
+from . import ElementType, Access
 from . import TableSliceElement
 
 from ..utils import JustInTimeSet
@@ -18,6 +19,38 @@ if TYPE_CHECKING:
     from . import Column
     from . import Cell
     from .filters import FilteredRow
+
+
+class _RowCellIterator:
+    def __init__(self, row: Row) -> None:
+        self._index = 0
+        self._row = row
+        self._table_ref = ref(row.table) if row else None
+        self._num_cols = self.table.num_columns if self.table else 0
+
+    def __iter__(self) -> Iterator[Cell]:
+        self._index = 0
+        self._num_cols = self.table.num_columns if self.table else 0
+        return self
+
+    def __next__(self) -> Cell:
+        if self._index < self._num_cols:
+            self._index += 1
+            col: Column = self.table._get_slice(  # type: ignore[assignment]
+                ElementType.Column, self.table._columns, Access.ByIndex, True, False, self._index
+            )
+            cell = col._get_cell(self._row, True, False)
+            return cell  # type: ignore[return-value]
+        else:
+            raise StopIteration
+
+    @property
+    def table(self) -> Table:
+        return self._table_ref() if self._table_ref else None  # type: ignore[return-value]
+
+    @property
+    def row(self) -> Row:
+        return self._row
 
 
 # noinspection DuplicatedCode
@@ -185,4 +218,4 @@ class Row(TableSliceElement):
 
     @property
     def cells(self) -> Iterator[Cell]:
-        return cast(Iterator[Cell], [])
+        return _RowCellIterator(self)
