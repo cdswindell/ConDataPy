@@ -44,8 +44,8 @@ class TableCellsElement(TableElement, ABC):
     def __lt__(self, other: TableCellsElement) -> bool:
         if not isinstance(other, TableCellsElement):
             raise NotImplementedError
-        s = self.label if self.label else str(self.uuid)
-        o = other.label if other.label else str(other.uuid)
+        s: str = self.label if self.label else str(self.uuid)
+        o: str = other.label if other.label else str(other.uuid)
         return s < o
 
     def _delete(self, compress: bool = True) -> None:

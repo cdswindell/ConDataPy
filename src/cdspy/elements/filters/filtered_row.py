@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, TYPE_CHECKING
 
+from .. import BaseElement
 from ...exceptions import UnsupportedException
 from ...elements import Row
 
@@ -18,11 +19,11 @@ class FilteredRow(Row):
     def parent(self) -> Row:
         return self._parent
 
-    @property
-    def label(self) -> str | None:
+    @BaseElement.label.getter
+    def label(self) -> str:
         return self.parent.label
 
-    @label.setter
+    @BaseElement.label.setter
     def label(self, value: Optional[str]) -> None:
         raise UnsupportedException(self, "Can not set label of a filtered Row")
 

@@ -72,8 +72,8 @@ class ElementType(Enum):
         else:
             return self.name
 
-    def properties(self) -> list[Property]:
-        return sorted({p for p in Property if p.is_implemented_by(self)})
+    def properties(self) -> set[Property]:
+        return {p for p in Property if p.is_implemented_by(self)}
 
     def required_properties(self) -> set[Property]:
         return {p for p in Property if p.is_required_property and p.is_implemented_by(self)}

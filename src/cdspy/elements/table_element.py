@@ -87,6 +87,25 @@ class TableElement(BaseElement, ABC):
     def delete(self) -> None:
         self._delete(True)
 
+    @BaseElement.label.setter  # type: ignore[attr-defined]
+    def label(self, value: Optional[str]) -> None:
+        if self.is_label_indexed:
+            label_index = self.table._element_label_indexes[self.element_type]
+            with self.table.lock:
+                cur_label_key = self.label.strip().lower() if self.label else None
+                value_key = value.strip().lower() if value else None
+                if value_key != cur_label_key:
+                    # remove old key
+                    if cur_label_key in label_index:
+                        del label_index[cur_label_key]
+                    if value_key:
+                        if value_key in label_index:
+                            raise KeyError(f"{self.element_type.name} Label '{value}' not unique")
+                        label_index[value_key] = self
+                self._set_property(Property.Label, value)
+        else:
+            self._set_property(Property.Label, value)
+
     @property
     def display_format(self) -> str | None:
         return cast(str, self.get_property(Property.DisplayFormat))

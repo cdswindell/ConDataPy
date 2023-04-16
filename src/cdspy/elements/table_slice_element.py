@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Collection
 from typing import cast, List, Optional, Set, TypeVar, Generic, Any, Iterable, TYPE_CHECKING, Callable
 from uuid import UUID
 
@@ -134,6 +135,10 @@ class TableSliceElement(TableCellsElement, Derivable, ABC, Generic[T]):
         else:
             self._clear_property(Property.CellValidator)
         self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
+
+    @property
+    def properties(self) -> Collection[Property]:
+        return sorted(list(self.element_type.properties()))
 
     @property
     def cell_transformer(self) -> TableCellTransformer | None:

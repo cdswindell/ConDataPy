@@ -38,6 +38,7 @@ from ..mixins import Derivable
 
 if TYPE_CHECKING:
     from . import S
+    from . import T
     from . import TableSliceElement
     from . import Row
     from . import Column
@@ -133,7 +134,14 @@ class Table(TableCellsElement):
         self._row_label_index: Dict[str, Row] = {}
         self._col_label_index: Dict[str, Column] = {}
         self._cell_label_index: Dict[str, Cell] = {}
-        self._Group_label_index: Dict[str, Group] = {}
+        self._group_label_index: Dict[str, Group] = {}
+
+        self._element_label_indexes: Dict[ElementType, Dict[str, TableElement]] = {
+            ElementType.Row: self._row_label_index,  # type: ignore[dict-item]
+            ElementType.Column: self._col_label_index,  # type: ignore[dict-item]
+            ElementType.Cell: self._cell_label_index,  # type: ignore[dict-item]
+            ElementType.Group: self._group_label_index,  # type: ignore[dict-item]
+        }
 
         self._cell_properties: Dict[Cell, Dict] = {}
         self._cell_groups: Dict[Cell, Set[Group]] = {}
@@ -357,13 +365,52 @@ class Table(TableCellsElement):
                     pass
         return cast(Row, None)
 
+    def __index_element_labels(self, elems: Collection[T], label_index: Dict[str, T], flag: BaseElementState) -> None:
+        with self.lock:
+            label_index.clear()
+
+            if not elems:
+                self._reset(flag)
+            else:
+                for elem in elems:
+                    if elem:
+                        label = elem.label
+                        if label:
+                            label = label.strip().lower()
+                            if label in label_index:
+                                label_index.clear()
+                                self._reset(flag)
+                                raise KeyError(f"{elem.element_type.name} Label '{elem.label}' not unique")
+                            else:
+                                label_index[label] = elem
+
     @property
     def is_column_labels_indexed(self) -> bool:
         return self._is_set(BaseElementState.COLUMN_LABELS_INDEXED_FLAG)
 
+    @is_column_labels_indexed.setter
+    def is_column_labels_indexed(self, state: bool) -> None:
+        state = bool(state)
+        if state:
+            self.__index_element_labels(
+                self._columns, self._col_label_index, BaseElementState.COLUMN_LABELS_INDEXED_FLAG
+            )
+        else:
+            self._col_label_index.clear()
+        self._mutate_state(BaseElementState.COLUMN_LABELS_INDEXED_FLAG, state)
+
     @property
     def is_row_labels_indexed(self) -> bool:
         return self._is_set(BaseElementState.ROW_LABELS_INDEXED_FLAG)
+
+    @is_row_labels_indexed.setter
+    def is_row_labels_indexed(self, state: bool) -> None:
+        state = bool(state)
+        if state:
+            self.__index_element_labels(self._rows, self._row_label_index, BaseElementState.ROW_LABELS_INDEXED_FLAG)
+        else:
+            self._row_label_index.clear()
+        self._mutate_state(BaseElementState.ROW_LABELS_INDEXED_FLAG, state)
 
     @property
     def is_cell_labels_indexed(self) -> bool:

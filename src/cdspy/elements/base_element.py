@@ -237,6 +237,9 @@ class BaseElement(ABC):
             properties: dict = cast(dict, self._element_properties(True))
 
             retval = properties[key] if key in properties else None
+            # for strings , trim leading and trailing white space
+            if isinstance(value, str):
+                value = value.strip()
             if value is None:
                 self._clear_property(key)
             else:
