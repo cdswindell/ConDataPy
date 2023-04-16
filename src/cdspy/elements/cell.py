@@ -502,17 +502,12 @@ class Cell(TableElement, Derivable, Groupable):
         return tuple(self.table._get_cell_groups(self)) if self.table else ()
 
     def _add_to_group(self, g: Group) -> None:
-        self._register_to_group(g)
-
-    def _register_to_group(self, g: Group) -> bool:
         if self.table:
             self.table._register_group_cell(self, g)
-        return False
 
-    def _deregister_from_group(self, g: Group) -> bool:
+    def _remove_from_group(self, g: Group) -> None:
         if self.table:
             self.table._deregister_group_cell(self, g)
-        return False
 
     @property
     def is_derived(self) -> bool:

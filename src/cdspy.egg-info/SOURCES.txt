@@ -86,6 +86,7 @@ src/cdspy/mixins/taggable.py
 src/cdspy/mixins/__pycache__/__init__.cpython-311.pyc
 src/cdspy/mixins/__pycache__/derivable.cpython-311.pyc
 src/cdspy/mixins/__pycache__/event_processor.cpython-311.pyc
+src/cdspy/mixins/__pycache__/groupable.cpython-311.pyc
 src/cdspy/mixins/__pycache__/taggable.cpython-311.pyc
 src/cdspy/templates/__init__.py
 src/cdspy/templates/table_cell_transformer.py

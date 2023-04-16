@@ -13,3 +13,7 @@ class Groupable(ABC):
     @abstractmethod
     def _add_to_group(self, g: Group) -> None:
         pass
+
+    @abstractmethod
+    def _remove_from_group(self, g: Group) -> None:
+        pass

@@ -88,6 +88,9 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
     def _add_to_group(self, g: Group) -> None:
         self._groups.add(g)
 
+    def _remove_from_group(self, g: Group) -> None:
+        self._groups.discard(g)
+
     def _insert_slice(self, elems: ArrayList[T], index: int) -> T:
         self.vet_element(allow_uninitialized=True)
         if index < 0:

@@ -162,6 +162,9 @@ class Group(TableCellsElement, Groupable):
     def _add_to_group(self, g: Group) -> None:
         self.__groups.add(g)
 
+    def _remove_from_group(self, g: Group) -> None:
+        self.__groups.discard(g)
+
     def add(self, *elems: TableElement) -> bool:
         from . import Row
         from . import Column
@@ -196,6 +199,24 @@ class Group(TableCellsElement, Groupable):
             self.__num_cells = -1
         return added_any
 
+    def remove(self, te: TableSliceElement | Cell) -> None:
+        from . import Row
+        from . import Column
+        from . import Group
+        from . import Cell
+
+        with self.lock:
+            cast(Groupable, te)._remove_from_group(self)
+
+            if isinstance(te, Row):
+                self.__rows.discard(te)
+            elif isinstance(te, Column):
+                self.__cols.discard(te)
+            elif isinstance(te, Group):
+                self.__groups.discard(te)
+            elif isinstance(te, Cell):
+                self.__cells.discard(te)
+
     def update(self, elems: Collection[TableElement]) -> bool:
         if elems:
             return self.add(*elems)
@@ -206,23 +227,6 @@ class Group(TableCellsElement, Groupable):
 
     def clear(self) -> None:
         self.fill(None)
-
-    def remove(self, te: TableSliceElement | Cell) -> None:
-        from . import Row
-        from . import Column
-        from . import Group
-        from . import Cell
-
-        with self.lock:
-            if isinstance(te, Row):
-                self.__rows.discard(te)
-            elif isinstance(te, Column):
-                self.__cols.discard(te)
-            elif isinstance(te, Group):
-                self.__groups.discard(te)
-            elif isinstance(te, Cell):
-                self.__cells.discard(te)
-                te._deregister_from_group(self)
 
     @property
     def derived_elements(self) -> Collection[Derivable]:
