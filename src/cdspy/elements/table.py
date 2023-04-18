@@ -4,12 +4,12 @@ from collections import deque
 import threading
 import weakref
 
-from typing import Any, cast, Dict, Iterator, List, Optional
+from typing import Any, cast, Dict, List, Optional
 from typing import overload, Collection, Set, TYPE_CHECKING, Tuple
 
 import uuid
 
-from ..utils import ArrayList
+from ..utils import ArrayList, JustInTimeSet
 from ..events import BlockedRequestException
 from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
@@ -27,8 +27,6 @@ from . import TableContext
 
 from ..computation import Token
 
-from .base_element import _BaseElementIterable
-
 from ..computation import recalculate_affected
 from ..computation import Derivation
 
@@ -37,7 +35,6 @@ from ..templates import TableEventListener
 from ..mixins import Derivable
 
 if TYPE_CHECKING:
-    from . import S
     from . import T
     from . import TableSliceElement
     from . import Row
@@ -90,6 +87,7 @@ class Table(TableCellsElement):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         from . import Row
         from . import Column
+        from . import Group
 
         super().__init__(None)
 
@@ -142,6 +140,9 @@ class Table(TableCellsElement):
             ElementType.Cell: self._cell_label_index,  # type: ignore[dict-item]
             ElementType.Group: self._group_label_index,  # type: ignore[dict-item]
         }
+
+        self._groups = JustInTimeSet[Group]()
+        self._persistent_groups: Set[Group] = set()
 
         self._cell_properties: Dict[Cell, Dict] = {}
         self._cell_groups: Dict[Cell, Set[Group]] = {}
@@ -196,7 +197,21 @@ class Table(TableCellsElement):
                 if compress:
                     self._reclaim_column_space()
                     self._reclaim_row_space()
-                super()._delete(compress)
+
+                for x in self._element_label_indexes.values():
+                    x.clear()
+                self._element_label_indexes.clear()
+                self._groups.clear()
+                self._persistent_groups.clear()
+                self._affects.clear()
+                self._cell_offset_row_map.clear()
+                self._unused_cell_offsets.clear()
+                self._cell_properties.clear()
+                self._cell_groups.clear()
+                self._cell_affects.clear()
+                self._cell_derivations.clear()
+                self.__rows.clear()
+                self.__cols.clear()
             finally:
                 self._clear_current_cell()
                 self._invalidate()
@@ -232,6 +247,36 @@ class Table(TableCellsElement):
 
     def _remove_all_cell_listeners(self, cell: Cell, *events: EventType) -> List[TableEventListener]:
         return []
+
+    @property
+    def is_dirty(self) -> bool:
+        return self._is_set(BaseElementState.IS_DIRTY_FLAG)
+
+    def _mark_dirty(self) -> None:
+        self._set(BaseElementState.IS_DIRTY_FLAG)
+
+    def _mark_clean(self) -> None:
+        self._reset(BaseElementState.IS_DIRTY_FLAG)
+
+    def _register_group(self, g: Group) -> None:
+        with self.lock:
+            self.vet_parent(g)
+            table_changed = g not in self._groups
+            self._groups.add(g)
+            if table_changed:
+                self._mark_dirty()
+
+    def _deregister_group(self, g: Group) -> None:
+        with self.lock:
+            self.vet_parent(g)
+            self._groups.discard(g)
+            self._persistent_groups.discard(g)
+
+    def _set_persistent_group(self, g: Group, state: bool) -> None:
+        if bool(state):
+            self._persistent_groups.add(g)
+        else:
+            self._persistent_groups.discard(g)
 
     def _register_group_cell(self, cell: Cell, group: Group) -> bool:
         groups = self._cell_groups.get(cell, None)
@@ -614,13 +659,13 @@ class Table(TableCellsElement):
 
     @property
     def num_groups(self) -> int:
-        return 0
+        return len(self._groups)
 
     @property
     def are_cell_labels_indexed(self) -> bool:
         return False
 
-    def fill(self, o: Optional[object]) -> None:
+    def fill(self, o: Any, preprocess: Optional[bool] = True) -> None:
         with self.lock:
             self.vet_element()
 
@@ -631,7 +676,12 @@ class Table(TableCellsElement):
                 col = self.get_column(Access.First)
                 while col:
                     if col._fill(
-                        o, preserve_current=False, preserve_derived_cells=False, fire_events=False, recalculate=False
+                        o,
+                        preserve_current=False,
+                        preserve_derived_cells=False,
+                        preprocess=bool(preprocess),
+                        fire_events=False,
+                        recalculate=False,
                     ):
                         any_changed = True
                     col = self.get_column(Access.Next)
@@ -1039,12 +1089,10 @@ class Table(TableCellsElement):
                 self._get_slice(ElementType.Row, self._rows, Access.ByIndex, True, False, index + 1)
 
     @property
-    def rows(self) -> Iterator[S]:
-        from . import Row
-
+    def rows(self) -> Collection[Row]:
         self.vet_element()
         self._ensure_rows_exist()
-        return _BaseElementIterable[Row](self.__rows)
+        return tuple(sorted(self._rows))
 
     def _ensure_columns_exist(self) -> None:
         for index in range(0, self.num_columns):
@@ -1052,12 +1100,10 @@ class Table(TableCellsElement):
                 self._get_slice(ElementType.Column, self._columns, Access.ByIndex, True, False, index + 1)
 
     @property
-    def columns(self) -> Iterator[S]:
-        from . import Column
-
+    def columns(self) -> Collection[Column]:
         self.vet_element()
         self._ensure_columns_exist()
-        return _BaseElementIterable[Column](self.__cols)
+        return tuple(sorted(self._columns))
 
     def _sort_row_labels(self) -> None:
         from . import TableSliceElement

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any
 
 from .. import BaseElement
 from ...exceptions import UnsupportedException
@@ -37,7 +37,7 @@ class FilteredColumn(Column):
     def description(self, value: Optional[str]) -> None:
         raise UnsupportedException(self, "Can not set description of a filtered Column")
 
-    def fill(self, value: object) -> None:
+    def fill(self, o: Any, preprocess: Optional[bool] = True) -> None:
         raise UnsupportedException(self, "Can not fill a filtered Column")
 
     def clear(self) -> None:

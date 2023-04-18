@@ -5,7 +5,7 @@ from ..exceptions import InvalidParentException
 
 from abc import ABC, abstractmethod
 from collections.abc import Collection
-from typing import cast, Optional, Tuple, TYPE_CHECKING
+from typing import cast, Optional, Tuple, TYPE_CHECKING, Any
 
 from . import Property
 from . import BaseElement
@@ -36,7 +36,7 @@ class TableElement(BaseElement, ABC):
         pass
 
     @abstractmethod
-    def fill(self, o: Optional[object]) -> None:
+    def fill(self, o: Any, preprocess: Optional[bool] = True) -> None:
         pass
 
     @abstractmethod

@@ -143,10 +143,6 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
         self._mutate_state(BaseElementState.HAS_CELL_VALIDATOR_FLAG, tcv is not None)
 
     @property
-    def properties(self) -> Collection[Property]:
-        return sorted(list(self.element_type.properties()))
-
-    @property
     def cell_transformer(self) -> TableCellTransformer | None:
         return cast(TableCellTransformer, self.cell_validator)
 
@@ -209,11 +205,21 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
         self.__remote_uuids.clear()
 
     @property
+    def groups(self) -> Collection[Group]:
+        return tuple(self._groups)
+
+    @property
     def num_groups(self) -> int:
         return len(self._groups)
 
     def _fill(
-        self, o: object, preserve_current: bool, preserve_derived_cells: bool, fire_events: bool, recalculate: bool
+        self,
+        o: Any,
+        preserve_current: bool,
+        preserve_derived_cells: bool,
+        preprocess: bool,
+        fire_events: bool,
+        recalculate: bool,
     ) -> bool:
         self.vet_element()
         if self.is_read_only:
@@ -226,13 +232,12 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
         if self.table:
             self.table.disable_automatic_recalculation()
             reactivate_auto_recalc = True
-
         any_changed = False
         try:
             with self.table.lock:
                 self.clear_derivation()
                 self.clear_time_series()
-                any_changed = self.__fill_element(o, preserve_derived_cells)
+                any_changed = self.__fill_element(o, preserve_derived_cells, preprocess)
                 if any_changed:
                     self._set_is_in_use(True)
                     if bool(fire_events):
@@ -248,7 +253,7 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
             pass
         return any_changed
 
-    def __fill_element(self, o: Any, preserve_derived_cells: bool) -> bool:
+    def __fill_element(self, o: Any, preserve_derived_cells: bool, preprocess: bool) -> bool:
         any_changed = False
         read_only_exception_encountered = False
         null_value_exception_encountered = False
@@ -259,7 +264,7 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
             else:
                 cell.clear_derivation()
             try:
-                if cell._set_cell_value_internal(o, type_safe_check=True, preprocess=True):
+                if cell._set_cell_value_internal(o, type_safe_check=True, preprocess=bool(preprocess)):
                     any_changed = True
             except ReadOnlyException:
                 read_only_exception_encountered = True
@@ -273,8 +278,15 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
                 raise ValueError("Cell value can not be set to None")
         return any_changed
 
-    def fill(self, value: object) -> None:
-        self._fill(value, preserve_current=True, preserve_derived_cells=False, fire_events=True, recalculate=True)
+    def fill(self, o: Any, preprocess: Optional[bool] = True) -> None:
+        self._fill(
+            o,
+            preserve_current=True,
+            preserve_derived_cells=False,
+            preprocess=bool(preprocess),
+            fire_events=True,
+            recalculate=True,
+        )
 
     def clear(self) -> None:
         self.fill(None)

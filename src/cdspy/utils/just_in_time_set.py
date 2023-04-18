@@ -32,6 +32,9 @@ class JustInTimeSet(MutableSet, Generic[V]):
             else:
                 yield from ()
 
+    def __repr__(self) -> str:
+        return f"JustInTimeSet({self._backing_set if self._backing_set else [] })"
+
     def __create_backing_set(self) -> None:
         with self._lock:
             if self._backing_set is None:

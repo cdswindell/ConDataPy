@@ -55,7 +55,7 @@ class _ColumnCellIterator:
         return self._col
 
 
-# noinspection DuplicatedCode
+# noinspection DuplicatedCode_
 class Column(TableSliceElement):
     def __init__(self, te: Table, proxy: Optional[Column] = None) -> None:
         from .filters import FilteredColumn

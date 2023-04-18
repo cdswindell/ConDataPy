@@ -103,6 +103,10 @@ class TableCellsElement(TableElement, ABC):
         return self._lock
 
     @property
+    def properties(self) -> Collection[Property]:
+        return sorted(list(self.element_type.properties()))
+
+    @property
     def is_pendings(self) -> bool:
         return self._pendings > 0
 

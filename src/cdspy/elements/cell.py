@@ -358,8 +358,16 @@ class Cell(TableElement, Derivable, Groupable):
         return self._col
 
     @property
+    def _column(self) -> Column:
+        return self._col
+
+    @property
     def row(self) -> Row:
         self.vet_element()
+        return self._row
+
+    @property
+    def _row(self) -> Row:
         return self.table._row_by_cell_offset(self._offset) if self.table else None  # type: ignore[return-value]
 
     @property
@@ -484,8 +492,8 @@ class Cell(TableElement, Derivable, Groupable):
     def num_cells(self) -> int:
         return 1
 
-    def fill(self, value: Any) -> None:
-        self.value = value
+    def fill(self, o: Any, preprocess: Optional[bool] = True) -> None:
+        self._set_cell_value_internal(o, type_safe_check=True, preprocess=bool(preprocess))
 
     def clear(self) -> None:
         return self.fill(None)
