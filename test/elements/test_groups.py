@@ -137,6 +137,7 @@ class TestGroups(TestBase):
         assert g._num_effective_rows == 3
         assert g.num_cells == 3 * 3
 
+    # noinspection PyStatementEffect
     def test_grouped_elements(self) -> None:
         t = Table(1000, 1000)
         r1 = t.add_row(1)
@@ -191,3 +192,50 @@ class TestGroups(TestBase):
         # remaining element should be r200c5
         for cell in g.cells:
             cell == r200c5
+
+    def test_group_fill(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g = Group(t)
+        g.add(c2)
+
+        for cell in c2.cells:
+            assert cell.value is None
+
+        g.fill(42)
+        for cell in c2.cells:
+            assert cell.value == 42
+
+        for cell in g.cells:
+            assert cell.value == 42
+            assert cell.column == c2
+
+        g.clear()
+        for cell in c2.cells:
+            assert cell.value is None
+
+        g.add(r200)
+        g.fill(33)
+        for cell in c2.cells:
+            if cell.row == r200:
+                assert cell.value == 33
+            else:
+                assert cell.value is None
+
+        g.remove(r200)
+        g.add(r1)
+        g.fill("abcd")
+        for cell in c2.cells:
+            if cell.row == r1:
+                assert cell.value == "abcd"
+            elif cell.row == r200:
+                assert cell.value == 33
+            else:
+                assert cell.value is None
+
+        for cell in g.cells:
+            assert cell.value == "abcd"

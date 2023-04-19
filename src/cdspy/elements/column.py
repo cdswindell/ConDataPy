@@ -41,8 +41,7 @@ class _ColumnCellIterator:
             row: Row = self.table._get_slice(  # type: ignore[assignment]
                 ElementType.Row, self.table._rows, Access.ByIndex, True, False, self._index
             )
-            cell = self._col._get_cell(row, True, False)
-            return cell  # type: ignore[return-value]
+            return self._col._get_cell(row, True, False)  # type: ignore[return-value]
         else:
             raise StopIteration
 
