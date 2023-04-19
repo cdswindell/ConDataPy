@@ -239,3 +239,113 @@ class TestGroups(TestBase):
 
         for cell in g.cells:
             assert cell.value == "abcd"
+
+    def test_group_equals(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g = Group(t)
+        g.add(c2)
+
+        g2 = Group(t)
+        g2.add(c2)
+        assert g.equal(g2)
+
+        g.add(r1)
+        assert not g.equal(g2)
+
+    def test_group_and(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g = Group(t)
+        g.add(c2)
+
+        g2 = Group(t)
+        g2.add(c2)
+        assert g.equal(g2)
+
+        g3 = g & g2
+        assert g3.equal(g)
+        assert g3.equal(g2)
+
+        g.add(r1, r200)
+        g3 = g & g2
+        assert g3.equal(g)
+        assert not g3.equal(g2)
+
+    def test_group_iand(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g = Group(t)
+        g.add(c2)
+
+        g2 = Group(t)
+        g2.add(c2)
+        assert g.equal(g2)
+
+        g &= g2
+        assert g2.equal(g)
+
+        # we have to reconstruct g, as and operation converts group from
+        # row/column-based to cell-based
+        g = Group(t)
+        g.add(c2)
+        g.add(r1, r200)
+        assert g.num_cells == 2
+
+        g2.add(r1, r200)
+        assert g2.num_cells == 2
+
+        g2.remove(r200)
+        assert g2.num_cells == 1
+
+        g &= g2
+        assert g.num_cells == 1
+
+        for cell in g.cells:
+            assert cell == t.get_cell(r1, c2)
+
+    def test_group_responds_to_table_changes(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g = Group(t)
+        g.add(c2)
+        assert g.num_cells == 200
+
+        # add a new row, group should expand
+        r201 = t.add_row(201)
+        assert g.num_cells == 201
+
+        # change group to explicit rows
+        g.add(r1, r200, r201)
+        assert g.num_cells == 3
+
+        # delete r1, group should shrink
+        t.delete(r1)
+        assert g.num_cells == 2
+
+        # try this with a cell
+        r1c1 = t.get_cell(t.get_row(1), c1)
+        assert r1c1
+        g.add(r1c1)
+        assert g.num_cells == 3
+
+        # delete c1; group should shrink
+        t.delete(c1)
+        assert c1.is_invalid
+        assert g.num_cells == 2

@@ -168,6 +168,10 @@ class Table(TableCellsElement):
             if deleted_any:
                 self._reclaim_row_space()
                 self._reclaim_column_space()
+                # mark all groups as dirty, forcing recalc of composition
+                for g in self._groups:
+                    if g and g.is_valid:
+                        g._mark_dirty()
                 recalculate_affected(self)
         else:
             # delete the entire table
@@ -1005,6 +1009,10 @@ class Table(TableCellsElement):
                     te.description = str(mda[0])
                 elif access == Access.ByDataType:
                     te.datatype = mda[0]  # type: ignore[union-attr]
+            # mark all groups as dirty, forcing recalc of composition
+            for g in self._groups:
+                if g and g.is_valid:
+                    g._mark_dirty()
             return te  # type: ignore[return-value]
 
     def __add_slice(

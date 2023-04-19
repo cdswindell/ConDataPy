@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Iterator
+from collections.abc import Collection, Iterator, Set
 from typing import cast, Optional, TYPE_CHECKING, Any
 from _weakref import ref
 
@@ -55,6 +55,31 @@ class _GroupCellIterator:
 
 
 class Group(TableCellsElement, Groupable):
+    @classmethod
+    def _create_group_from_bitmap(cls, t: Table, b: BitMap) -> Group:
+        g = cls(t)
+        for cell in Group._get_referenced_cells(t, b):
+            if cell and cell.is_valid:
+                g.add(cell)
+        return g
+
+    @staticmethod
+    def _get_referenced_cells(t: Table, b: BitMap) -> Collection[Cell]:
+        cells: set[Cell] = OrderedSet()
+        for ei in b:
+            ri = ei >> 16
+            ci = ei - (ri << 16)
+            r = t.get_row(ri)
+            if r is None or r.is_invalid:
+                continue
+            c = t.get_column(ci)
+            if c is None or c.is_invalid:
+                continue
+            cell = t.get_cell(r, c)
+            if cell and cell.is_valid:
+                cells.add(cell)
+        return cells
+
     def __init__(self, parent: Table, label: Optional[str] = None) -> None:
         from . import Row
         from . import Column
@@ -94,8 +119,61 @@ class Group(TableCellsElement, Groupable):
             return x in self.__cols
         return False
 
+    def __len__(self) -> int:
+        return self.num_cells
+
     def __del__(self) -> None:
         super().__del__()
+
+    def __and__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group &: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        with self.lock:
+            nbm = self._index_bitmap & o._index_bitmap
+            return Group._create_group_from_bitmap(self.table, nbm)
+
+    def __iand__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group &=: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        with self.lock:
+            nbm = self._index_bitmap & o._index_bitmap
+            # remove all group elements; they will be replaced with cell references
+            self.__purge_components()
+            for cell in Group._get_referenced_cells(self.table, nbm):
+                if cell and cell.is_valid:
+                    self.add(cell)
+        return self
+
+    def __or__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group |: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        # copy self
+        ng = self.copy()
+
+        # calculate the elements we need to add
+        nbm = o._index_bitmap.difference(self._index_bitmap)
+        for cell in Group._get_referenced_cells(self.table, nbm):
+            if cell and cell.is_valid:
+                ng.add(cell)
+        return ng
+
+    def __ior__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group |: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        # calculate the elements we need to add
+        nbm = o._index_bitmap.difference(self._index_bitmap)
+        for cell in Group._get_referenced_cells(self.table, nbm):
+            if cell and cell.is_valid:
+                self.add(cell)
+        return self
 
     def _delete(self, compress: bool = True) -> None:
         if self.is_invalid:
@@ -108,6 +186,12 @@ class Group(TableCellsElement, Groupable):
         if self.table:
             self.table._deregister_group(self)
 
+        self.__purge_components()
+
+        self._invalidate()
+        self.fire_events(self, EventType.OnDelete)
+
+    def __purge_components(self) -> None:
         for r in self._rows:
             if r:
                 r._remove_from_group(self)
@@ -120,22 +204,41 @@ class Group(TableCellsElement, Groupable):
         for cl in self._cells:
             if cl:
                 cl._remove_from_group(self)
-
         self.__rows.clear()
         self.__cols.clear()
         self.__groups.clear()
         self.__cells.clear()
         self.__child_groups.clear()
         self.__index_bitmap.clear()
-
         self.__num_cells = -1
-
-        self._invalidate()
-        self.fire_events(self, EventType.OnDelete)
 
     @property
     def element_type(self) -> ElementType:
         return ElementType.Group
+
+    def equal(self, o: object) -> bool:
+        if not isinstance(o, Group):
+            return False
+        if self.table != o.table:
+            return False
+        return bool(self._index_bitmap == o._index_bitmap)
+
+    def copy(self) -> Group:
+        with self.lock:
+            ng = Group(self.Table)
+            for r in self.rows:
+                if r and r.is_valid:
+                    ng.add(r)
+            for c in self.columns:
+                if c and c.is_valid:
+                    ng.add(c)
+            for cl in self.__cells:
+                if cl and cl.is_valid:
+                    ng.add(cl)
+            for g in self.groups:
+                if g and g.is_valid:
+                    ng.add(g)
+            return ng
 
     @property
     def is_label_indexed(self) -> bool:
@@ -184,8 +287,12 @@ class Group(TableCellsElement, Groupable):
     @property
     def _index_bitmap(self) -> BitMap:
         with self.lock:
-            self._recalculate_index_bitmap(True)
+            self._recalculate_index_bitmap()
             return self.__index_bitmap.copy()
+
+    def _mark_dirty(self) -> None:
+        with self.lock:
+            self.__num_cells = -1
 
     @property
     def num_cells(self) -> int:
@@ -318,7 +425,7 @@ class Group(TableCellsElement, Groupable):
                         cast(Groupable, elem)._add_to_group(self)
             finally:
                 if added_any:
-                    self.__num_cells = -1
+                    self._mark_dirty()
         return added_any
 
     def remove(self, *elems: TableSliceElement | Group | Cell) -> None:
@@ -341,7 +448,7 @@ class Group(TableCellsElement, Groupable):
                     self.__groups.discard(elem)
                 elif isinstance(elem, Cell):
                     self.__cells.discard(elem)
-            self.__num_cells = -1
+            self._mark_dirty()
 
     def update(self, elems: Collection[TableElement]) -> bool:
         if elems:
