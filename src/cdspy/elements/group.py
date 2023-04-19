@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from _weakref import ref
 from collections.abc import Collection, Iterator
 from typing import cast, Optional, TYPE_CHECKING, Any
+from _weakref import ref
 
+from pyroaring import BitMap
 from ordered_set import OrderedSet
 
 from ..mixins import Derivable, Groupable
@@ -33,61 +34,16 @@ class _GroupCellIterator:
         self.__iter__()  # initialize iterator fields
 
     def __iter__(self) -> Iterator[Cell]:
-        from . import Row, Column, Cell
-
-        if self._group.num_rows:
-            self._rows = cast(list[Row], self._group._rows)
-        else:
-            self.table._ensure_rows_exist()
-            self._rows = list(self.table.rows)
-        self._num_rows = len(self._rows)
-        self._row_index = 0
-
-        if self._group.num_columns:
-            self._cols = cast(list[Column], self._group._columns)
-        else:
-            self.table._ensure_columns_exist()
-            self._cols = list(self.table.columns)
-        self._num_cols = len(self._cols)
-        self._col_index = 0
-
-        self._cells = cast(list[Cell], self.group._cells)
-        self._num_cells = len(self._cells)
-        self._cell_index = 0
-
-        self._groups = cast(list[Group], self.group._groups)
-        self._num_groups = len(self._groups)
-        self._group_index = 0
-        self._group_iter = None
+        self._iter = iter(self._group._index_bitmap)
         return self
 
     def __next__(self) -> Cell:
-        if self._row_index < self._num_rows and self._col_index < self._num_cols:
-            row = self._rows[self._row_index]
-            col = self._cols[self._col_index]
-            cell = col._get_cell(row, create_if_sparse=True, set_to_current=False)
-
-            # bump indexes
-            self._row_index += 1
-            if self._row_index >= self._num_rows:
-                self._row_index = 0
-                self._col_index += 1
-            return cell  # type: ignore[return-value]
-        elif self._cell_index < self._num_cells:
-            cell = self._cells[self._cell_index]
-            self._cell_index += 1
-            return cell
-        elif self._group_index < self._num_groups:
-            if self._group_iter is None:
-                self._group_iter = self._groups[self._group_index].cells  # type: ignore[assignment]
-            try:
-                return next(self._group_iter)  # type: ignore
-            except StopIteration:
-                self._group_iter = None
-                self._group_index += 1
-                return self.__next__()
-        else:
-            raise StopIteration
+        encoded_index = next(self._iter)
+        r_idx = encoded_index >> 16
+        c_idx = encoded_index - (r_idx << 16)
+        row = self.table.get_row(r_idx)
+        col = self.table.get_column(c_idx)
+        return self.table.get_cell(row, col)
 
     @property
     def table(self) -> Table:
@@ -110,7 +66,10 @@ class Group(TableCellsElement, Groupable):
         self.__rows = JustInTimeSet[Row]()
         self.__cols = JustInTimeSet[Column]()
         self.__groups = JustInTimeSet[Group]()
+        self.__child_groups = JustInTimeSet[Group]()
         self.__num_cells = -1  # flag the need to recalculate
+
+        self.__index_bitmap = BitMap()
 
         # and mark instance as initialized
         self._mark_initialized()
@@ -123,7 +82,7 @@ class Group(TableCellsElement, Groupable):
         from . import Column
         from . import Cell
 
-        if x and isinstance(x, TableElement):
+        if isinstance(x, TableElement):
             with self._lock:
                 if isinstance(x, Cell):
                     return x in self.__cells
@@ -158,14 +117,16 @@ class Group(TableCellsElement, Groupable):
         for g in self._groups:
             if g:
                 g._remove_from_group(self)
-        for l in self._cells:
-            if l:
-                l._remove_from_group(self)
+        for cl in self._cells:
+            if cl:
+                cl._remove_from_group(self)
 
         self.__rows.clear()
         self.__cols.clear()
         self.__groups.clear()
         self.__cells.clear()
+        self.__child_groups.clear()
+        self.__index_bitmap.clear()
 
         self.__num_cells = -1
 
@@ -186,15 +147,52 @@ class Group(TableCellsElement, Groupable):
         if self.label and self.table:
             self.table.is_persistent = True
 
+    def _recalculate_index_bitmap(self, force_it: Optional[bool] = False) -> BitMap:
+        with self.lock:
+            if self.__num_cells < 0 or bool(force_it):
+                self.__index_bitmap.clear()
+
+                rows = self._effective_rows
+                row_index = 1
+
+                cols = self._effective_columns
+                col_index = 1
+
+                for r in rows:
+                    r_idx = r.index if r else row_index
+                    row_index += 1
+                    for c in cols:
+                        c_idx = c.index if c else col_index
+                        # encode the cell index in the bitmap
+                        self.__index_bitmap.add((r_idx << 16) + c_idx)
+                        col_index += 1
+                    col_index = 1
+
+                # add cells
+                for cell in self.__cells:
+                    if cell and cell.is_valid:
+                        self.__index_bitmap.add((cell.row.index << 16) + cell.column.index)
+
+                # add group cells
+                for g in self.__groups:
+                    if g and g.is_valid:
+                        self.__index_bitmap |= g._index_bitmap
+                # update cell count
+                self.__num_cells = len(self.__index_bitmap)
+            return self.__index_bitmap
+
+    @property
+    def _index_bitmap(self) -> BitMap:
+        with self.lock:
+            self._recalculate_index_bitmap(True)
+            return self.__index_bitmap.copy()
+
     @property
     def num_cells(self) -> int:
+        # TODO: need RoaringBitmap implementation to handle 64bit ints
         with self.lock:
             if self.__num_cells < 0:
-                num_cells = len(self._effective_rows) * len(self._effective_columns)
-                for g in self.__groups:
-                    num_cells += g.num_cells
-                num_cells += len(self.__cells)
-                self.__num_cells = num_cells
+                self._recalculate_index_bitmap()
             return self.__num_cells
 
     @property
@@ -280,10 +278,10 @@ class Group(TableCellsElement, Groupable):
         return _GroupCellIterator(self)
 
     def _add_to_group(self, g: Group) -> None:
-        self.__groups.add(g)
+        self.__child_groups.add(g)
 
     def _remove_from_group(self, g: Group) -> None:
-        self.__groups.discard(g)
+        self.__child_groups.discard(g)
 
     def add(self, *elems: TableElement) -> bool:
         from . import Row
@@ -362,7 +360,7 @@ class Group(TableCellsElement, Groupable):
             for cell in self.cells:
                 if self.__is_derived_cell(cell):
                     continue
-                if cell._set_cell_value_internal(o, type_safe_check=True, preprocess=bool(preprocess)):
+                if cell._set_cell_value_internal(o, preprocess=bool(preprocess)):
                     any_changed = True
             if any_changed:
                 self.fire_events(self, EventType.OnNewValue, o)

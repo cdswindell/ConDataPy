@@ -45,7 +45,7 @@ class TestGroups(TestBase):
         t._register_group(g)
         assert t.num_groups == 1
 
-        g = None
+        g = None  # type: ignore[assignment]
         gc.collect()
         assert t.num_groups == 0
 
@@ -79,10 +79,10 @@ class TestGroups(TestBase):
 
         # assert list of groups is immutable
         with pytest.raises(AttributeError):
-            r1g.clear()
+            r1g.clear()  # type: ignore[attr-defined]
 
         with pytest.raises(TypeError):
-            r1g[0] = None
+            r1g[0] = None  # type: ignore[index]
 
         # test that elements from another table cannot be added
         t2 = Table(100, 100)
@@ -136,3 +136,58 @@ class TestGroups(TestBase):
         assert g._num_effective_columns == 3
         assert g._num_effective_rows == 3
         assert g.num_cells == 3 * 3
+
+    def test_grouped_elements(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+
+        c5 = t.add_column(5)
+        c10 = t.add_column(10)
+        c15 = t.add_column(15)
+
+        # create the main test group; until explicit rows are added to it,
+        # it defines a 2 column by 200 row slice of cells
+        g = Group(t)
+        g.add(c5, c10)
+        assert g.num_cells == t.num_rows * 2
+
+        # add rows 1 and 2 and c15 to group; should reduce cell count to 2 * 3
+        g.add(r1, t.get_row(2), c15)
+        assert g.num_cells == 2 * 3
+
+        # create a second group
+        g2 = Group(t)
+        g2.add(c15)
+        assert g2.num_cells == t.num_rows
+
+        # add second group to original; since 2 cells overlap, total
+        # should now be 2 * 2 + t_num_rows
+        g.add(g2)
+        assert g.num_cells == 2 * 2 + t.num_rows
+
+        # remove c15 from g; count should remain the same
+        g.remove(c15)
+        assert g.num_cells == 2 * 2 + t.num_rows
+
+        # add a cell in c5
+        r200c5 = t.get_cell(r200, c5)
+        assert r200c5
+        g.add(r200c5)
+        assert g.num_cells == 2 * 2 + t.num_rows + 1
+
+        # remove r1 and r2 from group, individual cell now a part of component column
+        g.remove(r1, t.get_row(2))
+        assert g.num_cells == 3 * t.num_rows
+
+        # remove c5, r200c5 not relevant
+        g.remove(c5)
+        assert g.num_cells == 2 * t.num_rows + 1
+
+        # remove explicit rows and columns and groups; only r200c5 should remain
+        g.remove(c5, c10, c15, g2)
+        assert g.num_cells == 1
+
+        # remaining element should be r200c5
+        for cell in g.cells:
+            cell == r200c5

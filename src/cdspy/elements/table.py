@@ -89,7 +89,7 @@ class Table(TableCellsElement):
         from . import Column
         from . import Group
 
-        super().__init__(None)
+        super().__init__()
 
         num_rows = self._parse_args(int, "num_rows", 0, TableContext().row_capacity_incr_default, *args, **kwargs)
         num_cols = self._parse_args(int, "num_cols", 1, TableContext().column_capacity_incr_default, *args, **kwargs)
@@ -108,7 +108,6 @@ class Table(TableCellsElement):
         # finally, with context set, initialize default properties
         for p in ElementType.Table.initializable_properties():
             source = template_table if template_table else parent_context
-            source_value = source.get_property(p)
             self._initialize_property(p, source.get_property(p))
 
         # Initialize other instance attributes

@@ -43,6 +43,7 @@ class Cell(TableElement, Derivable, Groupable):
         "_value",
         "_col",
         "_lock",
+        "__weakref__",
     ]
 
     # TODO: make class smaller
