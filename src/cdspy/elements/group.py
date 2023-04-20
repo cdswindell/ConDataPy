@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Collection, Iterator, Set
-from typing import cast, Optional, TYPE_CHECKING, Any
+from collections.abc import Collection, Iterator
+from typing import cast, Optional, TYPE_CHECKING, Any, Final
 from _weakref import ref
 
 from pyroaring import BitMap
@@ -27,6 +27,10 @@ if TYPE_CHECKING:
     from . import Cell
 
 
+SHIFT_BY: Final = 16
+SHIFT_MASK: Final = (1 << SHIFT_BY) - 1
+
+
 class _GroupCellIterator:
     def __init__(self, group: Group) -> None:
         self._group = group
@@ -39,8 +43,8 @@ class _GroupCellIterator:
 
     def __next__(self) -> Cell:
         encoded_index = next(self._iter)
-        r_idx = encoded_index >> 16
-        c_idx = encoded_index - (r_idx << 16)
+        r_idx = encoded_index >> SHIFT_BY
+        c_idx = encoded_index & SHIFT_MASK
         row = self.table.get_row(r_idx)
         col = self.table.get_column(c_idx)
         return self.table.get_cell(row, col)
@@ -60,15 +64,16 @@ class Group(TableCellsElement, Groupable):
         g = cls(t)
         for cell in Group._get_referenced_cells(t, b):
             if cell and cell.is_valid:
-                g.add(cell)
+                g._add(False, cell)
         return g
 
+    # noinspection PyTypeChecker
     @staticmethod
     def _get_referenced_cells(t: Table, b: BitMap) -> Collection[Cell]:
         cells: set[Cell] = OrderedSet()
         for ei in b:
-            ri = ei >> 16
-            ci = ei - (ri << 16)
+            ri = ei >> SHIFT_BY
+            ci = ei & SHIFT_MASK
             r = t.get_row(ri)
             if r is None or r.is_invalid:
                 continue
@@ -80,7 +85,7 @@ class Group(TableCellsElement, Groupable):
                 cells.add(cell)
         return cells
 
-    def __init__(self, parent: Table, label: Optional[str] = None) -> None:
+    def __init__(self, parent: Table, label: Optional[str] = None, *elems: TableElement) -> None:
         from . import Row
         from . import Column
         from . import Cell
@@ -102,22 +107,27 @@ class Group(TableCellsElement, Groupable):
         # associate to table
         self.table._register_group(self)
 
+        # add any elements specified
+        if elems:
+            self.add(*elems)
+
     def __contains__(self, x: TableElement | None) -> bool:
         from . import Row
         from . import Column
         from . import Cell
 
-        if isinstance(x, TableElement):
-            with self._lock:
+        with self._lock:
+            if isinstance(x, TableElement):
                 if isinstance(x, Cell):
-                    return x in self.__cells
-        if isinstance(x, Group):
-            return x in self.__groups
-        if isinstance(x, Row):
-            return x in self.__rows
-        if isinstance(x, Column):
-            return x in self.__cols
-        return False
+                    present = x in self.__cells
+                    return present or self._contains_cell_reference(x)
+                if isinstance(x, Group):
+                    return x in self.__groups
+                if isinstance(x, Row):
+                    return x in self.__rows
+                if isinstance(x, Column):
+                    return x in self.__cols
+            return False
 
     def __len__(self) -> int:
         return self.num_cells
@@ -145,7 +155,7 @@ class Group(TableCellsElement, Groupable):
             self.__purge_components()
             for cell in Group._get_referenced_cells(self.table, nbm):
                 if cell and cell.is_valid:
-                    self.add(cell)
+                    self._add(False, cell)
         return self
 
     def __or__(self, o: Group) -> Group:
@@ -155,12 +165,8 @@ class Group(TableCellsElement, Groupable):
             raise InvalidParentException(self, o)
         # copy self
         ng = self.copy()
-
-        # calculate the elements we need to add
-        nbm = o._index_bitmap.difference(self._index_bitmap)
-        for cell in Group._get_referenced_cells(self.table, nbm):
-            if cell and cell.is_valid:
-                ng.add(cell)
+        # Add other group to original
+        ng.add(o)
         return ng
 
     def __ior__(self, o: Group) -> Group:
@@ -168,11 +174,64 @@ class Group(TableCellsElement, Groupable):
             raise TypeError(f"unsupported operand type for Group |: '{type(o)}'")
         if o.table != self.table:
             raise InvalidParentException(self, o)
+        # Add other group to original
+        self.add(o)
+        return self
+
+    def __sub__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group -: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        # create the new, returned group
+        ng = Group(self.table)
         # calculate the elements we need to add
-        nbm = o._index_bitmap.difference(self._index_bitmap)
+        nbm = self._index_bitmap.difference(o._index_bitmap)
         for cell in Group._get_referenced_cells(self.table, nbm):
             if cell and cell.is_valid:
-                self.add(cell)
+                ng._add(False, cell)
+        return ng
+
+    def __isub__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group -: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        # calculate the elements we need to add back
+        nbm = self._index_bitmap.difference(o._index_bitmap)
+        # clear out existing items
+        self.__purge_components()
+        for cell in Group._get_referenced_cells(self.table, nbm):
+            if cell and cell.is_valid:
+                self._add(False, cell)
+        return self
+
+    def __xor__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group -: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        # create the new, returned group
+        ng = Group(self.table)
+        # calculate the elements we need to add
+        nbm = self._index_bitmap.symmetric_difference(o._index_bitmap)
+        for cell in Group._get_referenced_cells(self.table, nbm):
+            if cell and cell.is_valid:
+                ng._add(False, cell)
+        return ng
+
+    def __ixor__(self, o: Group) -> Group:
+        if not isinstance(o, Group):
+            raise TypeError(f"unsupported operand type for Group -: '{type(o)}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        # calculate the elements we need to add back
+        nbm = self._index_bitmap.symmetric_difference(o._index_bitmap)
+        # clear out existing items
+        self.__purge_components()
+        for cell in Group._get_referenced_cells(self.table, nbm):
+            if cell and cell.is_valid:
+                self._add(False, cell)
         return self
 
     def _delete(self, compress: bool = True) -> None:
@@ -190,6 +249,10 @@ class Group(TableCellsElement, Groupable):
 
         self._invalidate()
         self.fire_events(self, EventType.OnDelete)
+
+    def _contains_cell_reference(self, cell: Cell) -> bool:
+        cell_ref = (cell.row.index << SHIFT_BY) + cell.column.index
+        return cell_ref in self._index_bitmap
 
     def __purge_components(self) -> None:
         for r in self._rows:
@@ -223,9 +286,21 @@ class Group(TableCellsElement, Groupable):
             return False
         return bool(self._index_bitmap == o._index_bitmap)
 
+    def union(self, g: Group) -> Group:
+        return self.__or__(g)
+
+    def intersection(self, g: Group) -> Group:
+        return self.__and__(g)
+
+    def difference(self, g: Group) -> Group:
+        return self.__sub__(g)
+
+    def symmetric_difference(self, g: Group) -> Group:
+        return self.__xor__(g)
+
     def copy(self) -> Group:
         with self.lock:
-            ng = Group(self.Table)
+            ng = Group(self.table)
             for r in self.rows:
                 if r and r.is_valid:
                     ng.add(r)
@@ -267,14 +342,14 @@ class Group(TableCellsElement, Groupable):
                     for c in cols:
                         c_idx = c.index if c else col_index
                         # encode the cell index in the bitmap
-                        self.__index_bitmap.add((r_idx << 16) + c_idx)
+                        self.__index_bitmap.add((r_idx << SHIFT_BY) + c_idx)
                         col_index += 1
                     col_index = 1
 
                 # add cells
                 for cell in self.__cells:
                     if cell and cell.is_valid:
-                        self.__index_bitmap.add((cell.row.index << 16) + cell.column.index)
+                        self.__index_bitmap.add((cell.row.index << SHIFT_BY) + cell.column.index)
 
                 # add group cells
                 for g in self.__groups:
@@ -391,6 +466,9 @@ class Group(TableCellsElement, Groupable):
         self.__child_groups.discard(g)
 
     def add(self, *elems: TableElement) -> bool:
+        return self._add(True, *elems)
+
+    def _add(self, do_mark_dirty: Optional[bool] = True, *elems: TableElement) -> bool:
         from . import Row
         from . import Column
         from . import Group
@@ -399,30 +477,33 @@ class Group(TableCellsElement, Groupable):
         added_any = False
         if elems:
             try:
-                for elem in elems:
-                    if elem:
-                        elem.vet_element()
-                        if elem.table != self.table:
-                            raise InvalidParentException(self, elem)
-                        if isinstance(elem, TableCellsElement):  # row, column, or group
-                            if isinstance(elem, Row):
-                                added_any = True if elem not in self.__rows else added_any
-                                self.__rows.add(elem)
-                            elif isinstance(elem, Column):
-                                added_any = True if elem not in self.__cols else added_any
-                                self.__cols.add(elem)
-                            elif isinstance(elem, Group):
-                                if elem == self:
-                                    raise RecursionError("Cannot add group to itself")
-                                added_any = True if elem not in self.__groups else added_any
-                                self.__groups.add(elem)
-                            # TODO: Add Row and Column and Back Pointer
-                        elif isinstance(elem, Cell):
-                            added_any = True if elem not in self.__cells else added_any
-                            self.__cells.add(elem)
-                            # TODO: add back pointer
-                        # set up the back-pointer from the element to this group
-                        cast(Groupable, elem)._add_to_group(self)
+                with self.lock:
+                    for elem in elems:
+                        if elem:
+                            elem.vet_element()
+                            if elem.table != self.table:
+                                raise InvalidParentException(self, elem)
+                            if isinstance(elem, TableCellsElement):  # row, column, or group
+                                if isinstance(elem, Row):
+                                    added_any = True if elem not in self.__rows else added_any
+                                    self.__rows.add(elem)
+                                elif isinstance(elem, Column):
+                                    added_any = True if elem not in self.__cols else added_any
+                                    self.__cols.add(elem)
+                                elif isinstance(elem, Group):
+                                    if elem == self:
+                                        raise RecursionError("Cannot add group to itself")
+                                    added_any = True if elem not in self.__groups else added_any
+                                    self.__groups.add(elem)
+                                # TODO: Add Row and Column and Back Pointer
+                            elif isinstance(elem, Cell):
+                                if bool(do_mark_dirty) and added_any:
+                                    self._mark_dirty()
+                                if not (elem in self.__cells or self._contains_cell_reference(elem)):
+                                    added_any = True
+                                    self.__cells.add(elem)
+                            # set up the back-pointer from the element to this group
+                            cast(Groupable, elem)._add_to_group(self)
             finally:
                 if added_any:
                     self._mark_dirty()

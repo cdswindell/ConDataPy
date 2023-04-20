@@ -349,3 +349,81 @@ class TestGroups(TestBase):
         t.delete(c1)
         assert c1.is_invalid
         assert g.num_cells == 2
+
+    def test_copy_group(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g = Group(t)
+        g.add(c2)
+        assert g.num_cells == 200
+
+        r1c1 = t.get_cell(t.get_row(1), c1)
+        assert r1c1
+        g.add(r1c1)
+        assert g.num_cells == 201
+
+        # make a copy
+        g1 = g.copy()
+        assert g1
+        assert len(g1) == len(g)
+        assert g1.equal(g)
+
+        for r in g.rows:
+            assert r in g1
+        for c in g.columns:
+            assert c in g1
+        for cg in g.columns:
+            assert cg in g1
+        for cc in g._cells:
+            assert cc in g1
+        for cc in g.cells:
+            assert cc in g1
+
+        for r in g1.rows:
+            assert r in g
+        for c in g1.columns:
+            assert c in g
+        for cg in g1.columns:
+            assert cg in g
+        for cc in g1._cells:
+            assert cc in g
+        for cc in g1.cells:
+            assert cc in g
+
+    def test_group_union(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g = Group(t, None, c2)
+        assert g
+        assert c2 in g
+        assert len(g) == t.num_rows
+
+        g2 = Group(t, None, r1, r200, c1)
+        assert g2
+        assert r1 in g2
+        assert r200 in g2
+        assert c1 in g2
+        assert g2.num_cells == 2
+
+        # perform logical "or" on g and g2
+        g3 = g | g2
+        assert g3
+        assert len(g3) == len(g) + len(g2)
+
+        # use union method
+        g3 = g.union(g2)
+        assert g3
+        assert len(g3) == len(g) + len(g2)
+
+        # update in place
+        g |= g2
+        assert g
+        assert len(g) == t.num_rows + len(g2)
