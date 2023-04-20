@@ -49,6 +49,92 @@ class TestGroups(TestBase):
         gc.collect()
         assert t.num_groups == 0
 
+    def test_group_persistence(self) -> None:
+        t = Table()
+        assert t
+
+        g = Group(t)
+        assert g
+        assert not g.is_persistent
+        assert t.num_groups == 1
+
+        # dereference group; it should be deleted on gc
+        g = None
+        gc.collect()
+        assert t.num_groups == 0
+
+        # recreate group, but mark it persistent
+        g = Group(t)
+        assert g
+        g.is_persistent = True
+        assert t.num_groups == 1
+
+        # dereference group; it should remain in table
+        g = None
+        gc.collect()
+        assert t.num_groups == 1
+
+    def test_group_labels(self) -> None:
+        t = Table()
+        assert t
+        assert not t.is_group_labels_indexed
+        t.is_group_labels_indexed = True
+        assert t.is_group_labels_indexed
+
+        # create a group with a label
+        g1 = Group(t, "abc")
+        assert g1
+        assert g1.label == "abc"
+        assert g1.is_label_indexed
+
+        # make sure we cant add another group with the same label
+        with pytest.raises(KeyError):
+            g2 = Group(t, "abc")
+
+        # remove index
+        t.is_group_labels_indexed = False
+        assert not t.is_group_labels_indexed
+        assert not g1.is_label_indexed
+
+        # recreate group with same label
+        g2 = Group(t, "abc")
+        assert g2
+        assert g2.label == "abc"
+        assert not g2.is_label_indexed
+        assert g2 != g1
+
+        # should not be able to reindex group labels given duplicate
+        with pytest.raises(KeyError):
+            t.is_group_labels_indexed = True
+
+        # relabel g2 and retry
+        g2.label = "def"
+        assert not g2.is_label_indexed
+        t.is_group_labels_indexed = True
+        assert g2.is_label_indexed
+
+        # verify index
+        assert "abc" in t._group_label_index
+        assert g1 == t._group_label_index['abc']
+        assert "def" in t._group_label_index
+        assert g2 == t._group_label_index['def']
+
+        # verify index adapts to changes
+        g1.label = 'xyz'
+        assert "abc" not in t._group_label_index
+        assert "xyz" in t._group_label_index
+        assert g1 == t._group_label_index['xyz']
+
+        g2.label = None
+        assert "def" not in t._group_label_index
+
+        # dereference g1 should remove value from index
+        g1 = None
+        gc.collect()
+        assert "xyz" not in t._group_label_index
+        assert "abc" not in t._group_label_index
+        assert len(t._group_label_index) == 0
+
     def test_grouped_rows(self) -> None:
         t = Table(100, 100)
         assert t
@@ -654,3 +740,67 @@ class TestGroups(TestBase):
         assert t.get_cell(r1, c2) not in g3
         assert t.get_cell(r200, c2) not in g3
         assert g3.num_cells == t.num_rows - 2 + 2
+
+    def test_group_is_disjoint(self) -> None:
+        t = Table(200, 2)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g1 = Group(t, None, c1)
+        g2 = Group(t, None, c2)
+        assert g1.is_disjoint(g2)
+        assert g2.is_disjoint(g1)
+
+        # groups overlap, not disjoint
+        g2 = Group(t, None, r1)
+        assert not g1.is_disjoint(g2)
+        assert not g2.is_disjoint(g1)
+
+    def test_group_is_subset(self) -> None:
+        t = Table(200, 2)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g1 = Group(t, None, c1)
+        g2 = Group(t, None, t.get_cell(r1, c1), t.get_cell(r200, c1))
+        assert not g1.is_subset(g2)
+        assert g2.is_subset(g1)
+
+        # groups have elements not in common
+        g2 = Group(t, None, c2)
+        assert not g1.is_subset(g2)
+        assert not g2.is_subset(g1)
+
+        g2.add(r1, c1)
+        assert not g1.is_subset(g2)
+        assert not g2.is_subset(g1)
+
+    def test_group_is_superset(self) -> None:
+        t = Table(200, 2)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g1 = Group(t, None, c1)
+        g2 = Group(t, None, t.get_cell(r1, c1), t.get_cell(r200, c1))
+        assert g1.is_superset(g2)
+        assert not g2.is_superset(g1)
+
+        # groups are disjoint
+        g2 = Group(t, None, c2)
+        assert not g1.is_superset(g2)
+        assert not g2.is_superset(g1)
+        assert g2.is_disjoint(g1)
+        assert g1.is_disjoint(g2)
+
+        # groups have some elements in common and others that are not
+        g2.add(r1, c1)
+        assert not g1.is_superset(g2)
+        assert not g2.is_superset(g1)
+        assert not g2.is_disjoint(g1)
+        assert not g1.is_disjoint(g2)

@@ -297,6 +297,27 @@ class Group(TableCellsElement, Groupable):
     def symmetric_difference(self, g: Group) -> Group:
         return self.__xor__(g)
 
+    def is_subset(self, o: Group) -> bool:
+        if not isinstance(o, Group):
+            raise TypeError(f"Argument 'o' has incorrect type; expected 'Group', got '{type(o).__name__}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        return self._index_bitmap.issubset(o._index_bitmap)
+
+    def is_superset(self, o: Group) -> bool:
+        if not isinstance(o, Group):
+            raise TypeError(f"Argument 'o' has incorrect type; expected 'Group', got '{type(o).__name__}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        return self._index_bitmap.issuperset(o._index_bitmap)
+
+    def is_disjoint(self, o: Group) -> bool:
+        if not isinstance(o, Group):
+            raise TypeError(f"Argument 'o' has incorrect type; expected 'Group', got '{type(o).__name__}'")
+        if o.table != self.table:
+            raise InvalidParentException(self, o)
+        return self._index_bitmap.isdisjoint(o._index_bitmap)
+
     def copy(self) -> Group:
         with self.lock:
             ng = Group(self.table)
@@ -554,6 +575,19 @@ class Group(TableCellsElement, Groupable):
 
     def clear(self) -> None:
         self.fill(None)
+
+    @property
+    def is_persistent(self) -> bool:
+        return self in self.table._persistent_groups if self.table else False
+
+    @is_persistent.setter
+    def is_persistent(self, state: bool) -> None:
+        if self.table is None:
+            raise InvalidParentException(cast(Table, None), self)
+        if bool(state):
+            self.table._persistent_groups.add(self)
+        else:
+            self.table._persistent_groups.discard(self)
 
     # if the group consists of only rows or only columns,
     # clear derivations from those elements

@@ -131,7 +131,7 @@ class Table(TableCellsElement):
         self._row_label_index: Dict[str, Row] = {}
         self._col_label_index: Dict[str, Column] = {}
         self._cell_label_index: Dict[str, Cell] = {}
-        self._group_label_index: Dict[str, Group] = {}
+        self._group_label_index: Dict[str, Group] = cast(Dict[str, Group], WeakValueDictionary())
 
         self._element_label_indexes: Dict[ElementType, Dict[str, TableElement]] = {
             ElementType.Row: self._row_label_index,  # type: ignore[dict-item]
@@ -153,8 +153,12 @@ class Table(TableCellsElement):
 
         self.__table_creation_thread = ref(threading.current_thread())
 
-        # finally, register table with context
+        # register table with context
         parent_context._register(self)
+
+        # handle default persistence
+        if parent_context.is_tables_persistent_default:
+            self.is_persistent = True
 
         # and mark instance as initialized
         self._mark_initialized()
