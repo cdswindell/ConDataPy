@@ -11,7 +11,7 @@ from ordered_set import OrderedSet
 
 from ..exceptions import InvalidParentException
 
-from . import Property, EventType
+from . import ElementType, Property, EventType
 from . import TableElement
 
 from ..utils.atomic_integer import AtomicInteger
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 class TableCellsElement(TableElement, ABC):
     __slots__: List[str] = ["_lock", "_pendings", "_table_ref", "_affects"]
 
-    _ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1000)
+    _ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1)
 
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
@@ -36,6 +36,8 @@ class TableCellsElement(TableElement, ABC):
         self._table_ref = ref(te.table) if te else None
         self._affects = OrderedSet()
         self._initialize_property(Property.Ident, TableCellsElement._ELEMENT_IDENT_GENERATOR.inc())
+        if self.table and self.element_type in [ElementType.Row, ElementType.Column, ElementType.Group]:
+            self.table._ident_index[self.ident] = self
 
     def __del__(self) -> None:
         if self.is_valid:
@@ -49,7 +51,12 @@ class TableCellsElement(TableElement, ABC):
         return s < o
 
     def _delete(self, compress: bool = True) -> None:
-        # TODO: Fire events
+        if self.table and self.ident in self.table._ident_index:
+            del self.table._ident_index[self.ident]
+        if self.table and self.has_property(Property.UUID) and self.uuid in self.table._uuid_index:
+            del self.table._uuid_index[self.uuid]
+
+        self.fire_events(self, EventType.OnBeforeDelete)
 
         # clear label; this resets dependent indices
         self.label = None
@@ -126,18 +133,25 @@ class TableCellsElement(TableElement, ABC):
             if value is None:
                 value = uuid.uuid4()
                 self._initialize_property(Property.UUID, value)
+                if self.table:
+                    self.table._uuid_index[value] = self
             return cast(uuid.UUID, value)
 
     @uuid.setter
     def uuid(self, value: uuid.UUID | str) -> None:
         with self.lock:
             if self.get_property(Property.UUID):
-                pass
+                # once a UUID is assigned, it can't be reset
+                raise ValueError(f"{self.element_type.name} UUIDs are immutable")
             else:
                 if isinstance(value, str):
-                    self._initialize_property(Property.UUID, uuid.UUID(value))
-                elif isinstance(value, uuid.UUID):
+                    value = uuid.UUID(value)
+                if isinstance(value, uuid.UUID):
                     self._initialize_property(Property.UUID, value)
+                    if self.table:
+                        self.table._uuid_index[value] = self
+                else:
+                    raise TypeError(f"{type(value).__name__} not a valid {self.element_type.name} UUID")
 
     def vet_parent(self, *elems: TableCellsElement) -> None:
         if elems:

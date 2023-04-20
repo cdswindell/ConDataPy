@@ -91,9 +91,7 @@ class Cell(TableElement, Derivable, Groupable):
             affected.clear_derivation()
 
         # remove cell from any groups
-        for g in self.groups:
-            if g and g.is_valid:
-                g.remove(self)
+        self._remove_from_all_groups()
 
         self.__decrement_pendings()
 
@@ -517,6 +515,10 @@ class Cell(TableElement, Derivable, Groupable):
     def _remove_from_group(self, g: Group) -> None:
         if self.table:
             self.table._deregister_group_cell(self, g)
+
+    def _remove_from_all_groups(self) -> None:
+        for g in self.groups:
+            g.remove(self)
 
     @property
     def is_derived(self) -> bool:

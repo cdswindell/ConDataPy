@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections import deque
+from weakref import WeakValueDictionary, WeakKeyDictionary, ref
 import threading
-import weakref
 
 from typing import Any, cast, Dict, List, Optional
 from typing import overload, Collection, Set, TYPE_CHECKING, Tuple
@@ -148,7 +148,10 @@ class Table(TableCellsElement):
         self._cell_affects: Dict[Cell, Set[Derivable]] = {}
         self._cell_derivations: Dict[Cell, Derivation] = {}
 
-        self.__table_creation_thread = weakref.ref(threading.current_thread())
+        self._ident_index: WeakValueDictionary[int, TableCellsElement] = WeakValueDictionary()
+        self._uuid_index: WeakValueDictionary[uuid.UUID, TableCellsElement] = WeakValueDictionary()
+
+        self.__table_creation_thread = ref(threading.current_thread())
 
         # finally, register table with context
         parent_context._register(self)
@@ -215,12 +218,16 @@ class Table(TableCellsElement):
                 self._cell_derivations.clear()
                 self.__rows.clear()
                 self.__cols.clear()
+                self._ident_index.clear()
+                self._uuid_index.clear()
             finally:
                 self._clear_current_cell()
+                self._reset_element_properties()
                 self._invalidate()
                 if self.table_context:
                     self.table_context._deregister(self)
                     self._context = cast(TableContext, None)
+                self.fire_events(self, EventType.OnDelete)
 
     def _get_cell_element_properties(self, cell: Cell, create_if_empty: bool = False) -> Optional[Dict]:
         if cell:
@@ -272,6 +279,8 @@ class Table(TableCellsElement):
     def _deregister_group(self, g: Group) -> None:
         with self.lock:
             self.vet_parent(g)
+            if g.ident in self._ident_index:
+                del self._ident_index[g.ident]
             self._groups.discard(g)
             self._persistent_groups.discard(g)
 
@@ -467,6 +476,17 @@ class Table(TableCellsElement):
     @property
     def is_group_labels_indexed(self) -> bool:
         return self._is_set(BaseElementState.GROUP_LABELS_INDEXED_FLAG)
+
+    @is_group_labels_indexed.setter
+    def is_group_labels_indexed(self, state: bool) -> None:
+        state = bool(state)
+        if state:
+            self.__index_element_labels(
+                self._groups, self._group_label_index, BaseElementState.GROUP_LABELS_INDEXED_FLAG
+            )
+        else:
+            self._group_label_index.clear()
+        self._mutate_state(BaseElementState.GROUP_LABELS_INDEXED_FLAG, state)
 
     @property
     def is_label_indexed(self) -> bool:
@@ -726,7 +746,7 @@ class Table(TableCellsElement):
                 return cast(_CellReference, _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self])
             except AttributeError:
                 with Table.table_class_lock():
-                    _THREAD_LOCAL_TABLE_STORAGE._current_cell_map = weakref.WeakKeyDictionary[Table, _CellReference]()
+                    _THREAD_LOCAL_TABLE_STORAGE._current_cell_map = WeakKeyDictionary[Table, _CellReference]()
                 _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self] = _CellReference()
                 return _THREAD_LOCAL_TABLE_STORAGE._current_cell_map[self]
             except KeyError:
@@ -793,9 +813,7 @@ class Table(TableCellsElement):
                 return cast(deque[_CellReference], _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self])
             except AttributeError:
                 with Table.table_class_lock():
-                    _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack = weakref.WeakKeyDictionary[
-                        Table, deque[_CellReference]
-                    ]()
+                    _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack = WeakKeyDictionary[Table, deque[_CellReference]]()
                 _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self] = deque[_CellReference]()
                 return _THREAD_LOCAL_TABLE_STORAGE._current_cell_stack[self]
             except KeyError:
@@ -888,7 +906,7 @@ class Table(TableCellsElement):
         elif access == Access.ByIdent:
             if is_adding or md is None or not isinstance(md, int):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            target = cast(TableSliceElement, self._find(slices, Property.Ident, int(md)))
+            target = cast(TableSliceElement, self._ident_index.get(int(md), None))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByReference:
             if is_adding or md is None or not isinstance(md, TableSliceElement) or md.element_type != et:
@@ -911,7 +929,7 @@ class Table(TableCellsElement):
             if is_adding or md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
             md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
-            target = cast(TableSliceElement, self._find(slices, Property.UUID, md))
+            target = cast(TableSliceElement, self._uuid_index.get(md, None))
             return int(target.index) - 1 if target else -1
         elif access == Access.ByTags:
             if is_adding or not mda or any(not isinstance(item, str) for item in mda):

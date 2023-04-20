@@ -11,8 +11,6 @@ from ..mixins import Derivable, Groupable
 from ..utils import JustInTimeSet
 
 from . import ElementType, EventType
-from . import Property
-from . import BaseElement
 from . import TableElement
 from . import TableCellsElement
 
@@ -247,6 +245,7 @@ class Group(TableCellsElement, Groupable):
 
         self.__purge_components()
 
+        self._reset_element_properties()
         self._invalidate()
         self.fire_events(self, EventType.OnDelete)
 
@@ -303,27 +302,21 @@ class Group(TableCellsElement, Groupable):
             ng = Group(self.table)
             for r in self.rows:
                 if r and r.is_valid:
-                    ng.add(r)
+                    ng._add(False, r)
             for c in self.columns:
                 if c and c.is_valid:
-                    ng.add(c)
+                    ng._add(False, c)
             for cl in self.__cells:
                 if cl and cl.is_valid:
-                    ng.add(cl)
+                    ng._add(False, cl)
             for g in self.groups:
                 if g and g.is_valid:
-                    ng.add(g)
+                    ng._add(False, g)
             return ng
 
     @property
     def is_label_indexed(self) -> bool:
         return bool(self.table.is_group_labels_indexed) if self.table else False
-
-    @BaseElement.label.setter  # type: ignore
-    def label(self, value: Optional[str] = None) -> None:
-        self._set_property(Property.Label, value)
-        if self.label and self.table:
-            self.table.is_persistent = True
 
     def _recalculate_index_bitmap(self, force_it: Optional[bool] = False) -> BitMap:
         with self.lock:

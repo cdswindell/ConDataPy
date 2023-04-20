@@ -8,7 +8,7 @@ from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
 from ..events import BlockedRequestException
 
-from . import ElementType, Access
+from . import ElementType, EventType, Access
 from . import TableSliceElement
 
 from ..utils import JustInTimeSet
@@ -145,7 +145,9 @@ class Row(TableSliceElement):
             self._set_cell_offset(-1)
             self._set_index(-1)
             self._set_is_in_use(False)
+            self._reset_element_properties()
             self._invalidate()
+            self.fire_events(self, EventType.OnDelete)
 
     @property
     def _cell_offset(self) -> int:

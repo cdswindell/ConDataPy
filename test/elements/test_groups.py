@@ -406,11 +406,10 @@ class TestGroups(TestBase):
         assert c2 in g
         assert len(g) == t.num_rows
 
-        g2 = Group(t, None, r1, r200, c1)
+        g2 = Group(t, None, t.get_cell(r1, c1), t.get_cell(r200, c1))
         assert g2
-        assert r1 in g2
-        assert r200 in g2
-        assert c1 in g2
+        assert t.get_cell(r1, c1) in g2
+        assert t.get_cell(r200, c1) in g2
         assert g2.num_cells == 2
 
         # perform logical "or" on g and g2
@@ -418,12 +417,240 @@ class TestGroups(TestBase):
         assert g3
         assert len(g3) == len(g) + len(g2)
 
+        # delete a few rows from the table, all groups should contract
+        t.delete(t.get_row(100), t.get_row(101))
+        assert len(g3) == len(g) + len(g2)
+        assert len(g) == t.num_rows == 198
+        assert len(g2) == 2
+
         # use union method
         g3 = g.union(g2)
         assert g3
-        assert len(g3) == len(g) + len(g2)
+        assert len(g3) == len(g) + len(g2) == 200
 
-        # update in place
+        # update in place (__ior__)
         g |= g2
         assert g
         assert len(g) == t.num_rows + len(g2)
+
+        # delete col 1, verify g2 has no cells
+        t.delete(c1)
+        assert len(g) == t.num_rows
+        assert len(g2) == 0
+
+    def test_group_intersection(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g1 = Group(t, None, c2)
+        assert g1
+        assert c2 in g1
+        assert r1 not in g1
+        assert r200 not in g1
+        assert t.get_cell(r1, c2) in g1
+        assert t.get_cell(r200, c2) in g1
+        assert len(g1) == t.num_rows
+
+        g2 = Group(t, None, r1, r200)
+        assert g2
+        assert c2 not in g2
+        assert r1 in g2
+        assert r200 in g2
+        assert t.get_cell(r1, c2) in g2
+        assert t.get_cell(r200, c2) in g2
+        assert len(g2) == 2 * t.num_columns
+
+        # test intersection (via __and__)
+        g3 = g1 & g2
+        assert g3
+        assert len(g3) == 2
+        assert t.get_cell(r1, c2) in g3
+        assert t.get_cell(r200, c2) in g3
+
+        # delete row 100, nothing should change in g3
+        t.delete(t.get_row(100))
+        assert g3
+        assert len(g3) == 2
+        assert t.get_cell(r1, c2) in g3
+        assert t.get_cell(r200, c2) in g3
+
+        # use named operator
+        g4 = g1.intersection(g2)
+        assert g4
+        assert g4.equal(g3)
+        assert len(g4) == 2
+        assert t.get_cell(r1, c2) in g4
+        assert t.get_cell(r200, c2) in g4
+
+        # update in place (__iand__)
+        g1 &= g2
+        assert g1
+        assert g1.equal(g3)
+        assert g1.equal(g4)
+        assert len(g1) == 2
+        assert t.get_cell(r1, c2) in g1
+        assert t.get_cell(r200, c2) in g1
+        assert c2 not in g1
+
+    def test_group_difference(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g1 = Group(t, None, c2)
+        assert g1
+        assert c2 in g1
+        assert r1 not in g1
+        assert r200 not in g1
+        assert t.get_cell(r1, c2) in g1
+        assert t.get_cell(r200, c2) in g1
+        assert len(g1) == t.num_rows
+
+        g2 = Group(t, None, r1, r200)
+        assert g2
+        assert c2 not in g2
+        assert r1 in g2
+        assert r200 in g2
+        assert t.get_cell(r1, c2) in g2
+        assert t.get_cell(r200, c2) in g2
+        assert len(g2) == 2 * t.num_columns
+
+        # test difference (via __sub__)
+        g3 = g1 - g2
+        assert g3
+        assert t.get_cell(r1, c2) not in g3
+        assert t.get_cell(r200, c2) not in g3
+        assert g3.num_cells == t.num_rows - 2
+
+        # test difference (via named method)
+        g4 = g1.difference(g2)
+        assert g4
+        assert g4.equal(g3)
+        assert t.get_cell(r1, c2) not in g4
+        assert t.get_cell(r200, c2) not in g4
+        assert g4.num_cells == t.num_rows - 2
+
+        # test difference in place (via __isub__)
+        g1 -= g2
+        assert g1
+        assert g1.equal(g3)
+        assert t.get_cell(r1, c2) not in g1
+        assert t.get_cell(r200, c2) not in g1
+        assert g1.num_cells == t.num_rows - 2
+
+        # retest with different groups
+        g1 = Group(t, None, r1, r200)
+        assert t.get_cell(r1, c2) in g1
+        assert t.get_cell(r200, c2) in g1
+        assert len(g1) == 2 * t.num_columns
+
+        g2 = Group(t, None, c2)
+        assert t.get_cell(r1, c2) in g2
+        assert t.get_cell(r200, c2) in g2
+        assert len(g2) == t.num_rows
+
+        # test difference (via __sub__)
+        g3 = g1 - g2
+        assert g3
+        assert t.get_cell(r1, c2) not in g3
+        assert t.get_cell(r200, c2) not in g3
+        assert g3.num_cells == t.num_columns
+
+        # test difference (via __sub__)
+        g3 = g2 - g1
+        assert g3
+        assert t.get_cell(r1, c2) not in g3
+        assert t.get_cell(r200, c2) not in g3
+        assert g3.num_cells == t.num_rows - 2
+
+    def test_group_symmetric_difference(self) -> None:
+        t = Table(1000, 1000)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        g1 = Group(t, None, c2)
+        assert g1
+        assert c2 in g1
+        assert r1 not in g1
+        assert r200 not in g1
+        assert t.get_cell(r1, c2) in g1
+        assert t.get_cell(r200, c2) in g1
+        assert len(g1) == t.num_rows
+
+        g2 = Group(t, None, r1, r200)
+        assert g2
+        assert c2 not in g2
+        assert r1 in g2
+        assert r200 in g2
+        assert t.get_cell(r1, c2) in g2
+        assert t.get_cell(r200, c2) in g2
+        assert len(g2) == 2 * t.num_columns
+
+        # test difference (via __xor__)
+        g3 = g1 ^ g2
+        assert g3
+        assert t.get_cell(r1, c1) in g3
+        assert t.get_cell(r200, c1) in g3
+        assert t.get_cell(r1, c2) not in g3
+        assert t.get_cell(r200, c2) not in g3
+        assert g3.num_cells == t.num_rows - 2 + 2
+
+        # test difference (via named method)
+        g4 = g1.symmetric_difference(g2)
+        assert g4
+        assert g4.equal(g3)
+        assert t.get_cell(r1, c1) in g4
+        assert t.get_cell(r200, c1) in g4
+        assert t.get_cell(r1, c2) not in g4
+        assert t.get_cell(r200, c2) not in g4
+        assert g4.num_cells == t.num_rows - 2 + 2
+
+        # test difference in place (via __isub__)
+        g1 ^= g2
+        assert g1
+        assert g1.equal(g3)
+        assert t.get_cell(r1, c1) in g1
+        assert t.get_cell(r200, c1) in g1
+        assert t.get_cell(r1, c2) not in g1
+        assert t.get_cell(r200, c2) not in g1
+        assert g1.num_cells == t.num_rows - 2 + 2
+
+        # retest with different groups
+        g1 = Group(t, None, r1, r200)
+        assert t.get_cell(r1, c1) in g1
+        assert t.get_cell(r200, c1) in g1
+        assert t.get_cell(r1, c2) in g1
+        assert t.get_cell(r200, c2) in g1
+        assert len(g1) == 2 * t.num_columns
+
+        g2 = Group(t, None, c2)
+        assert t.get_cell(r1, c1) not in g2
+        assert t.get_cell(r200, c1) not in g2
+        assert t.get_cell(r1, c2) in g2
+        assert t.get_cell(r200, c2) in g2
+        assert len(g2) == t.num_rows
+
+        # test symmetric difference (via __xor__)
+        g3 = g1 ^ g2
+        assert g3
+        assert t.get_cell(r1, c1) in g3
+        assert t.get_cell(r200, c1) in g3
+        assert t.get_cell(r1, c2) not in g3
+        assert t.get_cell(r200, c2) not in g3
+        assert g3.num_cells == t.num_rows - 2 + 2
+
+        # test difference (via __sub__)
+        g3 = g2 ^ g1
+        assert g3
+        assert t.get_cell(r1, c1) in g3
+        assert t.get_cell(r200, c1) in g3
+        assert t.get_cell(r1, c2) not in g3
+        assert t.get_cell(r200, c2) not in g3
+        assert g3.num_cells == t.num_rows - 2 + 2

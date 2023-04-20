@@ -36,7 +36,7 @@ class _DerivationContext:
 
 
 class Derivation:
-    _ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1000)
+    _ELEMENT_IDENT_GENERATOR: Final = AtomicInteger(1)
 
     __slots__: List[str] = ["_ident"]
 

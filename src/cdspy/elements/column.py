@@ -10,7 +10,7 @@ from ..exceptions import InvalidException
 from ..exceptions import UnsupportedException
 from ..events import BlockedRequestException
 
-from . import ElementType, Access, Property
+from . import ElementType, Access, Property, EventType
 from . import TableSliceElement
 from . import Cell
 
@@ -152,7 +152,9 @@ class Column(TableSliceElement):
             self._set_index(-1)
             self._set_is_in_use(False)
             self.__cells.clear()
+            self._reset_element_properties()
             self._invalidate()
+            self.fire_events(self, EventType.OnDelete)
 
     @property
     def _cells(self) -> ArrayList[Cell]:
