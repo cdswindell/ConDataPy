@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Collection
 from typing import cast, Optional, Tuple, TYPE_CHECKING, Any
 
-from . import Property
+from . import Property, BaseElementState
 from . import BaseElement
 from . import TableContext
 
@@ -86,6 +86,14 @@ class TableElement(BaseElement, ABC):
 
     def delete(self) -> None:
         self._delete(True)
+
+    @property
+    def is_persistent(self) -> bool:
+        return self._is_set(BaseElementState.IS_PERSISTENT_FLAG)
+
+    @is_persistent.setter
+    def is_persistent(self, state: bool) -> None:
+        raise AttributeError(f"{self.element_type.name} persistence is immutable")
 
     @BaseElement.label.setter  # type: ignore[attr-defined]
     def label(self, value: Optional[str]) -> None:

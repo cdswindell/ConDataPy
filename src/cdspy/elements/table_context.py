@@ -45,6 +45,7 @@ _TABLE_CONTEXT_DEFAULTS: Dict[Property, Any] = {
     Property.IsCellLabelsIndexedDefault: False,
     Property.IsGroupLabelsIndexedDefault: False,
     Property.IsTablesPersistentDefault: False,
+    Property.IsGroupsPersistentDefault: False,
     Property.IsPendingThreadPoolEnabled: True,
     Property.IsPendingAllowCoreThreadTimeoutDefault: True,
     Property.NumPendingCorePoolThreads: 8,
@@ -193,6 +194,14 @@ class TableContext(
     @is_tables_persistent_default.setter
     def is_tables_persistent_default(self, default: bool) -> None:
         self._set_property(Property.IsTablesPersistentDefault, default)
+
+    @property
+    def is_groups_persistent_default(self) -> bool:
+        return cast(bool, self.get_property(Property.IsGroupsPersistentDefault))
+
+    @is_groups_persistent_default.setter
+    def is_groups_persistent_default(self, default: bool) -> None:
+        self._set_property(Property.IsGroupsPersistentDefault, default)
 
     @property
     def is_auto_recalculate_default(self) -> bool:

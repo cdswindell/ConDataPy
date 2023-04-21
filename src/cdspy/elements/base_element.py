@@ -340,14 +340,6 @@ class BaseElement(ABC):
         return not self.is_invalid
 
     @property
-    def is_persistent(self) -> bool:
-        return self._is_set(BaseElementState.IS_TABLE_PERSISTENT_FLAG)
-
-    @is_persistent.setter
-    def is_persistent(self, state: bool) -> None:
-        self._mutate_state(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)
-
-    @property
     def is_supports_null(self) -> bool:
         return self._is_set(BaseElementState.SUPPORTS_NULL_FLAG)
 

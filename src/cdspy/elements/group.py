@@ -10,7 +10,7 @@ from ordered_set import OrderedSet
 from ..mixins import Derivable, Groupable
 from ..utils import JustInTimeSet
 
-from . import ElementType, EventType
+from . import ElementType, EventType, BaseElementState
 from . import TableElement
 from . import TableCellsElement
 
@@ -104,6 +104,10 @@ class Group(TableCellsElement, Groupable):
 
         # associate to table
         self.table._register_group(self)
+
+        # handle persistence
+        if self.table and self.table.is_groups_persistent_default:
+            self.is_persistent = True
 
         # add any elements specified
         if elems:
@@ -576,11 +580,7 @@ class Group(TableCellsElement, Groupable):
     def clear(self) -> None:
         self.fill(None)
 
-    @property
-    def is_persistent(self) -> bool:
-        return self in self.table._persistent_groups if self.table else False
-
-    @is_persistent.setter
+    @TableElement.is_persistent.setter  # type: ignore[attr-defined]
     def is_persistent(self, state: bool) -> None:
         if self.table is None:
             raise InvalidParentException(cast(Table, None), self)
@@ -588,6 +588,7 @@ class Group(TableCellsElement, Groupable):
             self.table._persistent_groups.add(self)
         else:
             self.table._persistent_groups.discard(self)
+        self._mutate_state(BaseElementState.IS_PERSISTENT_FLAG, state)
 
     # if the group consists of only rows or only columns,
     # clear derivations from those elements

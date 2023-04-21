@@ -32,7 +32,7 @@ class BaseElementState(Flag):
     GROUP_LABELS_INDEXED_FLAG = 0x1000
     HAS_CELL_VALIDATOR_FLAG = 0x2000
     IS_DERIVED_CELL_FLAG = 0x4000
-    IS_TABLE_PERSISTENT_FLAG = 0x8000
+    IS_PERSISTENT_FLAG = 0x8000
 
     EVENTS_NOTIFY_IN_SAME_THREAD_FLAG = 0x100000
     EVENTS_ALLOW_CORE_THREAD_TIMEOUT_FLAG = 0x200000
@@ -246,12 +246,21 @@ class Property(Enum):
     IsPendingThreadPoolEnabled = _TablePropertyInfo(
         True, False, True, None, None, ElementType.TableContext, ElementType.Table
     )
+    IsGroupsPersistentDefault = _TablePropertyInfo(
+        False,
+        False,
+        True,
+        "GP",
+        None,
+        ElementType.TableContext,
+        ElementType.Table,
+    )
     IsTablesPersistentDefault = _TablePropertyInfo(
         False,
         False,
         True,
-        "isP",
-        BaseElementState.IS_TABLE_PERSISTENT_FLAG,
+        "TP",
+        BaseElementState.IS_PERSISTENT_FLAG,
         ElementType.TableContext,
         ElementType.Table,
     )

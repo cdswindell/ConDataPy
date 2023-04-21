@@ -62,6 +62,7 @@ class TableSliceElement(TableCellsElement, Derivable, Groupable, ABC, Generic[T]
 
     def __init__(self, te: Optional[TableElement] = None) -> None:
         super().__init__(te)
+        self._set(BaseElementState.IS_PERSISTENT_FLAG)
         self._set_index(-1)
         self._set_is_in_use(False)
         self.__remote_uuids: Set[UUID] = set()

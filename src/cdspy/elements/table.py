@@ -730,11 +730,18 @@ class Table(TableCellsElement):
     def derived_elements(self) -> Collection[Derivable]:
         return []
 
-    # override to
-    @BaseElement.is_persistent.setter  # type: ignore[attr-defined]
+    @property
+    def is_groups_persistent_default(self) -> bool:
+        return cast(bool, self.get_property(Property.IsGroupsPersistentDefault))
+
+    @is_groups_persistent_default.setter
+    def is_groups_persistent_default(self, default: bool) -> None:
+        self._set_property(Property.IsGroupsPersistentDefault, default)
+
+    @TableElement.is_persistent.setter  # type: ignore[attr-defined]
     def is_persistent(self, state: bool) -> None:
         with self.lock:
-            self._mutate_state(BaseElementState.IS_TABLE_PERSISTENT_FLAG, state)  # type: ignore
+            self._mutate_state(BaseElementState.IS_PERSISTENT_FLAG, state)  # type: ignore
             if self.is_initialized and self.table_context:
                 self.table_context._register(self)
 

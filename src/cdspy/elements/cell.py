@@ -53,6 +53,7 @@ class Cell(TableElement, Derivable, Groupable):
         self._offset = cell_offset if cell_offset is not None else -1
         self._value = None
         self._lock = RLock()
+        self._set(BaseElementState.IS_PERSISTENT_FLAG)
         # initialize special properties
         for p in self.element_type.initializable_properties():
             if p in [Property.Units, Property.DisplayFormat]:
