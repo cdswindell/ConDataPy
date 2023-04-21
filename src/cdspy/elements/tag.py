@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Collection
 from typing import cast, Optional, Set, TYPE_CHECKING
 
@@ -8,6 +9,8 @@ if TYPE_CHECKING:
 
 
 class Tag:
+    _SPLIT_PATTERN = re.compile(r"[|/;,]")
+
     @staticmethod
     def normalize_label(label: str) -> str:
         if not label.strip():
@@ -26,7 +29,12 @@ class Tag:
     ) -> Set[Tag]:
         if labels:
             tags: Set[Tag] = set()
+            if isinstance(labels, str):
+                labels = Tag._SPLIT_PATTERN.split(labels)
             for label in labels:
+                if isinstance(label, Tag):
+                    tags.add(label)
+                    continue
                 label = Tag.normalize_label(label)
                 if not label:
                     continue

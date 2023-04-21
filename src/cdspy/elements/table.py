@@ -5,7 +5,7 @@ from weakref import WeakValueDictionary, WeakKeyDictionary, ref
 import threading
 
 from typing import Any, cast, Dict, List, Optional
-from typing import overload, Collection, Set, TYPE_CHECKING, Tuple
+from typing import overload, Set, TYPE_CHECKING, Tuple, Collection
 
 import uuid
 
@@ -79,6 +79,13 @@ class _CellReference:
 
 class Table(TableCellsElement):
     _table_class_lock = threading.RLock()
+    _quick_access_map = {
+        "index": Access.ByIndex,
+        "label": Access.ByLabel,
+        "ident": Access.ByIdent,
+        "tags": Access.ByTags,
+        "uuid": Access.ByUUID,
+    }
 
     @classmethod
     def table_class_lock(cls) -> threading.RLock:
@@ -854,7 +861,22 @@ class Table(TableCellsElement):
             return -1
 
         md = mda[0] if mda else None
-        if access == Access.First:
+        if access == Access.ByIndex:
+            if md is None or not isinstance(md, int):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            index = int(md) - 1
+            if index < 0:
+                return -1
+            elif is_adding or index < num_slices:
+                return index
+            else:
+                return -1
+        elif access == Access.ByIdent:
+            if is_adding or md is None or not isinstance(md, int):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            target = cast(TableSliceElement, self._ident_index.get(int(md), None))
+            return int(target.index) - 1 if target else -1
+        elif access == Access.First:
             return 0
         elif access == Access.Last:
             if is_adding:
@@ -894,21 +916,6 @@ class Table(TableCellsElement):
                 return index
             else:
                 return -1
-        elif access == Access.ByIndex:
-            if md is None or not isinstance(md, int):
-                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            index = int(md) - 1
-            if index < 0:
-                return -1
-            elif is_adding or index < num_slices:
-                return index
-            else:
-                return -1
-        elif access == Access.ByIdent:
-            if is_adding or md is None or not isinstance(md, int):
-                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            target = cast(TableSliceElement, self._ident_index.get(int(md), None))
-            return int(target.index) - 1 if target else -1
         elif access == Access.ByReference:
             if is_adding or md is None or not isinstance(md, TableSliceElement) or md.element_type != et:
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
@@ -1066,8 +1073,26 @@ class Table(TableCellsElement):
         return self._add_slice_dispatch(ElementType.Column, a1, *args)  # type: ignore[return-value]
 
     def _get_slice_dispatch(
-        self, et: ElementType, slices: ArrayList[Row] | ArrayList[Column], a1: int | Access | None = None, *args: object
+        self,
+        et: ElementType,
+        slices: ArrayList[Row] | ArrayList[Column],
+        a1: int | Access | None = None,
+        *args: Any,
+        **kwargs: Any
     ) -> Row | Column | None:
+        # look for "quick access" tokens first, they are key=value pairs in kwargs
+        if kwargs:
+            orig_key = list(kwargs.keys())[0]
+            key = orig_key.strip().lower()
+            if key and key in self._quick_access_map:
+                a1 = self._quick_access_map[key]
+                value = kwargs[orig_key]
+                if isinstance(value, str):
+                    args = tuple([value])
+                elif isinstance(value, Collection):
+                    args = tuple(x for x in value)
+                else:
+                    args = tuple([value])
         if a1 is None:
             return self._get_slice(et, slices, Access.Current, True, True)  # type: ignore[return-value]
         elif isinstance(a1, int):
@@ -1084,7 +1109,7 @@ class Table(TableCellsElement):
         access: Access,
         create_if_sparse: bool = True,
         set_to_current: bool = True,
-        *mda: object,
+        *mda: Any,
     ) -> Row | Column | None:
         from . import Row, Column
 
@@ -1103,11 +1128,11 @@ class Table(TableCellsElement):
                 te.mark_current()
             return te
 
-    def get_row(self, a1: int | Access | None = None, *args: object) -> Row:
-        return self._get_slice_dispatch(ElementType.Row, self._rows, a1, *args)  # type: ignore[return-value]
+    def get_row(self, a1: int | Access | None = None, *args: Any, **kwargs: Any) -> Row:
+        return self._get_slice_dispatch(ElementType.Row, self._rows, a1, *args, **kwargs)  # type: ignore[return-value]
 
-    def get_column(self, a1: int | Access | None = None, *args: object) -> Column:
-        return self._get_slice_dispatch(ElementType.Column, self._columns, a1, *args)  # type: ignore[return-value]
+    def get_column(self, a1: int | Access | None = None, *args: Any, **kwargs: Any) -> Column:
+        return self._get_slice_dispatch(ElementType.Column, self._columns, a1, *args, **kwargs)  # type: ignore[return-value]
 
     def _ensure_rows_exist(self) -> None:
         for index in range(0, self.num_rows):

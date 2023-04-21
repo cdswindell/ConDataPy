@@ -77,8 +77,11 @@ class BaseElement(ABC):
     def _find_tagged(elems: Collection[TableElement], *tags: str) -> BaseElement | None:
         from . import Tag
 
+        tc = elems[0].table_context
+        if len(tags) == 1 and isinstance(tags[0], str):
+            tags = Tag.as_tags(tags[0], tc)
         if elems and tags:
-            query_tags = Tag.as_tags(list(tags))
+            query_tags = Tag.as_tags(tags, tc)
             if bool(query_tags):
                 for te in elems:
                     if te and te.is_valid:
@@ -89,6 +92,8 @@ class BaseElement(ABC):
 
     @staticmethod
     def _find(elems: Collection[TableElement], key: Property | str, *value: object) -> BaseElement | None:
+        if not elems:
+            return None
         # special case tags
         if key == Property.Tags:
             return BaseElement._find_tagged(elems, *[v for v in value if v and isinstance(v, str)])
