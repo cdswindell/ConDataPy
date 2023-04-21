@@ -1072,6 +1072,22 @@ class Table(TableCellsElement):
     def add_column(self, a1: int | Access | None = None, *args: object) -> Column:
         return self._add_slice_dispatch(ElementType.Column, a1, *args)  # type: ignore[return-value]
 
+    def __parse_quick_action_args(
+        self, a1: int | Access | None = None, *args: Any, **kwargs: Any
+    ) -> Tuple[int | Access | None, Any]:
+        orig_key = list(kwargs.keys())[0]
+        key = orig_key.strip().lower()
+        if key and key in self._quick_access_map:
+            a1 = self._quick_access_map[key]
+            value = kwargs[orig_key]
+            if isinstance(value, str):
+                args = tuple([value])
+            elif isinstance(value, Collection):
+                args = tuple(x for x in value)
+            else:
+                args = tuple([value])
+        return a1, args
+
     def _get_slice_dispatch(
         self,
         et: ElementType,
@@ -1082,17 +1098,7 @@ class Table(TableCellsElement):
     ) -> Row | Column | None:
         # look for "quick access" tokens first, they are key=value pairs in kwargs
         if kwargs:
-            orig_key = list(kwargs.keys())[0]
-            key = orig_key.strip().lower()
-            if key and key in self._quick_access_map:
-                a1 = self._quick_access_map[key]
-                value = kwargs[orig_key]
-                if isinstance(value, str):
-                    args = tuple([value])
-                elif isinstance(value, Collection):
-                    args = tuple(x for x in value)
-                else:
-                    args = tuple([value])
+            a1, args = self.__parse_quick_action_args(a1, *args, **kwargs)
         if a1 is None:
             return self._get_slice(et, slices, Access.Current, True, True)  # type: ignore[return-value]
         elif isinstance(a1, int):
@@ -1132,7 +1138,7 @@ class Table(TableCellsElement):
         return self._get_slice_dispatch(ElementType.Row, self._rows, a1, *args, **kwargs)  # type: ignore[return-value]
 
     def get_column(self, a1: int | Access | None = None, *args: Any, **kwargs: Any) -> Column:
-        return self._get_slice_dispatch(ElementType.Column, self._columns, a1, *args, **kwargs)  # type: ignore[return-value]
+        return self._get_slice_dispatch(ElementType.Column, self._columns, a1, *args, **kwargs)  # type: ignore
 
     def _ensure_rows_exist(self) -> None:
         for index in range(0, self.num_rows):
@@ -1159,8 +1165,14 @@ class Table(TableCellsElement):
     def _sort_row_labels(self) -> None:
         from . import TableSliceElement
 
-        self._rows.sort(key=lambda row: row.label if row and row.label else "ZZZZ")
+        self._rows.sort(key=lambda row: (row.label is None, row.label, row.index))
         TableSliceElement._reindex_slice(self._rows)
+
+    def _sort_column_labels(self) -> None:
+        from . import TableSliceElement
+
+        self._columns.sort(key=lambda col: (col.label is None, col.label, col.index))
+        TableSliceElement._reindex_slice(self._columns)
 
     def sort(self, elem: Row | Column) -> None:
         if isinstance(elem, Row):
@@ -1169,3 +1181,34 @@ class Table(TableCellsElement):
             pass
         else:
             raise InvalidException(self, f"Invalid sort target: {elem}")
+
+    def get_group(self, a1: Access | None = None, *args: Any, **kwargs: Any) -> Group:
+        return self._get_group(a1, *args, **kwargs)  # type: ignore[return-value]
+
+    def _get_group(
+        self,
+        a1: int | Access | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Group | None:
+        # look for "quick access" tokens first, they are key=value pairs in kwargs
+        if kwargs:
+            a1, args = self.__parse_quick_action_args(a1, *args, **kwargs)
+        if isinstance(a1, Access):
+            md = args[0] if args else None
+            if a1 == Access.ByLabel:
+                pass
+            if a1 == Access.ByIdent:
+                pass
+            if a1 == Access.ByUUID:
+                pass
+            if a1 == Access.ByDescription:
+                pass
+            if a1 == Access.ByTags:
+                pass
+            if a1 == Access.ByReference:
+                if isinstance(md, Group):
+                    return md
+            if a1 == Access.ByProperty:
+                pass
+        raise UnsupportedException(self, "Cannot get Group from Table with these arguments")
