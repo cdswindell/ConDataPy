@@ -262,16 +262,6 @@ class Table(TableCellsElement):
     def _remove_all_cell_listeners(self, cell: Cell, *events: EventType) -> List[TableEventListener]:
         return []
 
-    @property
-    def is_dirty(self) -> bool:
-        return self._is_set(BaseElementState.IS_DIRTY_FLAG)
-
-    def _mark_dirty(self) -> None:
-        self._set(BaseElementState.IS_DIRTY_FLAG)
-
-    def _mark_clean(self) -> None:
-        self._reset(BaseElementState.IS_DIRTY_FLAG)
-
     def _register_group(self, g: Group) -> None:
         with self.lock:
             self.vet_parent(g)

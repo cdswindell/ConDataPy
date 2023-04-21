@@ -323,6 +323,16 @@ class BaseElement(ABC):
             self._invalidate()
 
     @property
+    def is_dirty(self) -> bool:
+        return self._is_set(BaseElementState.IS_DIRTY_FLAG)
+
+    def _mark_dirty(self) -> None:
+        self._set(BaseElementState.IS_DIRTY_FLAG)
+
+    def _mark_clean(self) -> None:
+        self._reset(BaseElementState.IS_DIRTY_FLAG)
+
+    @property
     def is_invalid(self) -> bool:
         """
         Returns True if the element has been deleted, either explicitly or because

@@ -95,7 +95,8 @@ class Group(TableCellsElement, Groupable):
         self.__cols = JustInTimeSet[Column]()
         self.__groups = JustInTimeSet[Group]()
         self.__child_groups = JustInTimeSet[Group]()
-        self.__num_cells = -1  # flag the need to recalculate
+        self.__num_cells = 0
+        self._mark_dirty()
 
         self.__index_bitmap = BitMap()
 
@@ -276,7 +277,8 @@ class Group(TableCellsElement, Groupable):
         self.__cells.clear()
         self.__child_groups.clear()
         self.__index_bitmap.clear()
-        self.__num_cells = -1
+        self.__num_cells = 0
+        self._mark_dirty()
 
     @property
     def element_type(self) -> ElementType:
@@ -345,7 +347,7 @@ class Group(TableCellsElement, Groupable):
 
     def _recalculate_index_bitmap(self, force_it: Optional[bool] = False) -> BitMap:
         with self.lock:
-            if self.__num_cells < 0 or bool(force_it):
+            if self.is_dirty or bool(force_it):
                 self.__index_bitmap.clear()
 
                 rows = self._effective_rows
@@ -375,6 +377,7 @@ class Group(TableCellsElement, Groupable):
                         self.__index_bitmap |= g._index_bitmap
                 # update cell count
                 self.__num_cells = len(self.__index_bitmap)
+                self._mark_clean()
             return self.__index_bitmap
 
     @property
@@ -383,15 +386,11 @@ class Group(TableCellsElement, Groupable):
             self._recalculate_index_bitmap()
             return self.__index_bitmap.copy()
 
-    def _mark_dirty(self) -> None:
-        with self.lock:
-            self.__num_cells = -1
-
     @property
     def num_cells(self) -> int:
         # TODO: need RoaringBitmap implementation to handle 64bit ints
         with self.lock:
-            if self.__num_cells < 0:
+            if self.is_dirty:
                 self._recalculate_index_bitmap()
             return self.__num_cells
 
