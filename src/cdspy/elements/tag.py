@@ -25,7 +25,7 @@ class Tag:
 
     @staticmethod
     def as_tags(
-        labels: Collection[str], context: Optional[TableContext] = None, create: Optional[bool] = True
+        labels: Collection[str | Tag] | str, context: Optional[TableContext] = None, create: Optional[bool] = True
     ) -> Set[Tag]:
         if labels:
             tags: Set[Tag] = set()

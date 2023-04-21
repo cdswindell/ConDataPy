@@ -59,7 +59,7 @@ class TestGroups(TestBase):
         assert t.num_groups == 1
 
         # dereference group; it should be deleted on gc
-        g = None
+        g = None  # type: ignore[assignment]
         gc.collect()
         assert t.num_groups == 0
 
@@ -70,7 +70,7 @@ class TestGroups(TestBase):
         assert t.num_groups == 1
 
         # dereference group; it should remain in table
-        g = None
+        g = None  # type: ignore[assignment]
         gc.collect()
         assert t.num_groups == 1
 
@@ -97,7 +97,7 @@ class TestGroups(TestBase):
         assert not g1.is_label_indexed
 
         # recreate group with same label
-        g2 = Group(t, "abc")
+        g2 = Group(t, "abc")  # type: ignore[unreachable]
         assert g2
         assert g2.label == "abc"
         assert not g2.is_label_indexed
@@ -115,15 +115,15 @@ class TestGroups(TestBase):
 
         # verify index
         assert "abc" in t._group_label_index
-        assert g1 == t._group_label_index['abc']
+        assert g1 == t._group_label_index["abc"]
         assert "def" in t._group_label_index
-        assert g2 == t._group_label_index['def']
+        assert g2 == t._group_label_index["def"]
 
         # verify index adapts to changes
-        g1.label = 'xyz'
+        g1.label = "xyz"
         assert "abc" not in t._group_label_index
         assert "xyz" in t._group_label_index
-        assert g1 == t._group_label_index['xyz']
+        assert g1 == t._group_label_index["xyz"]
 
         g2.label = None
         assert "def" not in t._group_label_index

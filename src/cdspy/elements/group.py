@@ -308,21 +308,21 @@ class Group(TableCellsElement, Groupable):
             raise TypeError(f"Argument 'o' has incorrect type; expected 'Group', got '{type(o).__name__}'")
         if o.table != self.table:
             raise InvalidParentException(self, o)
-        return self._index_bitmap.issubset(o._index_bitmap)
+        return bool(self._index_bitmap.issubset(o._index_bitmap))
 
     def is_superset(self, o: Group) -> bool:
         if not isinstance(o, Group):
             raise TypeError(f"Argument 'o' has incorrect type; expected 'Group', got '{type(o).__name__}'")
         if o.table != self.table:
             raise InvalidParentException(self, o)
-        return self._index_bitmap.issuperset(o._index_bitmap)
+        return bool(self._index_bitmap.issuperset(o._index_bitmap))
 
     def is_disjoint(self, o: Group) -> bool:
         if not isinstance(o, Group):
             raise TypeError(f"Argument 'o' has incorrect type; expected 'Group', got '{type(o).__name__}'")
         if o.table != self.table:
             raise InvalidParentException(self, o)
-        return self._index_bitmap.isdisjoint(o._index_bitmap)
+        return bool(self._index_bitmap.isdisjoint(o._index_bitmap))
 
     def copy(self) -> Group:
         with self.lock:

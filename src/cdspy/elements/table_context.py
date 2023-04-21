@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from threading import RLock
 from typing import Any, cast, Dict, Final, Iterator, Optional, Set, TYPE_CHECKING
 from weakref import WeakSet, WeakValueDictionary
@@ -228,7 +228,7 @@ class TableContext(
         self._set_property(Property.Units, default)
 
     @property
-    def tables(self) -> Collection[Table]:
+    def tables(self) -> Sequence[Table]:
         return tuple(sorted(set(self._registered_persistent_tables) | set(self._registered_nonpersistent_tables)))
 
     @property

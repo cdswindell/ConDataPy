@@ -1078,7 +1078,7 @@ class Table(TableCellsElement):
         slices: ArrayList[Row] | ArrayList[Column],
         a1: int | Access | None = None,
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> Row | Column | None:
         # look for "quick access" tokens first, they are key=value pairs in kwargs
         if kwargs:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 
 from threading import RLock
 from typing import Any, Generic, Iterator, Optional, Dict, overload, cast, TYPE_CHECKING, Tuple, TypeVar, Union
@@ -74,14 +74,17 @@ class BaseElement(ABC):
         return uuid
 
     @staticmethod
-    def _find_tagged(elems: Collection[TableElement], *tags: str) -> BaseElement | None:
+    def _find_tagged(elems: Sequence[TableElement], *tags: str) -> BaseElement | None:
         from . import Tag
 
-        tc = elems[0].table_context
-        if len(tags) == 1 and isinstance(tags[0], str):
-            tags = Tag.as_tags(tags[0], tc)
         if elems and tags:
-            query_tags = Tag.as_tags(tags, tc)
+            # we need a context when handling tags
+            tc = elems[0].table_context
+            # special case single string with comma-separated tags
+            if len(tags) == 1 and isinstance(tags[0], str):
+                query_tags = Tag.as_tags(tags[0], tc)
+            else:
+                query_tags = Tag.as_tags(tags, tc)
             if bool(query_tags):
                 for te in elems:
                     if te and te.is_valid:
@@ -91,7 +94,7 @@ class BaseElement(ABC):
         return None
 
     @staticmethod
-    def _find(elems: Collection[TableElement], key: Property | str, *value: object) -> BaseElement | None:
+    def _find(elems: Sequence[TableElement], key: Property | str, *value: object) -> BaseElement | None:
         if not elems:
             return None
         # special case tags
