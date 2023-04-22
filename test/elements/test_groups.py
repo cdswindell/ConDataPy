@@ -872,7 +872,6 @@ class TestGroups(TestBase):
         assert t1.get_group(Access.ByReference, g2) == g2
         assert t1.get_group(Access.ByProperty, 'my-prop', 'my-value-2') == g2
 
-
         t2 = Table()
         g3 = t2.add_group()
         g3.label = 'def'
