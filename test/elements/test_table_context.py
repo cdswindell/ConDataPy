@@ -327,6 +327,41 @@ class TestTableContext(TestBase):
         assert tc.get_table(Access.ByLabel, "table 1") is None
         assert "table 1" not in tc.labeled_tables
 
+    def test_indexed_table_ident(self) -> None:
+        from cdspy.elements import Table
+        tc = TableContext()
+
+        t = Table()
+        assert t.ident == 1
+        assert tc.get_table(ident=1) == t
+        assert 1 in tc._table_ident_map
+        assert tc._table_ident_map[1] == t
+
+        t = None
+        gc.collect()
+
+        assert t is None
+        assert tc.get_table(ident=1) is None
+        assert 1 not in tc._table_ident_map
+
+    def test_indexed_table_uuid(self) -> None:
+        from cdspy.elements import Table
+        tc = TableContext()
+
+        t = Table()
+        assert t.uuid
+        t_uuid = t.uuid
+        assert tc.get_table(uuid=t.uuid) == t
+        assert t.uuid in tc._table_uuid_map
+        assert tc._table_uuid_map[t.uuid] == t
+
+        t = None
+        gc.collect()
+
+        assert t is None
+        assert tc.get_table(uuid=t_uuid) is None
+        assert t_uuid not in tc._table_uuid_map
+
     def test_indexed_table_labels(self) -> None:
         tc = TableContext.create_context(TableContext())
         assert tc

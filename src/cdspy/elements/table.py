@@ -1074,22 +1074,6 @@ class Table(TableCellsElement):
     def add_column(self, a1: int | Access | None = None, *args: object) -> Column:
         return self._add_slice_dispatch(ElementType.Column, a1, *args)  # type: ignore[return-value]
 
-    def __parse_quick_action_args(
-        self, a1: int | Access | None = None, *args: Any, **kwargs: Any
-    ) -> Tuple[int | Access | None, Any]:
-        orig_key = list(kwargs.keys())[0]
-        key = orig_key.strip().lower()
-        if key and key in self._quick_access_map:
-            a1 = self._quick_access_map[key]
-            value = kwargs[orig_key]
-            if isinstance(value, str):
-                args = tuple([value])
-            elif isinstance(value, Collection):
-                args = tuple(x for x in value)
-            else:
-                args = tuple([value])
-        return a1, args
-
     def _get_slice_dispatch(
         self,
         et: ElementType,
@@ -1100,7 +1084,7 @@ class Table(TableCellsElement):
     ) -> Row | Column | None:
         # look for "quick access" tokens first, they are key=value pairs in kwargs
         if kwargs:
-            a1, args = self.__parse_quick_action_args(a1, *args, **kwargs)
+            a1, args = self._parse_quick_action_args(Table._quick_access_map, a1, *args, **kwargs)
         if a1 is None:
             return self._get_slice(et, slices, Access.Current, True, True)  # type: ignore[return-value]
         elif isinstance(a1, int):
@@ -1186,13 +1170,15 @@ class Table(TableCellsElement):
 
     def add_group(self, *elems: TableElement) -> Group:
         from . import Group
+
         return Group(self, None, *elems)
 
-    def get_group(self, a1: Access | None = None, *args: Any, **kwargs: Any) -> Group:
+    def get_group(self, a1: int | Access | None = None, *args: Any, **kwargs: Any) -> Group:
         from . import Group
+
         # look for "quick access" tokens first, they are key=value pairs in kwargs
         if kwargs:
-            a1, args = self.__parse_quick_action_args(a1, *args, **kwargs)
+            a1, args = self._parse_quick_action_args(Table._quick_access_map, a1, *args, **kwargs)
         if isinstance(a1, Access):
             md = args[0] if args else None
             if a1 in [Access.ByLabel, Access.ByDescription]:
@@ -1207,26 +1193,25 @@ class Table(TableCellsElement):
                 if md is None or not isinstance(md, int):
                     raise InvalidException(self, f"Invalid Group {a1.name} value: {md}")
                 target = self._ident_index.get(int(md), None)
-                return target if isinstance(target, Group) else None
+                return target if isinstance(target, Group) else None  # type: ignore
             if a1 == Access.ByUUID:
                 if md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
                     raise InvalidException(self, f"Invalid Group {a1.name} value: {md}")
                 md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
-                target = self._uuid_index.get(md, None)
-                return target if target and isinstance(target, Group) else -1
+                return self._uuid_index.get(md, None)  # type: ignore
             if a1 == Access.ByTags:
                 if not args or any(not isinstance(item, str) for item in args):
                     raise InvalidException(self, f"Invalid Group {a1.name} value: {args}")
-                return cast(Group, self._find_tagged(list(self._groups), *cast(Tuple[str], args)))
+                return self._find_tagged(list(self._groups), *cast(Tuple[str], args))  # type: ignore
             if a1 == Access.ByProperty:
                 key: Property | str = md  # type: ignore[assignment]
                 value = args[1] if args and len(args) > 1 else None
                 if key is None or value is None:
                     raise InvalidException(self, f"Invalid Group {a1.name} key: {key}")
-                return cast(Group, self._find(list(self._groups), key, value))
+                return self._find(list(self._groups), key, value)  # type: ignore
             if a1 == Access.ByReference:
                 if isinstance(md, Group):
                     if md.table != self:
                         raise InvalidParentException(self, md)
                     return md
-        raise InvalidAccessException(self, ElementType.Group, a1, False, args)
+        raise InvalidAccessException(self, ElementType.Group, cast(Access, a1), False, args)

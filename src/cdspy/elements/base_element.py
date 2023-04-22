@@ -18,6 +18,7 @@ from ..exceptions import UnimplementedException
 from ..exceptions import UnsupportedException
 
 if TYPE_CHECKING:
+    from . import Access
     from . import TableElement
 
 
@@ -31,6 +32,23 @@ class BaseElement(ABC):
     def vet_base_element(cls, be: Optional[BaseElement]) -> None:
         if be and be.is_invalid:
             raise DeletedElementException(be.element_type)
+
+    @staticmethod
+    def _parse_quick_action_args(
+        qa_map: Dict[str, Access], access: int | Access | None, *args: Any, **kwargs: Any
+    ) -> Tuple[int | Access | None, Any]:
+        orig_key = list(kwargs.keys())[0]
+        key = orig_key.strip().lower()
+        if key and key in qa_map:
+            access = qa_map[key]
+            value = kwargs[orig_key]
+            if isinstance(value, str):
+                args = tuple([value])
+            elif isinstance(value, Collection):
+                args = tuple(x for x in value)
+            else:
+                args = tuple([value])
+        return access, args
 
     @staticmethod
     def _parse_args(arg_type: type, attrib: str, pos: int | None, default: Any, *args: Any, **kwargs: Any) -> Any:

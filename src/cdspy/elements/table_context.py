@@ -392,41 +392,43 @@ class TableContext(
                 return tag
         return None
 
-    def get_table(self, mode: Access, *args: Any) -> Table | None:
+    def get_table(self, mode: int | Access | None = None, *args: Any, **kwargs: Any) -> Table:
         from . import Table
 
-        md = args[0] if args else None
-        if mode in [Access.ByLabel, Access.ByDescription]:
-            if md:
-                if self.is_table_labels_indexed and (mode.associated_property == Property.Label):
-                    key = TableContext._make_table_label_key(str(md))
-                    return self._table_label_map.get(key, None) if key else None
-                return BaseElement._find(self.tables, mode.associated_property, md)  # type: ignore[return-value]
-            raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
-        elif mode == Access.ByTags:
-            if args and str in {type(t) for t in args}:
-                return BaseElement._find_tagged(self.tables, *[v for v in args if
-                                                               v and isinstance(v, str)])  # type: ignore[return-value]
-            raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
-        elif mode == Access.ByIdent:
-            ident = int(md) if md else None
-            return self._table_ident_map.get(ident, None) if ident else None
-        elif mode == Access.ByUUID:
-            if md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
-                raise InvalidException(self, f"Invalid Table {mode.name} value: {md}")
-            md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
-            return self._table_uuid_map.get(md, None)
-        elif mode == Access.ByProperty:
-            pkey = cast(Property, md)
-            value = args[1] if args and len(args) > 1 else None
-            if pkey:
-                return BaseElement._find(self.tables, pkey, value)  # type: ignore[return-value]
-            raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {value}")
-        elif mode == Access.ByReference:
-            if args:
+        if kwargs:
+            mode, args = Table._parse_quick_action_args(self._quick_access_map, mode, *args, **kwargs)
+        if isinstance(mode, Access):
+            md = args[0] if args else None
+            if mode in [Access.ByLabel, Access.ByDescription]:
+                if md:
+                    if self.is_table_labels_indexed and (mode.associated_property == Property.Label):
+                        key = TableContext._make_table_label_key(str(md))
+                        return self._table_label_map.get(key, None) if key else None  # type: ignore
+                    return BaseElement._find(self.tables, mode.associated_property, md)  # type: ignore
+                raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
+            elif mode == Access.ByTags:
+                if args and str in {type(t) for t in args}:
+                    return cast(
+                        Table, BaseElement._find_tagged(self.tables, *[v for v in args if v and isinstance(v, str)])
+                    )  # type: ignore[return-value]
+                raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
+            elif mode == Access.ByIdent:
+                ident = int(md) if md else None
+                return self._table_ident_map.get(ident, None) if ident else None  # type: ignore
+            elif mode == Access.ByUUID:
+                if md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
+                    raise InvalidException(self, f"Invalid Table {mode.name} value: {md}")
+                md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
+                return self._table_uuid_map.get(md, None)  # type: ignore
+            elif mode == Access.ByProperty:
+                pkey = cast(Property, md)
+                value = args[1] if args and len(args) > 1 else None
+                if pkey:
+                    return BaseElement._find(self.tables, pkey, value)  # type: ignore[return-value]
+                raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {value}")
+            elif mode == Access.ByReference:
                 t = cast(Table, md)
-                if not t or not isinstance(t, Table) or t.element_type != ElementType.Table:
+                if not t or not isinstance(t, Table) or t.element_type != ElementType.Table or t.is_invalid:
                     raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {t}")
-                self.vet_element(t)
                 return t
-        raise InvalidAccessException(self, ElementType.Table, mode, False, args)
+        raise InvalidAccessException(self, ElementType.Table, cast(Access, mode), False, args)

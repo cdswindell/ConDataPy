@@ -129,6 +129,7 @@ class TableCellsElement(TableElement, ABC):
     @property
     def uuid(self) -> uuid.UUID:
         from . import Table
+
         with self.lock:
             value = self.get_property(Property.UUID)
             if value is None:
