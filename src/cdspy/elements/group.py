@@ -312,7 +312,7 @@ class Group(TableCellsElement, Groupable):
             raise TypeError(f"unsupported operand type for Group.jaccard_index: '{type(g)}'")
         if g.table != self.table:
             return 0.0
-        return self._index_bitmap.jaccard_index(g._index_bitmap)
+        return cast(float, self._index_bitmap.jaccard_index(g._index_bitmap))
 
     similarity = jaccard_index
 

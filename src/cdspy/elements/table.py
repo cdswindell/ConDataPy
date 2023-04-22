@@ -1197,7 +1197,7 @@ class Table(TableCellsElement):
                 return target if isinstance(target, Group) else None  # type: ignore
             if a1 == Access.ByUUID:
                 if md is None:
-                    return None
+                    return None  # type: ignore
                 if not isinstance(md, str) and not isinstance(md, uuid.UUID):
                     raise InvalidException(self, f"Invalid Group {a1.name} value: {md}")
                 md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]

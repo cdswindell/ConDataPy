@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Final, TYPE_CHECKING
 
-from cdspy.elements import TableContext, Access
+from cdspy.elements import TableContext, Access, TableCellsElement
+from cdspy.utils.atomic_integer import AtomicInteger
 
 if TYPE_CHECKING:
     from cdspy.elements import Table
@@ -17,11 +18,15 @@ class TestBase:
     # ---------------------------
     def setup_method(self) -> None:
         """Make sure default context is empty"""
-        TableContext().clear()
+        if hasattr(TableContext, "_default_table_context"):
+            TableContext().clear()
+            delattr(TableContext, "_default_table_context")
+        setattr(TableCellsElement, "_ELEMENT_IDENT_GENERATOR", AtomicInteger(1))
 
     def teardown_method(self) -> None:
-        """Clear default context"""
-        TableContext().clear()
+        if hasattr(TableContext, "_default_table_context"):
+            TableContext().clear()
+            delattr(TableContext, "_default_table_context")
 
     @staticmethod
     def add_test_rows(t: Table) -> None:

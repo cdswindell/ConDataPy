@@ -76,7 +76,7 @@ class TableContext(
         "ident": Access.ByIdent,
         "tags": Access.ByTags,
         "uuid": Access.ByUUID,
-        "description": Access.ByDescription
+        "description": Access.ByDescription,
     }
 
     def __new__(cls, template_context: Optional[TableContext] = None) -> TableContext:

@@ -825,7 +825,7 @@ class TestGroups(TestBase):
         assert len(g1) == 2
         assert len(g2) == 200
         assert not g1.is_disjoint(g2)
-        assert g1.similarity(g2) == 2.0/200
+        assert g1.similarity(g2) == 2.0 / 200
 
         # create overlapping groups
         g1 = t.add_group(r1, r200, c1)
@@ -833,24 +833,24 @@ class TestGroups(TestBase):
         assert len(g1) == 2
         assert len(g2) == 4
         assert not g1.is_disjoint(g2)
-        assert g1.similarity(g2) == 2.0/4.0
+        assert g1.similarity(g2) == 2.0 / 4.0
 
     def test_get_group(self) -> None:
         t1 = Table()
         t1.is_group_labels_indexed = True
 
         g1 = t1.add_group()
-        g1.label = 'abc'
-        g1.description = 'group 1'
-        g1.set_property('my-prop', 'my-value-1')
-        g1.tags = '123, 456'
+        g1.label = "abc"
+        g1.description = "group 1"
+        g1.set_property("my-prop", "my-value-1")
+        g1.tags = "123, 456"
         assert len(g1.tags) == 2
 
         g2 = t1.add_group()
-        g2.label = 'def'
-        g2.description = 'group 2'
-        g2.set_property('my-prop', 'my-value-2')
-        g2.tags = '456, 789'
+        g2.label = "def"
+        g2.description = "group 2"
+        g2.set_property("my-prop", "my-value-2")
+        g2.tags = "456, 789"
         assert len(g2.tags) == 2
 
         assert g2 != g1
@@ -859,32 +859,32 @@ class TestGroups(TestBase):
         assert t1.get_group(description=g1.description) == g1
         assert t1.get_group(uuid=g1.uuid) == g1
         assert t1.get_group(tags=g1.tags) == g1
-        assert t1.get_group(tags='123') == g1
+        assert t1.get_group(tags="123") == g1
         assert t1.get_group(Access.ByReference, g1) == g1
-        assert t1.get_group(Access.ByProperty, 'my-prop', 'my-value-1') == g1
+        assert t1.get_group(Access.ByProperty, "my-prop", "my-value-1") == g1
 
         assert t1.get_group(ident=g2.ident) == g2
         assert t1.get_group(label=g2.label) == g2
         assert t1.get_group(description=g2.description) == g2
         assert t1.get_group(uuid=g2.get_property(Property.UUID)) is None
         assert t1.get_group(tags=g2.tags) == g2
-        assert t1.get_group(tags='789') == g2
+        assert t1.get_group(tags="789") == g2
         assert t1.get_group(Access.ByReference, g2) == g2
-        assert t1.get_group(Access.ByProperty, 'my-prop', 'my-value-2') == g2
+        assert t1.get_group(Access.ByProperty, "my-prop", "my-value-2") == g2
 
         t2 = Table()
         g3 = t2.add_group()
-        g3.label = 'def'
-        g3.description = 'group 3'
-        g3.set_property('my-prop', 'my-value-1')
-        g3.tags = '123, 456'
+        g3.label = "def"
+        g3.description = "group 3"
+        g3.set_property("my-prop", "my-value-1")
+        g3.tags = "123, 456"
         assert len(g1.tags) == 2
 
         g4 = t2.add_group()
-        g4.label = 'abc'
-        g4.description = 'group 4'
-        g4.set_property('my-prop', 'my-value-2')
-        g4.tags = '456, 789'
+        g4.label = "abc"
+        g4.description = "group 4"
+        g4.set_property("my-prop", "my-value-2")
+        g4.tags = "456, 789"
         assert len(g2.tags) == 2
 
         # cross table references return None or throw errors
@@ -893,7 +893,7 @@ class TestGroups(TestBase):
         assert t2.get_group(uuid=g1.uuid) is None
         assert t2.get_group(tags=g3.tags) == g3
         assert t2.get_group(description=g1.description) is None
-        assert t2.get_group(Access.ByProperty, 'my-prop', 'my-value-2') == g4
+        assert t2.get_group(Access.ByProperty, "my-prop", "my-value-2") == g4
 
         with pytest.raises(InvalidParentException, match=re.escape("Not child's parent: [Table]->[Group: abc]")):
             assert t2.get_group(Access.ByReference, g1) == g1
