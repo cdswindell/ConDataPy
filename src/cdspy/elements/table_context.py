@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Collection, Sequence
 from threading import RLock
 from typing import Any, cast, Dict, Final, Iterator, Optional, Set, TYPE_CHECKING
@@ -69,6 +70,13 @@ class TableContext(
     EventsProcessorThreadPoolCreator,
 ):
     _class_lock = RLock()
+    _quick_access_map = {
+        "index": Access.ByIndex,
+        "label": Access.ByLabel,
+        "ident": Access.ByIdent,
+        "tags": Access.ByTags,
+        "uuid": Access.ByUUID,
+    }
 
     def __new__(cls, template_context: Optional[TableContext] = None) -> TableContext:
         with cls._class_lock:
@@ -120,10 +128,20 @@ class TableContext(
         if not template:
             self.label = "Default Table Context"
 
-        # table label map
+        # table lookup maps map
         self._table_label_map: WeakValueDictionary[str, Table] = WeakValueDictionary()
+        self._table_ident_map: WeakValueDictionary[int, Table] = WeakValueDictionary()
+        self._table_uuid_map: WeakValueDictionary[uuid.UUID, Table] = WeakValueDictionary()
+
         self._mark_initialized()
         self._sealed = True
+
+    def __del__(self) -> None:
+        if self.is_valid:
+            print("Deleting table context...")
+            self.clear()
+            self._reset_element_properties()
+            self._invalidate()
 
     def __iter__(self) -> Iterator[Table]:
         from . import Table
@@ -132,6 +150,22 @@ class TableContext(
 
     def __len__(self) -> int:
         return self.num_tables
+
+    def clear(self) -> None:
+        with self.lock:
+            self._table_label_map.clear()
+            self._table_ident_map.clear()
+            self._table_uuid_map.clear()
+            while self._registered_persistent_tables:
+                t = self._registered_persistent_tables.pop()
+                if t and t.is_valid:
+                    t._delete()
+                    del t
+            while self._registered_nonpersistent_tables:
+                t = self._registered_nonpersistent_tables.pop()
+                if t and t.is_valid:
+                    t._delete()
+                    del t
 
     @property
     def is_table_labels_indexed(self) -> bool:
@@ -162,6 +196,9 @@ class TableContext(
                     raise KeyError(f"TableContext: Table label '{key}' not unique")
                 else:
                     self._table_label_map[key] = t
+
+    def _index_table_uuid(self, t: Table, t_uuid: uuid.UUID) -> None:
+        self._table_uuid_map[t_uuid] = t
 
     @property
     def free_space_threshold_default(self) -> float:
@@ -276,27 +313,25 @@ class TableContext(
             t.display_format = display_format
         return t
 
-    def clear(self) -> None:
-        with self.lock:
-            self._table_label_map.clear()
-            while self._registered_persistent_tables:
-                t = self._registered_persistent_tables.pop()
-                if t and t.is_valid:
-                    t._delete()
-                    del t
-
-            while self._registered_nonpersistent_tables:
-                t = self._registered_nonpersistent_tables.pop()
-                if t and t.is_valid:
-                    t._delete()
-                    del t
-
     def _purge_labeled_table(self, t: Table) -> None:
         if t is not None:
             key = TableContext._make_table_label_key(t.label)
             with self.lock:
                 if key and key in self._table_label_map:
                     self._table_label_map.pop(key)
+
+    def _purge_idented_table(self, t: Table) -> None:
+        if t is not None:
+            with self.lock:
+                if t.ident in self._table_ident_map:
+                    self._table_ident_map.pop(t.ident)
+
+    def _purge_uuided_table(self, t: Table) -> None:
+        if t is not None:
+            with self.lock:
+                t_uuid = t.get_property(Property.UUID)  # we don't want to create uuid by calling getter
+                if t_uuid in self._table_uuid_map:
+                    self._table_uuid_map.pop(t_uuid)
 
     def _register(self, t: Table) -> Optional[TableContext]:
         if t:
@@ -308,12 +343,15 @@ class TableContext(
                     self._registered_persistent_tables.discard(t)
                     self._registered_nonpersistent_tables.add(t)
                 self._index_table_label(t)
+                self._table_ident_map[t.ident] = t
         return self
 
     def _deregister(self, t: Table) -> None:
         if t:
             with self.lock:
                 self._purge_labeled_table(t)
+                self._purge_idented_table(t)
+                self._purge_uuided_table(t)
                 self._registered_nonpersistent_tables.discard(t)
                 self._registered_persistent_tables.discard(t)
 
@@ -354,32 +392,39 @@ class TableContext(
                 return tag
         return None
 
-    def get_table(self, mode: Access, *args: object) -> Table | None:
+    def get_table(self, mode: Access, *args: Any) -> Table | None:
         from . import Table
 
-        if mode.has_associated_property:
-            if args:
+        md = args[0] if args else None
+        if mode in [Access.ByLabel, Access.ByDescription]:
+            if md:
                 if self.is_table_labels_indexed and (mode.associated_property == Property.Label):
-                    key = TableContext._make_table_label_key(str(args[0]))
-                    if key and key in self._table_label_map:
-                        return self._table_label_map[key]
-                    else:
-                        return None
-                return BaseElement._find(self.tables, mode.associated_property, args[0])  # type: ignore[return-value]
+                    key = TableContext._make_table_label_key(str(md))
+                    return self._table_label_map.get(key, None) if key else None
+                return BaseElement._find(self.tables, mode.associated_property, md)  # type: ignore[return-value]
             raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
         elif mode == Access.ByTags:
             if args and str in {type(t) for t in args}:
-                return BaseElement._find_tagged(self.tables, *[v for v in args if v and isinstance(v, str)])  # type: ignore[return-value]
+                return BaseElement._find_tagged(self.tables, *[v for v in args if
+                                                               v and isinstance(v, str)])  # type: ignore[return-value]
             raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {args}")
+        elif mode == Access.ByIdent:
+            ident = int(md) if md else None
+            return self._table_ident_map.get(ident, None) if ident else None
+        elif mode == Access.ByUUID:
+            if md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
+                raise InvalidException(self, f"Invalid Table {mode.name} value: {md}")
+            md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
+            return self._table_uuid_map.get(md, None)
         elif mode == Access.ByProperty:
-            pkey = cast(Property, args[0] if args and len(args) > 0 else None)
+            pkey = cast(Property, md)
             value = args[1] if args and len(args) > 1 else None
             if pkey:
                 return BaseElement._find(self.tables, pkey, value)  # type: ignore[return-value]
             raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {value}")
         elif mode == Access.ByReference:
             if args:
-                t = cast(BaseElement, args[0])
+                t = cast(Table, md)
                 if not t or not isinstance(t, Table) or t.element_type != ElementType.Table:
                     raise InvalidException(self.element_type, f"Invalid Table {mode.name} argument: {t}")
                 self.vet_element(t)

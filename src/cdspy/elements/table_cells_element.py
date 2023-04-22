@@ -128,17 +128,24 @@ class TableCellsElement(TableElement, ABC):
 
     @property
     def uuid(self) -> uuid.UUID:
+        from . import Table
         with self.lock:
             value = self.get_property(Property.UUID)
             if value is None:
                 value = uuid.uuid4()
                 self._initialize_property(Property.UUID, value)
                 if self.table:
-                    self.table._uuid_index[value] = self
+                    if isinstance(self, Table):
+                        if self.table_context:
+                            self.table_context._index_table_uuid(self, value)
+                    else:  # row, col, or group
+                        self.table._uuid_index[value] = self
             return cast(uuid.UUID, value)
 
     @uuid.setter
     def uuid(self, value: uuid.UUID | str) -> None:
+        from . import Table
+
         with self.lock:
             if self.get_property(Property.UUID):
                 # once a UUID is assigned, it can't be reset
@@ -149,7 +156,11 @@ class TableCellsElement(TableElement, ABC):
                 if isinstance(value, uuid.UUID):
                     self._initialize_property(Property.UUID, value)
                     if self.table:
-                        self.table._uuid_index[value] = self
+                        if isinstance(self, Table):
+                            if self.table_context:
+                                self.table_context._index_table_uuid(self, value)
+                        else:  # row, col, or group
+                            self.table._uuid_index[value] = self
                 else:
                     raise TypeError(f"{type(value).__name__} not a valid {self.element_type.name} UUID")
 

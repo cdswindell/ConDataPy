@@ -1229,4 +1229,4 @@ class Table(TableCellsElement):
                     if md.table != self:
                         raise InvalidParentException(self, md)
                     return md
-        raise UnsupportedException(self, "Cannot get Group from Table with these arguments")
+        raise InvalidAccessException(self, ElementType.Group, a1, False, args)
