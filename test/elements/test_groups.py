@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import gc
-
 import pytest
+import re
 
 from ..test_base import TestBase
 
-from cdspy.elements import Table, Group
+from cdspy.elements import Table, Group, Access, Property
 from cdspy.exceptions import InvalidParentException
 
 
@@ -804,3 +804,97 @@ class TestGroups(TestBase):
         assert not g2.is_superset(g1)
         assert not g2.is_disjoint(g1)
         assert not g1.is_disjoint(g2)
+
+    def test_group_similarity(self) -> None:
+        t = Table(200, 2)
+        r1 = t.add_row(1)
+        r200 = t.add_row(200)
+        c1 = t.add_column()
+        c2 = t.add_column()
+
+        # create disjoint groups, similarity == 0
+        g1 = t.add_group(c1)
+        g2 = t.add_group(c2)
+        assert g1.is_disjoint(g2)
+        assert g1.similarity(g2) == 0.0
+        assert g1.jaccard_index(g2) == 0.0
+
+        # create minimally overlapping groups
+        g1 = t.add_group(r1, r200, c1)
+        g2 = t.add_group(c1)
+        assert len(g1) == 2
+        assert len(g2) == 200
+        assert not g1.is_disjoint(g2)
+        assert g1.similarity(g2) == 2.0/200
+
+        # create overlapping groups
+        g1 = t.add_group(r1, r200, c1)
+        g2 = t.add_group(r1, r200)
+        assert len(g1) == 2
+        assert len(g2) == 4
+        assert not g1.is_disjoint(g2)
+        assert g1.similarity(g2) == 2.0/4.0
+
+    def test_get_group(self) -> None:
+        t1 = Table()
+        t1.is_group_labels_indexed = True
+
+        g1 = t1.add_group()
+        g1.label = 'abc'
+        g1.description = 'group 1'
+        g1.set_property('my-prop', 'my-value-1')
+        g1.tags = '123, 456'
+        assert len(g1.tags) == 2
+
+        g2 = t1.add_group()
+        g2.label = 'def'
+        g2.description = 'group 2'
+        g2.set_property('my-prop', 'my-value-2')
+        g2.tags = '456, 789'
+        assert len(g2.tags) == 2
+
+        assert g2 != g1
+        assert t1.get_group(ident=g1.ident) == g1
+        assert t1.get_group(label=g1.label) == g1
+        assert t1.get_group(description=g1.description) == g1
+        assert t1.get_group(uuid=g1.uuid) == g1
+        assert t1.get_group(tags=g1.tags) == g1
+        assert t1.get_group(tags='123') == g1
+        assert t1.get_group(Access.ByReference, g1) == g1
+        assert t1.get_group(Access.ByProperty, 'my-prop', 'my-value-1') == g1
+
+        assert t1.get_group(ident=g2.ident) == g2
+        assert t1.get_group(label=g2.label) == g2
+        assert t1.get_group(description=g2.description) == g2
+        assert t1.get_group(uuid=g2.get_property(Property.UUID)) is None
+        assert t1.get_group(tags=g2.tags) == g2
+        assert t1.get_group(tags='789') == g2
+        assert t1.get_group(Access.ByReference, g2) == g2
+        assert t1.get_group(Access.ByProperty, 'my-prop', 'my-value-2') == g2
+
+
+        t2 = Table()
+        g3 = t2.add_group()
+        g3.label = 'def'
+        g3.description = 'group 3'
+        g3.set_property('my-prop', 'my-value-1')
+        g3.tags = '123, 456'
+        assert len(g1.tags) == 2
+
+        g4 = t2.add_group()
+        g4.label = 'abc'
+        g4.description = 'group 4'
+        g4.set_property('my-prop', 'my-value-2')
+        g4.tags = '456, 789'
+        assert len(g2.tags) == 2
+
+        # cross table references return None or throw errors
+        assert t2.get_group(ident=g1.ident) is None
+        assert t2.get_group(label=g1.label) is g4
+        assert t2.get_group(uuid=g1.uuid) is None
+        assert t2.get_group(tags=g3.tags) == g3
+        assert t2.get_group(description=g1.description) is None
+        assert t2.get_group(Access.ByProperty, 'my-prop', 'my-value-2') == g4
+
+        with pytest.raises(InvalidParentException, match=re.escape("Not child's parent: [Table]->[Group: abc]")):
+            assert t2.get_group(Access.ByReference, g1) == g1

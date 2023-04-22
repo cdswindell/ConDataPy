@@ -307,6 +307,15 @@ class Group(TableCellsElement, Groupable):
     def symmetric_difference(self, g: Group) -> Group:
         return self.__xor__(g)
 
+    def jaccard_index(self, g: Group) -> float:
+        if not isinstance(g, Group):
+            raise TypeError(f"unsupported operand type for Group.jaccard_index: '{type(g)}'")
+        if g.table != self.table:
+            return 0.0
+        return self._index_bitmap.jaccard_index(g._index_bitmap)
+
+    similarity = jaccard_index
+
     def is_subset(self, o: Group) -> bool:
         if not isinstance(o, Group):
             raise TypeError(f"Argument 'o' has incorrect type; expected 'Group', got '{type(o).__name__}'")

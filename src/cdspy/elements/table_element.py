@@ -150,7 +150,6 @@ class TableElement(BaseElement, ABC):
     def tags(self, *tags: str) -> None:
         from . import Tag
 
-        print(f"{tags} {tags[0]} {type(tags)} {type(tags[0])} {self._normalize(tags)}")
         with self.lock:
             if tags:
                 new_tags = Tag.as_tags(self._normalize(tags), self.table_context)

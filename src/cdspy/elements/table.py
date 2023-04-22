@@ -85,6 +85,7 @@ class Table(TableCellsElement):
         "ident": Access.ByIdent,
         "tags": Access.ByTags,
         "uuid": Access.ByUUID,
+        "description": Access.ByDescription,
     }
 
     @classmethod
@@ -1195,7 +1196,9 @@ class Table(TableCellsElement):
                 target = self._ident_index.get(int(md), None)
                 return target if isinstance(target, Group) else None  # type: ignore
             if a1 == Access.ByUUID:
-                if md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
+                if md is None:
+                    return None
+                if not isinstance(md, str) and not isinstance(md, uuid.UUID):
                     raise InvalidException(self, f"Invalid Group {a1.name} value: {md}")
                 md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
                 return self._uuid_index.get(md, None)  # type: ignore
