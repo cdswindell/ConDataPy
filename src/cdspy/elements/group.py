@@ -84,9 +84,13 @@ class Group(TableCellsElement, Groupable):
         return cells
 
     def __init__(self, parent: Table, label: Optional[str] = None, *elems: TableElement) -> None:
+        from . import Table
         from . import Row
         from . import Column
         from . import Cell
+
+        if not isinstance(parent, Table):
+            raise TypeError("Table required as first argument")
 
         super().__init__(parent)
         self.label = label

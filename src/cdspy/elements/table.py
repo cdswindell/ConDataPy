@@ -11,7 +11,7 @@ import uuid
 
 from ..utils import ArrayList, JustInTimeSet
 from ..events import BlockedRequestException
-from ..exceptions import InvalidException
+from ..exceptions import InvalidException, InvalidParentException
 from ..exceptions import UnsupportedException
 from ..exceptions import InvalidAccessException
 
@@ -875,6 +875,30 @@ class Table(TableCellsElement):
             if is_adding or md is None or not isinstance(md, int):
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
             target = cast(TableSliceElement, self._ident_index.get(int(md), None))
+            return int(target.index) - 1 if target and target.element_type == et else -1
+        elif access in [Access.ByLabel, Access.ByDescription]:
+            if is_adding or md is None or not isinstance(md, str):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            if (
+                access == Access.ByLabel
+                and (et == ElementType.Row and self.is_row_labels_indexed)
+                or (et == ElementType.Column and self.is_column_labels_indexed)
+            ):
+                key = str(md).strip().lower()
+                target = self._element_label_indexes[et].get(key, None) if key else None  # type: ignore
+            else:
+                target = cast(TableSliceElement, self._find(slices, access.associated_property, str(md)))
+            return int(target.index) - 1 if target else -1
+        elif access == Access.ByUUID:
+            if is_adding or md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
+            target = cast(TableSliceElement, self._uuid_index.get(md, None))
+            return int(target.index) - 1 if target and target.element_type == et else -1
+        elif access == Access.ByTags:
+            if is_adding or not mda or any(not isinstance(item, str) for item in mda):
+                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {mda}")
+            target = cast(TableSliceElement, self._find_tagged(slices, *cast(Tuple[str], mda)))
             return int(target.index) - 1 if target else -1
         elif access == Access.First:
             return 0
@@ -919,31 +943,9 @@ class Table(TableCellsElement):
         elif access == Access.ByReference:
             if is_adding or md is None or not isinstance(md, TableSliceElement) or md.element_type != et:
                 raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
+            if md.table != self:
+                raise InvalidParentException(self, md)
             return int(md.index) - 1
-        elif access in [Access.ByLabel, Access.ByDescription]:
-            if is_adding or md is None or not isinstance(md, str):
-                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            if (
-                access == Access.ByLabel
-                and (et == ElementType.Row and self.is_row_labels_indexed)
-                or (et == ElementType.Column and self.is_column_labels_indexed)
-            ):
-                key = str(md).strip().lower()
-                target = self._element_label_indexes[et].get(key, None) if key else None  # type: ignore
-            else:
-                target = cast(TableSliceElement, self._find(slices, access.associated_property, str(md)))
-            return int(target.index) - 1 if target else -1
-        elif access == Access.ByUUID:
-            if is_adding or md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
-                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {md}")
-            md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
-            target = cast(TableSliceElement, self._uuid_index.get(md, None))
-            return int(target.index) - 1 if target else -1
-        elif access == Access.ByTags:
-            if is_adding or not mda or any(not isinstance(item, str) for item in mda):
-                raise InvalidException(self, f"Invalid {et.name} {access.name} value: {mda}")
-            target = cast(TableSliceElement, self._find_tagged(slices, *cast(Tuple[str], mda)))
-            return int(target.index) - 1 if target else -1
         elif access == Access.ByProperty:
             key: Property | str = md  # type: ignore[assignment]
             value = mda[1] if mda and len(mda) > 1 else None
@@ -1182,33 +1184,49 @@ class Table(TableCellsElement):
         else:
             raise InvalidException(self, f"Invalid sort target: {elem}")
 
-    def get_group(self, a1: Access | None = None, *args: Any, **kwargs: Any) -> Group:
-        return self._get_group(a1, *args, **kwargs)  # type: ignore[return-value]
+    def add_group(self, *elems: TableElement) -> Group:
+        from . import Group
+        return Group(self, None, *elems)
 
-    def _get_group(
-        self,
-        a1: int | Access | None = None,
-        *args: Any,
-        **kwargs: Any,
-    ) -> Group | None:
+    def get_group(self, a1: Access | None = None, *args: Any, **kwargs: Any) -> Group:
+        from . import Group
         # look for "quick access" tokens first, they are key=value pairs in kwargs
         if kwargs:
             a1, args = self.__parse_quick_action_args(a1, *args, **kwargs)
         if isinstance(a1, Access):
             md = args[0] if args else None
-            if a1 == Access.ByLabel:
-                pass
+            if a1 in [Access.ByLabel, Access.ByDescription]:
+                if md is None or not isinstance(md, str):
+                    raise InvalidException(self, f"Invalid Group {a1.name} value: {md}")
+                if a1 == Access.ByLabel and self.is_group_labels_indexed:
+                    key = str(md).strip().lower()
+                    return self._group_label_index.get(key, None) if key else None  # type: ignore
+                else:
+                    return cast(Group, self._find(list(self._groups), a1.associated_property, str(md)))
             if a1 == Access.ByIdent:
-                pass
+                if md is None or not isinstance(md, int):
+                    raise InvalidException(self, f"Invalid Group {a1.name} value: {md}")
+                target = self._ident_index.get(int(md), None)
+                return target if isinstance(target, Group) else None
             if a1 == Access.ByUUID:
-                pass
-            if a1 == Access.ByDescription:
-                pass
+                if md is None or (not isinstance(md, str) and not isinstance(md, uuid.UUID)):
+                    raise InvalidException(self, f"Invalid Group {a1.name} value: {md}")
+                md = md if isinstance(md, uuid.UUID) else uuid.UUID(str(md))  # type: ignore[unreachable]
+                target = self._uuid_index.get(md, None)
+                return target if target and isinstance(target, Group) else -1
             if a1 == Access.ByTags:
-                pass
+                if not args or any(not isinstance(item, str) for item in args):
+                    raise InvalidException(self, f"Invalid Group {a1.name} value: {args}")
+                return cast(Group, self._find_tagged(list(self._groups), *cast(Tuple[str], args)))
+            if a1 == Access.ByProperty:
+                key: Property | str = md  # type: ignore[assignment]
+                value = args[1] if args and len(args) > 1 else None
+                if key is None or value is None:
+                    raise InvalidException(self, f"Invalid Group {a1.name} key: {key}")
+                return cast(Group, self._find(list(self._groups), key, value))
             if a1 == Access.ByReference:
                 if isinstance(md, Group):
+                    if md.table != self:
+                        raise InvalidParentException(self, md)
                     return md
-            if a1 == Access.ByProperty:
-                pass
         raise UnsupportedException(self, "Cannot get Group from Table with these arguments")
