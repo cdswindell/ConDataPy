@@ -168,8 +168,10 @@ class TableCellsElement(TableElement, ABC):
     def vet_parent(self, *elems: TableCellsElement) -> None:
         if elems:
             for e in elems:
-                if e == self or not e:
+                if e == self:
                     continue
+                if e is None:
+                    raise ValueError("NoneType elements not valid")
                 with e.lock:
                     # make sure element is valid
                     self.vet_element()

@@ -43,10 +43,12 @@ src/cdspy/elements/__pycache__/table_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/table_slice_element.cpython-311.pyc
 src/cdspy/elements/__pycache__/tag.cpython-311.pyc
 src/cdspy/elements/filters/__init__.py
+src/cdspy/elements/filters/filtered_cell.py
 src/cdspy/elements/filters/filtered_column.py
 src/cdspy/elements/filters/filtered_row.py
 src/cdspy/elements/filters/filtered_table.py
 src/cdspy/elements/filters/__pycache__/__init__.cpython-311.pyc
+src/cdspy/elements/filters/__pycache__/filtered_cell.cpython-311.pyc
 src/cdspy/elements/filters/__pycache__/filtered_column.cpython-311.pyc
 src/cdspy/elements/filters/__pycache__/filtered_row.cpython-311.pyc
 src/cdspy/elements/filters/__pycache__/filtered_table.cpython-311.pyc

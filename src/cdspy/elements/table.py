@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from . import Column
     from . import Cell
     from . import Group
+    from .filters import FilteredTable
 
 # create thread local storage, but only once for the module
 _THREAD_LOCAL_TABLE_STORAGE = threading.local()
@@ -93,6 +94,7 @@ class Table(TableCellsElement):
         return cls._table_class_lock
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        from .filters import FilteredTable
         from . import Row
         from . import Column
         from . import Group
@@ -148,6 +150,8 @@ class Table(TableCellsElement):
             ElementType.Group: self._group_label_index,  # type: ignore[dict-item]
         }
 
+        self._filters = JustInTimeSet[FilteredTable]()
+
         self._groups = JustInTimeSet[Group]()
         self._persistent_groups: Set[Group] = set()
 
@@ -202,6 +206,12 @@ class Table(TableCellsElement):
 
         with self.lock:
             try:
+                # delete filters first
+                while self._filters:
+                    ft = self._filters.pop()
+                    ft.delete()
+
+                # explicitly delete columns and rows
                 for index in range(self.num_columns, 0, -1):
                     c = self._columns[index - 1]
                     if c is not None:
@@ -254,6 +264,12 @@ class Table(TableCellsElement):
     def _reset_cell_element_properties(self, cell: Cell) -> None:
         if cell:
             self._cell_properties.pop(cell, None)
+
+    def _register_filter(self, ft: FilteredTable) -> None:
+        self._filters.add(ft)
+
+    def _deregister_filter(self, ft: FilteredTable) -> None:
+        self._filters.discard(ft)
 
     def _get_cell_listeners(self, cell: Cell) -> List[TableEventListener]:
         return []
@@ -606,12 +622,14 @@ class Table(TableCellsElement):
         else:
             return None
 
-    def _get_cell(self, row: Row, col: Column, create_if_sparse: bool = True) -> Cell | None:
+    def _get_cell(
+        self, row: Row, col: Column, create_if_sparse: bool = True, set_to_current: bool = True
+    ) -> Cell | None:
         if (row is None) or (col is None):
             return None  # type: ignore[unreachable]
         self.vet_parent(row, col)
         with self.lock:
-            return col._get_cell(row, create_if_sparse=create_if_sparse, set_to_current=True)
+            return col._get_cell(row, create_if_sparse=create_if_sparse, set_to_current=set_to_current)
 
     def set_cell_value(self, row: Row, col: Column, o: Any) -> None:
         self.vet_elements(row, col)
@@ -622,6 +640,11 @@ class Table(TableCellsElement):
                     cell._post_result(o)
                 else:
                     cell.value = o
+
+    def _get_table_cell(self, t: Table, r: Row, c: Column, create_if_sparse: bool, set_current: bool) -> Cell:
+        self.vet_parent(r, c)
+        with self.lock:
+            return cast(Cell, c._get_cell(r, create_if_sparse, set_current))
 
     def _fire_cell_events(self, cell: Cell, evt: EventType, *args: Any) -> None:
         pass
@@ -1027,7 +1050,7 @@ class Table(TableCellsElement):
         # create a new row/column object and insert it into table
         with self.lock:
             raw_te: Row | Column = Row(self) if slice_type == ElementType.Row else Column(self)
-            te = self.__add_slice(raw_te, insert_mode, set_to_current, True, *mda)
+            te = self._insert_slice(raw_te, insert_mode, set_to_current, True, *mda)
             # do post_processing
             if te and mda:
                 if access == Access.ByLabel:
@@ -1044,7 +1067,7 @@ class Table(TableCellsElement):
                     g._mark_dirty()
             return te  # type: ignore[return-value]
 
-    def __add_slice(
+    def _insert_slice(
         self, te: Row | Column, access: Access, set_to_current: bool = True, fire_events: bool = True, *mda: object
     ) -> None | Row | Column:
         try:

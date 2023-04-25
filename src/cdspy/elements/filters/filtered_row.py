@@ -11,9 +11,9 @@ if TYPE_CHECKING:
 
 
 class FilteredRow(Row):
-    def __init__(self, parent_table: FilteredTable, parent_row: Row) -> None:
-        super().__init__(parent_table, parent_row)
-        self._parent = parent_row
+    def __init__(self, parent_table: FilteredTable, proxy: Row) -> None:
+        super().__init__(parent_table, proxy)
+        self._parent = proxy
 
     @property
     def parent(self) -> Row:
@@ -27,11 +27,11 @@ class FilteredRow(Row):
     def label(self, value: Optional[str]) -> None:
         raise UnsupportedException(self, "Can not set label of a filtered Row")
 
-    @property
+    @BaseElement.description.getter
     def description(self) -> str | None:
         return self.parent.description
 
-    @description.setter
+    @BaseElement.description.setter
     def description(self, value: Optional[str]) -> None:
         raise UnsupportedException(self, "Can not set description of a filtered Row")
 

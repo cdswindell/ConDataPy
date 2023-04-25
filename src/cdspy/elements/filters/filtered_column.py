@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING, Any
+from typing import Optional, TYPE_CHECKING, Any, cast
 
-from .. import BaseElement
+from .filtered_cell import FilteredCell
+from .. import BaseElement, Row, Cell
 from ...exceptions import UnsupportedException
 
 from ...elements import Column
 
 if TYPE_CHECKING:
-    from . import FilteredTable
+    from . import FilteredTable, FilteredRow
 
 
 class FilteredColumn(Column):
@@ -21,6 +22,14 @@ class FilteredColumn(Column):
     def parent(self) -> Column:
         return self._parent
 
+    def _get_cell(self, row: Row, create_if_sparse: bool = True, set_to_current: bool = True) -> Cell | None:
+        if isinstance(row, FilteredRow) and isinstance(self, FilteredColumn):
+            ftable = cast(FilteredTable, self.table)
+            parent_cell = ftable._get_parent_cell(ftable.parent, row.parent, self.parent, create_if_sparse, False)
+            return FilteredCell(row, self, parent_cell)
+        else:
+            return super()._get_cell(row, create_if_sparse, set_to_current)
+
     @BaseElement.label.getter
     def label(self) -> str:
         return self.parent.label
@@ -29,13 +38,21 @@ class FilteredColumn(Column):
     def label(self, value: Optional[str]) -> None:
         raise UnsupportedException(self, "Can not set label of a filtered Column")
 
-    @property
+    @BaseElement.description.getter
     def description(self) -> str | None:
         return self.parent.description
 
-    @description.setter
+    @BaseElement.description.setter
     def description(self, value: Optional[str]) -> None:
         raise UnsupportedException(self, "Can not set description of a filtered Column")
+
+    @Column.datatype.getter
+    def datatype(self) -> type | None:
+        return self.parent.datatype
+
+    @Column.datatype.setter
+    def datatype(self, datatype: type | None) -> None:
+        raise UnsupportedException(self, "Can not set the datatype of a filtered Column")
 
     def fill(self, o: Any, preprocess: Optional[bool] = True) -> None:
         raise UnsupportedException(self, "Can not fill a filtered Column")
