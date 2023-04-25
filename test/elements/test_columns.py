@@ -260,6 +260,68 @@ class TestColumns(TestBase):
         for idx in range(1, 17):
             assert t.get_cell_value(r1, t.get_column(idx)) == 64
 
+        r100 = t.add_row(100)
+        c1.fill("abcd")
+        c_cnt = 0
+        for cell in c1.cells:
+            assert cell
+            assert cell.value == "abcd"
+            c_cnt += 1
+        assert c_cnt == t.num_rows == 100
+
+        r223 = t.add_row(223)
+        t.fill(123)
+        c_cnt = 0
+        for cell in c1.cells:
+            assert cell
+            assert cell.value == 123
+            c_cnt += 1
+        assert c_cnt == t.num_rows == 223
+
+        # delete some random rows
+        t.delete(t.get_row(5), t.get_row(100), t.get_row(1), t.get_row(49))
+        c_cnt = 0
+        for cell in c1.cells:
+            assert cell
+            assert cell.value == 123
+            c_cnt += 1
+        assert c_cnt == t.num_rows == 223 - 4
+
+        # add the new rows back, they should be empty
+        t.add_row(1)
+        t.add_row(5)
+        t.add_row(49)
+        t.add_row(100)
+
+        for rx in [1, 5, 49, 100]:
+            cell = t.get_cell(t.get_row(rx), c1)
+            assert cell
+            assert cell.value is None
+
+        c_cnt = 0
+        for cell in c1.cells:
+            assert cell
+            assert cell.row
+            assert cell.row.index
+            if cell.row.index not in [1, 5, 49, 100]:
+                assert cell.value == 123
+                c_cnt += 1
+        assert c_cnt == t.num_rows - 4 == 223 - 4
+
+        t.fill(100)
+        for cell in c1._cells._list[0 : t.num_rows]:
+            assert cell
+            assert cell.value == 100
+
+        c1.fill(200)
+        for cell in c1._cells._list[0 : t.num_rows]:
+            assert cell
+            assert cell.value == 200
+
+        assert c1.num_cells == t.num_rows == c1._num_cells
+        assert len(c1._cells._list) % t.column_capacity_incr == 0
+        assert c1.capacity % t.column_capacity_incr == 0
+
     def test_column_iterable(self) -> None:
         t = Table(10, 10)
         assert t

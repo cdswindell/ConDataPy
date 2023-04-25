@@ -643,6 +643,7 @@ class Table(TableCellsElement):
 
     def _get_table_cell(self, t: Table, r: Row, c: Column, create_if_sparse: bool, set_current: bool) -> Cell:
         from . import Cell
+
         t.vet_parent(r, c)
         with self.lock:
             return cast(Cell, c._get_cell(r, create_if_sparse, set_current))

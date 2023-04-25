@@ -196,7 +196,12 @@ class Column(TableSliceElement):
         return ElementType.Row
 
     @property
-    def _cells_capacity(self) -> int:
+    def capacity(self) -> int:
+        """
+        Return the number of cells this column can contain without
+        allocating additional memory
+        :return:
+        """
         return self.__cells.capacity
 
     @property

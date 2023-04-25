@@ -36,6 +36,7 @@ class FilteredCell(Cell):
     @property
     def table(self) -> Table:
         from .. import Table
+
         return cast(Table, self._col.table if self._col else None)
 
     @property

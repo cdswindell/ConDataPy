@@ -67,5 +67,5 @@ class FilteredTable(Table):
                 row.parent if isinstance(row, FilteredRow) else row,
                 col.parent if isinstance(col, FilteredColumn) else col,
                 create_if_sparse,
-                set_to_current
+                set_to_current,
             )
