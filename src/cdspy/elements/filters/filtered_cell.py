@@ -8,7 +8,8 @@ from ...exceptions import UnsupportedException, ReadOnlyException
 from ...elements import Cell
 
 if TYPE_CHECKING:
-    from . import FilteredRow, FilteredColumn, FilteredTable
+    from .. import Table
+    from . import FilteredRow, FilteredColumn
 
 
 class FilteredCell(Cell):
@@ -33,14 +34,15 @@ class FilteredCell(Cell):
         return self._col
 
     @property
-    def table(self) -> FilteredTable:
-        return cast(FilteredTable, self._col.table if self._col else None)
+    def table(self) -> Table:
+        from .. import Table
+        return cast(Table, self._col.table if self._col else None)
 
-    @Cell.value.getter
+    @property
     def value(self) -> Any:
         return self._parent.value
 
-    @Cell.value.setter
+    @value.setter
     def value(self, value: Any) -> None:
         raise ReadOnlyException(self, Property.CellValue)
 

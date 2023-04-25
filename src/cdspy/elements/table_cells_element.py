@@ -59,7 +59,10 @@ class TableCellsElement(TableElement, ABC):
         self.fire_events(self, EventType.OnBeforeDelete)
 
         # clear label; this resets dependent indices
-        self.label = None
+        try:
+            self.label = None
+        finally:
+            pass
 
     def _invalidate(self) -> None:
         super()._invalidate()

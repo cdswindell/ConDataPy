@@ -24,9 +24,14 @@ class FilteredTable(Table):
         self.parent._register_filter(self)
 
         # add the columns and rows defined in the scope
+
+        if scope.num_columns != scope._num_effective_columns:
+            parent._ensure_columns_exist()
         for col in scope._effective_columns:
             fc = FilteredColumn(self, col)
             self._insert_slice(fc, Access.Next, False, False)
+        if scope.num_rows != scope._num_effective_rows:
+            parent._ensure_rows_exist()
         for row in scope._effective_rows:
             fr = FilteredRow(self, row)
             self._insert_slice(fr, Access.Next, False, False)
@@ -55,7 +60,12 @@ class FilteredTable(Table):
         from . import FilteredColumn, FilteredRow, FilteredCell
 
         if isinstance(row, FilteredRow) and isinstance(col, FilteredColumn):
-            parent_cell = super()._get_table_cell(self.parent, row.parent, col.parent, create_if_sparse, False)
+            parent_cell = self._get_table_cell(self.parent, row.parent, col.parent, create_if_sparse, False)
             return FilteredCell(row, col, parent_cell)
         else:
-            return super()._get_cell(row, col, create_if_sparse, set_to_current)
+            return self.parent._get_cell(
+                row.parent if isinstance(row, FilteredRow) else row,
+                col.parent if isinstance(col, FilteredColumn) else col,
+                create_if_sparse,
+                set_to_current
+            )
