@@ -152,7 +152,7 @@ class TestCellValidation(TestBase):
         c_r1_c2.value = "abc"
         assert c_r1_c2.value == "abc"
 
-    def test_lamda_transformer(self) -> None:
+    def test_lambda_transformer(self) -> None:
         t = Table()
         r1 = t.add_row()
         r2 = t.add_row()
