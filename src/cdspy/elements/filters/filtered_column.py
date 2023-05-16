@@ -23,6 +23,8 @@ class FilteredColumn(Column):
         return self._parent
 
     def _get_cell(self, row: Row, create_if_sparse: bool = True, set_to_current: bool = True) -> Cell | None:
+        from . import FilteredRow, FilteredTable
+
         if isinstance(row, FilteredRow):
             ftable = cast(FilteredTable, self.table)
             parent_cell = ftable._get_parent_cell(ftable.parent, row.parent, self.parent, create_if_sparse, False)

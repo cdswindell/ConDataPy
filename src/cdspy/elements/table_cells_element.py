@@ -9,7 +9,7 @@ from weakref import ref
 
 from ordered_set import OrderedSet
 
-from ..exceptions import InvalidParentException
+from ..exceptions import InvalidParentException, UnsupportedException
 
 from . import ElementType, Property, EventType
 from . import TableElement
@@ -61,6 +61,8 @@ class TableCellsElement(TableElement, ABC):
         # clear label; this resets dependent indices
         try:
             self.label = None
+        except UnsupportedException:
+            pass
         finally:
             pass
 

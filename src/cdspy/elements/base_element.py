@@ -28,8 +28,8 @@ class BaseElement(ABC):
     BaseElement is the base class for all CDS elements, including Rows, Columns, Cells, and Tables
     """
 
-    @classmethod
-    def vet_base_element(cls, be: Optional[BaseElement]) -> None:
+    @staticmethod
+    def vet_base_element(be: Optional[BaseElement]) -> None:
         if be and be.is_invalid:
             raise DeletedElementException(be.element_type)
 

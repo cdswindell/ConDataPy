@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterator
 from weakref import WeakValueDictionary, WeakKeyDictionary, ref
 import threading
 
@@ -76,6 +77,50 @@ class _CellReference:
         if col:
             col.vet_parent(col)
         self._col = col
+
+
+class _TableCellIterator:
+    def __init__(self, t: Table) -> None:
+        BaseElement.vet_base_element(t)
+        self._r_index = self._c_index = 0
+        self._table_ref = ref(t) if t else None
+        self._num_rows = self.table.num_rows if self.table else 0
+        self._num_columns = self.table.num_columns if self.table else 0
+
+    @property
+    def table(self) -> Table:
+        return self._table_ref() if self._table_ref else None  # type: ignore[return-value]
+
+    def __iter__(self) -> Iterator[Cell]:
+        self._r_index = self._c_index = 0
+
+        self.table._ensure_rows_exist()
+        self._rows = self.table.rows if self.table else []
+        self._num_rows = len(self._rows)
+
+        self.table._ensure_columns_exist()
+        self._columns = self.table.columns if self.table else []
+        self._num_columns = len(self._columns)
+        return self
+
+    @property
+    def has_next(self) -> bool:
+        BaseElement.vet_base_element(self.table)
+        return self._r_index < self._num_rows and self._c_index < self._num_columns
+
+    def __next__(self) -> Cell:
+        if not self.has_next:
+            raise StopIteration
+        col = self._columns[self._c_index]  # type: ignore[index]
+        row = self._rows[self._r_index]  # type: ignore[index]
+        cell = col._get_cell(row, True, False)
+        # increment pointers for next iteration
+        self._r_index += 1
+        if self._r_index >= self._num_rows:
+            self._r_index = 0
+            self._c_index += 1
+        # return the next cell
+        return cell  # type: ignore[no-any-return]
 
 
 class Table(TableCellsElement):
@@ -744,6 +789,10 @@ class Table(TableCellsElement):
 
     def clear(self) -> None:
         self.fill(None)
+
+    @property
+    def cells(self) -> Iterator[Cell]:
+        return _TableCellIterator(self)
 
     @property
     def is_write_protected(self) -> bool:
